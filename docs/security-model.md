@@ -14,6 +14,14 @@ The initial default is `observe`, which reports findings without blocking. After
 
 Policy files ending in `.yml` intentionally use JSON syntax, which is valid YAML. The initial Python implementation can therefore parse them with the standard library while remaining consumable by YAML tooling. Malformed policy or scanner input exits `3`; it is not converted into a finding or pass.
 
+## Standard coverage and baseline
+
+Standard adds a machine-readable `coverage.json`. Each configured component reports `ran`, `not_applicable`, `not_configured`, or `tool_error` with a scope and reason. `not_applicable` means deterministic repository evidence did not justify the scanner. `not_configured` means an optional capability, such as a prebuilt image digest, was not supplied or was disallowed on the current event. Neither state means the repository is secure.
+
+Minimal findings are compared with `policy/baseline.json`; Standard findings are compared with `policy/standard-baseline.json`. The profile marker is validated before policy evaluation so a baseline cannot silently cross profiles. Both profiles use the shared suppression file and require the same owner, reason, fingerprint, and expiration controls.
+
+Standard normalizers accept only bounded, expected JSON or text shapes for Opengrep, OSV-Scanner, Checkov, Trivy image, Gitleaks, Trivy filesystem, and actionlint. Source snippets, discovered secret material, and arbitrary scanner metadata are omitted. A scanner process failure is a `tool_error` and exit `2`; structurally malformed output is invalid input and exit `3`; a policy violation is exit `1`; a completed non-violating run is exit `0`.
+
 SARIF upload is not required by the core profile and is not implemented in this phase. Future optional upload must use a separately scoped job, remain useful when unavailable, and never replace retained local JSON and Markdown reports.
 
 ## Imported skill validation

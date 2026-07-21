@@ -22,3 +22,23 @@ Keep `observe` mode, review the reports, remediate urgent issues, and baseline a
 ## actionlint reports the template expression syntax
 
 Run the official actionlint binary against the exact workflow. YAML parsers alone do not understand GitHub expression semantics.
+
+## Standard reports not applicable or not configured
+
+Read `results/coverage.json` and `results/inventory.json`. `not_applicable` means supported repository evidence was not detected. `not_configured` means an optional input was absent or disallowed by the event. Neither is a pass. If detection missed a real artifact, add a harmless fixture and improve deterministic detection rather than forcing every scanner to run.
+
+## OSV offline mode fails before scanning
+
+Offline mode requires a database provisioned outside VibeSec and `VIBESEC_OSV_DATABASE_DATE=YYYY-MM-DD`. VibeSec does not download or refresh that database because doing so would make offline behavior misleading. Online mode may send package identifiers and versions to OSV.dev and deps.dev.
+
+## Checkov cannot start
+
+Confirm Docker is available and can pull the configured immutable digest. VibeSec does not fall back to a mutable tag or a network-enabled invocation. No IaC means Checkov should be `not_applicable`, not an error.
+
+## SBOM validation fails
+
+Both `results/sbom.cyclonedx.json` and `results/sbom.spdx.json` must be valid, structurally identified, and contain packages/components. Empty or malformed output is not accepted as successful SBOM coverage. Syft does not enrich packages or check for updates.
+
+## Prebuilt image scan is skipped
+
+Image scanning runs only outside `pull_request` and only when `VIBESEC_IMAGE_REFERENCE` matches `registry/name@sha256:<64 lowercase hex characters>`. VibeSec never builds the Dockerfile and the starter workflow never injects registry credentials.

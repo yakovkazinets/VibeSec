@@ -20,7 +20,20 @@ The initial profile uses:
 - Gitleaks for dedicated secret detection.
 - actionlint for GitHub Actions syntax and expression checks.
 
-It does not build or execute application code. Standard and Advanced features—including SAST, OSV-Scanner, Checkov, DAST, fuzzing, signing, provenance, and Scorecard—are planned but not implemented.
+It does not build or execute application code. Advanced features—including DAST, fuzzing, provenance, and Scorecard—are not implemented.
+
+## Standard profile
+
+The opt-in Standard profile preserves the Minimal controls and adds:
+
+- VibeSec-owned Opengrep rules for JavaScript/TypeScript, Python, Java, and Go SAST.
+- OSV-Scanner v2 as the primary source-dependency advisory scanner.
+- Syft filesystem SBOMs in CycloneDX JSON and SPDX JSON.
+- Checkov only when supported infrastructure-as-code is detected.
+- Optional Trivy scanning of an already-built image, only on trusted events and only by immutable digest.
+- A deterministic repository inventory and coverage report that distinguishes `ran`, `not_applicable`, `not_configured`, and `tool_error`.
+
+The profile never installs project dependencies, runs lifecycle scripts, builds the application, builds a Dockerfile, applies infrastructure, or uploads source to a commercial service. Trivy is limited to secrets and configuration in this profile so OSV-Scanner remains the primary source-dependency scanner. See [tool selection](docs/tool-selection.md) for overlap and network behavior.
 
 ## Use the starter workflow
 
@@ -36,12 +49,18 @@ Start with `VIBESEC_ENFORCEMENT: observe`. Review historical findings, record re
 
 Pull requests, pushes to `main`, weekly schedules, and manual runs use the same minimal scan. Fork pull requests receive no secrets. Reports remain useful without GitHub Advanced Security and are retained as JSON and Markdown artifacts.
 
+For Standard, copy `templates/github-actions/security-standard.yml` instead and keep the accompanying `scripts/`, `config/`, `policy/`, and `rules/` directories. Standard uses `policy/standard-baseline.json`; Minimal continues to use `policy/baseline.json`. Start in observation mode. Do not treat the two baselines as interchangeable.
+
+OSV-Scanner defaults to online advisory lookup, which can send package identifiers and versions to OSV.dev and deps.dev. Offline mode requires a separately provisioned offline database plus `VIBESEC_OSV_DATABASE_DATE=YYYY-MM-DD`; VibeSec records that declared date but does not silently download or refresh the database. Checkov runs with network disabled. Syft update checks and enrichment are disabled. Raw scanner outputs are not uploaded.
+
 ## Develop
 
 ```shell
 python3 -m unittest discover -s tests -v
 scripts/install_tools.sh . .tools/bin
 VIBESEC_ENFORCEMENT=observe scripts/run_minimal_profile.sh . results
+scripts/install_standard_tools.sh . .tools/bin
+VIBESEC_ENFORCEMENT=observe python3 scripts/run_standard_profile.py . results
 ```
 
 Read [the architecture](docs/architecture.md), [threat model](docs/threat-model.md), and [contribution guide](CONTRIBUTING.md) before changing security-sensitive behavior.

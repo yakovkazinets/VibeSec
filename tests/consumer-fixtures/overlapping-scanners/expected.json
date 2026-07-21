@@ -1,0 +1,1 @@
+{"workflows":[".github/workflows/semgrep.yml"],"overlap":["semgrep"],"purpose":"initializer warns instead of silently duplicating SAST"}

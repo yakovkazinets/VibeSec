@@ -53,6 +53,12 @@ def evaluate(
         raise ConfigurationError(f"invalid minimum severity: {minimum_severity}")
     if enforcement not in ("observe", "new", "all"):
         raise ConfigurationError(f"invalid enforcement mode: {enforcement}")
+    for item in results:
+        if not isinstance(item, dict) or item.get("result_type") not in ("finding", "tool_error", "pass"):
+            raise ConfigurationError("each result must be an object with a valid result_type")
+        required = ("tool", "category", "rule_id", "description", "confidence", "fingerprint")
+        if any(field not in item for field in required):
+            raise ConfigurationError("result is missing a required shared-model field")
     tool_errors = [item for item in results if item.get("result_type") == "tool_error"]
     findings = [item for item in results if item.get("result_type") == "finding"]
     for item in findings:

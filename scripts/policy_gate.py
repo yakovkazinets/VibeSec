@@ -5,10 +5,17 @@ import argparse
 from datetime import date
 import json
 from pathlib import Path
+import re
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.policy import ConfigurationError, active_suppressions, evaluate, load_json_yaml  # noqa: E402
+
+
+def safe_markdown_cell(value: object, limit: int = 240) -> str:
+    text = re.sub(r"[\x00-\x1f\x7f]", " ", str(value or ""))
+    text = " ".join(text.split())[:limit]
+    return text.replace("|", "\\|").replace("<", "&lt;").replace(">", "&gt;").replace("`", "'")
 
 
 def write_markdown(path: Path, evaluation: dict, expired: list[str]) -> None:
@@ -22,6 +29,21 @@ def write_markdown(path: Path, evaluation: dict, expired: list[str]) -> None:
         "",
         "A pass means only that configured scanners completed without a policy violation. It is not a security guarantee.",
     ]
+    if evaluation["findings"]:
+        lines += ["", "## Findings", "", "| Tool | Severity | Rule | Location | Confidence | Description |", "|---|---|---|---|---|---|"]
+        for item in evaluation["findings"]:
+            location = f"{item.get('file', '')}:{item.get('line') or ''}".rstrip(":")
+            lines.append("| " + " | ".join(safe_markdown_cell(value) for value in (
+                item.get("tool"), item.get("severity"), item.get("rule_id"), location,
+                item.get("confidence"), item.get("description"),
+            )) + " |")
+    if evaluation["tool_errors"]:
+        lines += ["", "## Tool errors", ""]
+        for item in evaluation["tool_errors"]:
+            lines.append(f"- **{safe_markdown_cell(item.get('tool'))}:** {safe_markdown_cell(item.get('description'))}")
+    if expired:
+        lines += ["", "## Expired suppressions", ""]
+        lines.extend(f"- `{safe_markdown_cell(fingerprint, 64)}`" for fingerprint in expired)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

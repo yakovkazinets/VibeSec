@@ -5,7 +5,11 @@ from scripts.vibesec.policy import ConfigurationError, active_suppressions, eval
 
 
 def finding(fingerprint="new", severity="high", result_type="finding"):
-    return {"fingerprint": fingerprint, "severity": severity, "result_type": result_type}
+    return {
+        "tool": "test", "category": "test", "rule_id": "TEST-1", "severity": severity,
+        "file": "fixture.txt", "line": 1, "description": "Harmless test result",
+        "confidence": "confirmed", "fingerprint": fingerprint, "result_type": result_type,
+    }
 
 
 class PolicyTests(unittest.TestCase):
@@ -29,6 +33,10 @@ class PolicyTests(unittest.TestCase):
     def test_suppression_requires_audit_fields(self):
         with self.assertRaises(ConfigurationError):
             active_suppressions({"suppressions": [{"finding_fingerprint": "x"}]}, date(2026, 7, 20))
+
+    def test_invalid_result_type_is_rejected(self):
+        with self.assertRaises(ConfigurationError):
+            evaluate([{"result_type": "clean"}], minimum_severity="high", enforcement="observe", baseline=set(), suppressions=set(), today=date(2026, 7, 20))
 
 
 if __name__ == "__main__":

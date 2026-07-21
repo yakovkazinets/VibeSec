@@ -7,6 +7,7 @@ import textwrap
 import unittest
 import zipfile
 from datetime import date
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -106,7 +107,11 @@ print(json.dumps({"results":{"failed_checks":[]}}))
         path.chmod(0o755)
 
     def run_profile(self, **overrides: str) -> subprocess.CompletedProcess[str]:
-        environment = os.environ.copy()
+        environment = {
+            key: value for key, value in os.environ.items()
+            if key not in {"GITHUB_ACTIONS", "GITHUB_EVENT_NAME"}
+            and not key.startswith(("VIBESEC_", "FAKE_"))
+        }
         environment.update({"PATH": f"{self.tools}:{environment['PATH']}", "VIBESEC_EXPECTED_ROOT": str(ROOT), **overrides})
         return subprocess.run(
             ["python3", "scripts/run_standard_profile.py", str(self.target), str(self.results), "--vibesec-root", str(ROOT), "--tool-dir", str(self.tools)],
@@ -213,6 +218,30 @@ print(json.dumps({"results":{"failed_checks":[]}}))
         self.assertEqual(entry["state"], "not_configured")
         self.assertIn("untrusted", entry["reason"])
 
+    def test_ambient_github_event_does_not_change_local_test_behavior(self):
+        with patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "pull_request"}):
+            completed = self.run_profile()
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        entry = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "trivy-image")
+        self.assertEqual(entry["state"], "not_applicable")
+        self.assertEqual(entry["relevant_artifacts"], [])
+
+    def test_ambient_image_reference_does_not_enable_image_scan(self):
+        reference = "registry.example/image@sha256:" + "c" * 64
+        with patch.dict(os.environ, {"VIBESEC_IMAGE_REFERENCE": reference}):
+            completed = self.run_profile()
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        entry = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "trivy-image")
+        self.assertEqual(entry["state"], "not_applicable")
+        self.assertEqual(entry["relevant_artifacts"], [])
+
+    def test_ambient_network_mode_does_not_switch_to_offline(self):
+        with patch.dict(os.environ, {"VIBESEC_NETWORK_MODE": "offline"}):
+            completed = self.run_profile()
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        entry = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "osv-scanner")
+        self.assertEqual(entry["network_access"], "advisory_queries")
+
     def test_dockerfile_without_image_is_an_explicit_coverage_gap(self):
         (self.target / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
         completed = self.run_profile()
@@ -239,6 +268,8 @@ print(json.dumps({"results":{"failed_checks":[]}}))
         states = {item["tool"]: item["state"] for item in self.load_json("coverage.json")["tools"]}
         for tool in ("opengrep", "osv-scanner", "syft", "checkov", "actionlint", "trivy-image"):
             self.assertEqual(states[tool], "not_applicable")
+        image = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "trivy-image")
+        self.assertEqual(image["relevant_artifacts"], [])
 
 
 if __name__ == "__main__":

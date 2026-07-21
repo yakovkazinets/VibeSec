@@ -79,6 +79,25 @@ class WorkflowSecurityTests(unittest.TestCase):
         self.assertIn("pip install --disable-pip-version-check --requirement requirements.txt", text)
         self.assertIn("python3 scripts/validate_skill.py skills/appsec-guardian", text)
 
+    def test_ci_skips_security_upload_after_early_failure(self):
+        text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("if: always() && steps.security.outcome != 'skipped'", text)
+
+    def test_ci_uploads_reports_after_scanner_failure(self):
+        text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("continue-on-error: true", text)
+        self.assertIn("steps.security.outcome != 'skipped'", text)
+
+    def test_ci_fails_when_completed_scan_has_no_reports(self):
+        text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("if-no-files-found: error", text)
+
+    def test_ci_uploads_reports_after_successful_scan(self):
+        text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("results/normalized.json", text)
+        self.assertIn("results/report.md", text)
+        self.assertNotIn("if: success()", text)
+
 
 if __name__ == "__main__":
     unittest.main()

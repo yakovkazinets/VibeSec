@@ -55,7 +55,7 @@ jobs:
           VIBESEC_MIN_SEVERITY: high
         run: scripts/run_minimal_profile.sh . results
       - name: Upload security results
-        if: always()
+        if: always() && steps.security.outcome != 'skipped'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, verified 2026-07-21
         with:
           name: vibesec-results-${{ github.run_id }}

@@ -51,7 +51,9 @@ Pull requests, pushes to `main`, weekly schedules, and manual runs use the same 
 
 For Standard, copy `templates/github-actions/security-standard.yml` instead and keep the accompanying `scripts/`, `config/`, `policy/`, and `rules/` directories. Standard uses `policy/standard-baseline.json`; Minimal continues to use `policy/baseline.json`. Start in observation mode. Do not treat the two baselines as interchangeable.
 
-OSV-Scanner defaults to online advisory lookup, which can send package identifiers and versions to OSV.dev and deps.dev. Offline mode requires a separately provisioned offline database plus `VIBESEC_OSV_DATABASE_DATE=YYYY-MM-DD`; VibeSec records that declared date but does not silently download or refresh the database. Checkov runs with network disabled. Syft update checks and enrichment are disabled. Raw scanner outputs are not uploaded.
+On pull requests, the Standard starter materializes `scripts/`, `config/`, `policy/`, and `rules/` from the pull request's base commit into the runner temporary directory. The checked-out pull-request tree is only the scan target; its VibeSec scripts, scanner configuration, ignore files, and policy cannot replace the trusted harness. VibeSec's own development CI deliberately tests the changed implementation, but remains read-only and receives no secrets.
+
+OSV-Scanner defaults to online advisory lookup, which can send package names, versions, ecosystems, and file hashes to OSV.dev or deps.dev. Offline mode requires `VIBESEC_OSV_DATABASE_DIR`, `VIBESEC_OSV_DATABASE_DATE=YYYY-MM-DD`, and an optional `VIBESEC_OSV_MAX_DATABASE_AGE_DAYS` (default `7`). VibeSec validates the caller-provisioned `<ecosystem>/all.zip` files and their declared age but never downloads or refreshes them. Checkov runs with network disabled. Syft update checks, enrichment, and remote metadata lookup are disabled. Raw scanner outputs are not uploaded. SBOM artifacts can disclose internal package names and versions; the starter retains them separately for 14 days.
 
 ## Develop
 

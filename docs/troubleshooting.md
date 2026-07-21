@@ -29,7 +29,7 @@ Read `results/coverage.json` and `results/inventory.json`. `not_applicable` mean
 
 ## OSV offline mode fails before scanning
 
-Offline mode requires a database provisioned outside VibeSec and `VIBESEC_OSV_DATABASE_DATE=YYYY-MM-DD`. VibeSec does not download or refresh that database because doing so would make offline behavior misleading. Online mode may send package identifiers and versions to OSV.dev and deps.dev.
+Offline mode requires a database provisioned outside VibeSec, `VIBESEC_OSV_DATABASE_DIR=/path/to/database`, and `VIBESEC_OSV_DATABASE_DATE=YYYY-MM-DD`. Each ecosystem must contain a valid, nonempty `all.zip` with advisory JSON. The declared age must not exceed `VIBESEC_OSV_MAX_DATABASE_AGE_DAYS` (default `7`). VibeSec does not download or refresh that database because doing so would make offline behavior misleading. Online mode may send package names, versions, ecosystems, and file hashes to OSV.dev or deps.dev.
 
 ## Checkov cannot start
 
@@ -37,7 +37,7 @@ Confirm Docker is available and can pull the configured immutable digest. VibeSe
 
 ## SBOM validation fails
 
-Both `results/sbom.cyclonedx.json` and `results/sbom.spdx.json` must be valid, structurally identified, and contain packages/components. Empty or malformed output is not accepted as successful SBOM coverage. Syft does not enrich packages or check for updates.
+Both SBOM files must be valid, structurally identified, and contain packages/components. Empty, partial, or malformed output is not accepted as successful SBOM coverage. The starter stores the validated pair in a separate 14-day artifact because it can reveal internal package names and versions. Syft does not enrich packages, perform language metadata lookups, or check for updates.
 
 ## Prebuilt image scan is skipped
 

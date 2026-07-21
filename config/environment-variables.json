@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "variables": [
+    {"name":"VIBESEC_ENFORCEMENT","profiles":["minimal","standard"],"type":"enum","default":"observe","accepted":["observe","new","all"],"event_restriction":"none","security_effect":"controls which unsuppressed findings violate policy","privacy_effect":"none","failure":"unsupported value exits 3","sensitive":false,"example":"new"},
+    {"name":"VIBESEC_MIN_SEVERITY","profiles":["minimal","standard"],"type":"enum","default":"high","accepted":["low","medium","high","critical"],"event_restriction":"none","security_effect":"sets the minimum severity eligible for enforcement","privacy_effect":"none","failure":"unsupported value exits 3","sensitive":false,"example":"high"},
+    {"name":"VIBESEC_TOOL_DIR","profiles":["minimal"],"type":"path","default":"<target>/.tools/bin","accepted":["existing executable-tool directory"],"event_restriction":"must come from trusted workflow configuration","security_effect":"selects scanner executables","privacy_effect":"none","failure":"missing tools become tool errors","sensitive":false,"example":"/opt/vibesec-tools"},
+    {"name":"VIBESEC_NETWORK_MODE","profiles":["standard"],"type":"enum","default":"online","accepted":["online","offline"],"event_restriction":"none","security_effect":"selects OSV advisory source","privacy_effect":"online may send package metadata and file hashes; offline uses caller-provisioned data","failure":"unsupported or incomplete offline configuration exits 3","sensitive":false,"example":"offline"},
+    {"name":"VIBESEC_OSV_DATABASE_DIR","profiles":["standard"],"type":"path","default":"none","accepted":["existing local OSV database root"],"event_restriction":"required only in offline mode","security_effect":"supplies offline advisories","privacy_effect":"path remains local","failure":"missing, malformed, or unsafe database exits 3","sensitive":false,"example":"/srv/osv-db"},
+    {"name":"VIBESEC_OSV_DATABASE_DATE","profiles":["standard"],"type":"date","default":"none","accepted":["YYYY-MM-DD"],"event_restriction":"required only in offline mode","security_effect":"declares database freshness for fail-closed validation","privacy_effect":"none","failure":"missing, future, invalid, or stale date exits 3","sensitive":false,"example":"2026-07-21"},
+    {"name":"VIBESEC_OSV_MAX_DATABASE_AGE_DAYS","profiles":["standard"],"type":"integer","default":"7","accepted":["non-negative integer"],"event_restriction":"used only in offline mode","security_effect":"limits accepted declared database age","privacy_effect":"none","failure":"invalid or exceeded age exits 3","sensitive":false,"example":"7"},
+    {"name":"VIBESEC_IMAGE_REFERENCE","profiles":["standard"],"type":"string","default":"empty","accepted":["registry/name@sha256:<64 lowercase hex>"],"event_restriction":"disabled on pull_request and unknown GitHub events; trusted events only","security_effect":"enables scanning of an existing immutable image without building it","privacy_effect":"scanner may contact the named registry on a trusted event","failure":"tag-only or malformed references exit 3","sensitive":false,"example":"registry.example/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+  ],
+  "workflow_internal": [
+    {"name":"VIBESEC_ROOT","profile":"standard","purpose":"trusted base-revision harness directory"},
+    {"name":"VIBESEC_RESULTS","profile":"standard","purpose":"runner-temporary report directory"},
+    {"name":"VIBESEC_TOOLS","profile":"standard","purpose":"verified executable directory"}
+  ]
+}

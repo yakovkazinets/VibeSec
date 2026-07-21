@@ -24,6 +24,12 @@ Standard normalizers accept only bounded, expected JSON or text shapes for Openg
 
 SARIF upload is not required by the core profile and is not implemented in this phase. Future optional upload must use a separately scoped job, remain useful when unavailable, and never replace retained local JSON and Markdown reports.
 
+## Consumer adoption state
+
+The initializer treats its target and every existing path as untrusted. Dry run is the default; `--write` is explicit. A preflight conflict, case/Unicode-equivalent name, symlinked root/parent, missing source file, or partial Standard prerequisite prevents all writes. New files are staged, fsynced, linked into place without overwrite, and rolled back by verified device/inode identity after failure. The helper performs no network access, Git operation, package installation, scanner invocation, or application execution.
+
+Minimal produces one installation manifest and uses the Minimal baseline. Standard produces separate support/workflow manifests and refuses its workflow stage until support files exist. This records adoption state without granting target content authority. Preflight is read-only and distinguishes missing installation files, unsupported local architecture, incomplete bootstrap, invalid image input, and incomplete offline OSV configuration from scanner findings.
+
 ## Imported skill validation
 
 Imported skills and referenced files are untrusted data before and after structural validation. Validation emits either `valid` with a canonical SHA-256 fingerprint or `validation_error` with exit code `3`. A parser error, ambiguity, unsafe path, or malformed input can never produce `valid`, a security finding, or a clean result.

@@ -6,6 +6,31 @@ All notable changes will be documented here. The project follows semantic versio
 
 ### Added
 
+- Five-minute Quick Start, profile-selection guide, compatibility matrix, complete environment-variable reference, upgrade guide, and sanitized sample reports.
+- Dry-run-first consumer initializer with conflict refusal, atomic creation, staged Standard bootstrap, installation manifests, and read-only preflight diagnostics.
+- Deterministic consumer fixtures and copy-and-adopt tests for Minimal, Standard, forks, monorepositories, unsupported repositories, overlaps, conflicts, and symlink boundaries.
+
+### Changed
+
+- Restructured README and AppSec Guardian guidance around profile fit, installation state, overlap detection, privacy, and unsupported coverage.
+
+### Fixed
+
+- Consumer workflows and required support files are now validated as version-compatible installation sets rather than relying on broad manual directory copies.
+
+### Security
+
+- Initializer rejects overwrite, traversal, symlink escape, Unicode/case collisions, partial writes, and self-installation without invoking Git, package managers, network access, or application code.
+- Preflight and troubleshooting preserve fork, base-harness, malformed-output, baseline-separation, and no-raw-upload boundaries from v0.2.0.
+
+### Documentation
+
+- Documented coverage-state semantics, network calls, SBOM sensitivity, staged Standard adoption, clean removal, rollback, and explicit compatibility limits.
+
+## 0.2.0 - 2026-07-21
+
+### Added
+
 - Repository governance and security documentation.
 - Minimal Trivy, Gitleaks, and actionlint profile.
 - Shared normalization, baseline, suppression, and policy-gate model.

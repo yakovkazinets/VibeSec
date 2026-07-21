@@ -4,6 +4,8 @@
 
 Treat the run as a tool failure, not a clean scan. Inspect installation and scanner logs, confirm the runner is Linux x86_64, and verify GitHub release access. The artifact step intentionally fails when expected files are absent.
 
+For a first Standard-profile adoption, land the reviewed `scripts/`, `config/`, `policy/`, and `rules/` directories before enabling the workflow in a follow-up change. The pull-request workflow deliberately refuses to execute a harness that exists only in the untrusted pull-request tree.
+
 ## Checksum verification failed
 
 Stop. Do not update the checksum to match an unexpected file. Compare the configured release with the official upstream release page and checksum asset, then review release notes before changing both version and checksum together.

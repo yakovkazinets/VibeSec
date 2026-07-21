@@ -53,6 +53,8 @@ For Standard, copy `templates/github-actions/security-standard.yml` instead and 
 
 On pull requests, the Standard starter materializes `scripts/`, `config/`, `policy/`, and `rules/` from the pull request's base commit into the runner temporary directory. The checked-out pull-request tree is only the scan target; its VibeSec scripts, scanner configuration, ignore files, and policy cannot replace the trusted harness. VibeSec's own development CI deliberately tests the changed implementation, but remains read-only and receives no secrets.
 
+Bootstrap Standard in two reviewed changes: first land the support directories on the default branch, then enable the workflow. A pull request that introduces both at once fails closed because its base commit has no trusted harness to execute.
+
 OSV-Scanner defaults to online advisory lookup, which can send package names, versions, ecosystems, and file hashes to OSV.dev or deps.dev. Offline mode requires `VIBESEC_OSV_DATABASE_DIR`, `VIBESEC_OSV_DATABASE_DATE=YYYY-MM-DD`, and an optional `VIBESEC_OSV_MAX_DATABASE_AGE_DAYS` (default `7`). VibeSec validates the caller-provisioned `<ecosystem>/all.zip` files and their declared age but never downloads or refreshes them. Checkov runs with network disabled. Syft update checks, enrichment, and remote metadata lookup are disabled. Raw scanner outputs are not uploaded. SBOM artifacts can disclose internal package names and versions; the starter retains them separately for 14 days.
 
 ## Develop

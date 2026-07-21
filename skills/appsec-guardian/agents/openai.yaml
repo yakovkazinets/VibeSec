@@ -1,0 +1,4 @@
+interface:
+  display_name: "AppSec Guardian"
+  short_description: "Inspect repositories and plan safe security controls"
+  default_prompt: "Use $appsec-guardian to inspect this repository, identify relevant existing security controls, and propose safe, reviewable improvements with explicit coverage limits."

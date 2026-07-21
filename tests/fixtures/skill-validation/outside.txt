@@ -1,0 +1,1 @@
+Harmless file outside the traversal fixture root.

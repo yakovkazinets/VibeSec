@@ -1,0 +1,5 @@
+{
+  "default_minimum_severity": "high",
+  "enforcement": "observe",
+  "severity_order": ["low", "medium", "high", "critical"]
+}

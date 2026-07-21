@@ -2,9 +2,10 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from scripts.vibesec.coverage import markdown, validate_coverage
-from scripts.vibesec.detection import inventory
+from scripts.vibesec.detection import DetectionError, inventory
 from scripts.vibesec.sbom import validate_cyclonedx, validate_spdx
 
 
@@ -26,9 +27,22 @@ class DetectionCoverageSbomTests(unittest.TestCase):
         self.assertEqual(result["iac"]["kubernetes"], ["deployment.yml"])
 
     def test_markdown_distinguishes_coverage_states(self):
-        payload = {"schema_version": 1, "tools": [{"tool": "checkov", "version": "test", "scope": "iac", "state": "not_applicable", "reason": "none detected"}]}
+        payload = {
+            "schema_version": 1,
+            "limitations": ["limited <coverage>"],
+            "outside_coverage": ["runtime `behavior`"],
+            "tools": [{
+                "tool": "checkov", "version": "test", "scope": "iac",
+                "state": "not_applicable", "reason": "none | detected",
+                "relevant_artifacts": [], "output_files": [],
+                "network_access": "none", "application_code_executed": False,
+            }],
+        }
         validate_coverage(payload)
-        self.assertIn("not_applicable", markdown(payload))
+        rendered = markdown(payload)
+        self.assertIn("not_applicable", rendered)
+        self.assertIn("&lt;coverage&gt;", rendered)
+        self.assertIn("none \\| detected", rendered)
         payload["tools"][0]["state"] = "clean"
         with self.assertRaises(ValueError):
             validate_coverage(payload)
@@ -43,6 +57,30 @@ class DetectionCoverageSbomTests(unittest.TestCase):
         cyclonedx.write_text(json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []}), encoding="utf-8")
         with self.assertRaises(ValueError):
             validate_cyclonedx(cyclonedx)
+
+    def test_multidocument_yaml_and_specific_helm_kustomize_detection(self):
+        (self.root / "objects.yml").write_text("---\nname: metadata\n---\napiVersion: v1\nkind: Service\n", encoding="utf-8")
+        (self.root / "Chart.yaml").write_text("name: misleading\n", encoding="utf-8")
+        (self.root / "kustomization.yaml").write_text("apiVersion: kustomize.config.k8s.io/v1beta1\n", encoding="utf-8")
+        result = inventory(self.root)
+        self.assertEqual(result["iac"]["kubernetes"], ["objects.yml"])
+        self.assertEqual(result["iac"]["helm"], [])
+        self.assertEqual(result["iac"]["kustomize"], [])
+
+    def test_case_insensitive_skips_and_symlinks(self):
+        skipped = self.root / "Node_Modules"
+        skipped.mkdir()
+        (skipped / "hidden.py").write_text("pass\n", encoding="utf-8")
+        real = self.root / "real.py"
+        real.write_text("pass\n", encoding="utf-8")
+        (self.root / "linked.py").symlink_to(real)
+        self.assertEqual(inventory(self.root)["source_files"], ["real.py"])
+
+    def test_file_limit_fails_closed(self):
+        (self.root / "one.py").write_text("pass\n", encoding="utf-8")
+        (self.root / "two.py").write_text("pass\n", encoding="utf-8")
+        with patch("scripts.vibesec.detection.MAX_FILES", 1), self.assertRaises(DetectionError):
+            inventory(self.root)
 
 
 if __name__ == "__main__":

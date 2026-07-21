@@ -1,0 +1,10 @@
+check-for-app-update: false
+enrich: []
+source:
+  base-path: .
+java:
+  use-network: false
+javascript:
+  search-remote-licenses: false
+python:
+  search-remote-licenses: false

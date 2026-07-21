@@ -38,8 +38,8 @@ class WorkflowSecurityTests(unittest.TestCase):
             self.assertTrue((ROOT / "scripts" / script).is_file())
         for path in WORKFLOWS:
             text = path.read_text(encoding="utf-8")
-            self.assertIn("results/normalized.json", text)
-            self.assertIn("results/report.md", text)
+            self.assertIn("normalized.json", text)
+            self.assertIn("report.md", text)
 
     def test_standard_workflow_never_builds_or_installs_target_code(self):
         text = (ROOT / "templates/github-actions/security-standard.yml").read_text(encoding="utf-8")
@@ -51,8 +51,16 @@ class WorkflowSecurityTests(unittest.TestCase):
     def test_standard_workflow_uploads_only_sanitized_outputs(self):
         text = (ROOT / "templates/github-actions/security-standard.yml").read_text(encoding="utf-8")
         self.assertNotIn("results/raw", text)
-        self.assertIn("results/coverage.json", text)
-        self.assertIn("results/sbom.cyclonedx.json", text)
+        self.assertIn("VIBESEC_RESULTS }}/coverage.json", text)
+        self.assertIn("VIBESEC_RESULTS }}/sbom.cyclonedx.json", text)
+        self.assertIn("if-no-files-found: error", text)
+
+    def test_standard_workflow_uses_base_revision_harness_for_pull_requests(self):
+        text = (ROOT / "templates/github-actions/security-standard.yml").read_text(encoding="utf-8")
+        self.assertIn("github.event.pull_request.base.sha", text)
+        self.assertIn('git archive "$TRUSTED_SHA" scripts config policy rules', text)
+        self.assertIn('--vibesec-root "$VIBESEC_ROOT"', text)
+        self.assertNotIn("python3 scripts/run_standard_profile.py", text)
 
     def test_raw_scanner_output_is_not_uploaded(self):
         for path in WORKFLOWS:

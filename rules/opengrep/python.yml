@@ -1,0 +1,14 @@
+rules:
+  - id: vibesec.python.subprocess-shell-true
+    languages: [python]
+    message: Avoid subprocess shell=True; pass an argument vector to the executable.
+    severity: ERROR
+    metadata:
+      category: command-injection
+      confidence: high
+      cwe: CWE-78
+      owasp: A03:2021-Injection
+      remediation: Invoke the program directly with a fixed argument sequence.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: subprocess.$FUNC(..., shell=True, ...)

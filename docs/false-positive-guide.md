@@ -14,3 +14,5 @@ Prefer fixing the cause or narrowing a rule through reviewed configuration. If s
 ```
 
 The owner is accountable for re-review. The expiration prevents accepted risk from becoming invisible indefinitely. Never suppress a tool failure, remove a scanner, lower a threshold, or edit a baseline merely to make CI green without documenting the decision.
+
+Minimal historical fingerprints belong only in `policy/baseline.json`. Standard historical fingerprints belong only in `policy/standard-baseline.json`. Review and regenerate after a rule, tool, or normalizer upgrade rather than copying fingerprints between profiles. A `tool_error`, malformed scanner output, `not_applicable`, or `not_configured` coverage state is never baselineable or suppressible.

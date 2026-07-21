@@ -1,0 +1,22 @@
+rules:
+  - id: vibesec.go.shell-command
+    languages: [go]
+    message: Avoid invoking a command shell; execute a fixed program and argument list.
+    severity: ERROR
+    metadata:
+      category: command-injection
+      confidence: high
+      cwe: CWE-78
+      owasp: A03:2021-Injection
+      remediation: Call exec.Command with the intended executable and validated arguments.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern-either:
+      - pattern: exec.Command("sh", "-c", ...)
+      - pattern: exec.Command("bash", "-c", ...)
+      - pattern: exec.Command("/bin/sh", "-c", ...)
+      - pattern: exec.Command("/bin/bash", "-c", ...)
+      - pattern: exec.CommandContext($CTX, "sh", "-c", ...)
+      - pattern: exec.CommandContext($CTX, "bash", "-c", ...)
+      - pattern: exec.CommandContext($CTX, "/bin/sh", "-c", ...)
+      - pattern: exec.CommandContext($CTX, "/bin/bash", "-c", ...)

@@ -20,7 +20,20 @@ The initial profile uses:
 - Gitleaks for dedicated secret detection.
 - actionlint for GitHub Actions syntax and expression checks.
 
-It does not build or execute application code. Standard and Advanced features—including SAST, OSV-Scanner, Checkov, DAST, fuzzing, signing, provenance, and Scorecard—are planned but not implemented.
+It does not build or execute application code. Advanced features—including DAST, fuzzing, provenance, and Scorecard—are not implemented.
+
+## Standard profile
+
+The opt-in Standard profile preserves the Minimal controls and adds:
+
+- VibeSec-owned Opengrep rules for JavaScript/TypeScript, Python, Java, and Go SAST.
+- OSV-Scanner v2 as the primary source-dependency advisory scanner.
+- Syft filesystem SBOMs in CycloneDX JSON and SPDX JSON.
+- Checkov only when supported infrastructure-as-code is detected.
+- Optional Trivy scanning of an already-built image, only on trusted events and only by immutable digest.
+- A deterministic repository inventory and coverage report that distinguishes `ran`, `not_applicable`, `not_configured`, and `tool_error`.
+
+The profile never installs project dependencies, runs lifecycle scripts, builds the application, builds a Dockerfile, applies infrastructure, or uploads source to a commercial service. Trivy is limited to secrets and configuration in this profile so OSV-Scanner remains the primary source-dependency scanner. See [tool selection](docs/tool-selection.md) for overlap and network behavior.
 
 ## Use the starter workflow
 
@@ -36,12 +49,22 @@ Start with `VIBESEC_ENFORCEMENT: observe`. Review historical findings, record re
 
 Pull requests, pushes to `main`, weekly schedules, and manual runs use the same minimal scan. Fork pull requests receive no secrets. Reports remain useful without GitHub Advanced Security and are retained as JSON and Markdown artifacts.
 
+For Standard, copy `templates/github-actions/security-standard.yml` instead and keep the accompanying `scripts/`, `config/`, `policy/`, and `rules/` directories. Standard uses `policy/standard-baseline.json`; Minimal continues to use `policy/baseline.json`. Start in observation mode. Do not treat the two baselines as interchangeable.
+
+On pull requests, the Standard starter materializes `scripts/`, `config/`, `policy/`, and `rules/` from the pull request's base commit into the runner temporary directory. The checked-out pull-request tree is only the scan target; its VibeSec scripts, scanner configuration, ignore files, and policy cannot replace the trusted harness. VibeSec's own development CI deliberately tests the changed implementation, but remains read-only and receives no secrets.
+
+Bootstrap Standard in two reviewed changes: first land the support directories on the default branch, then enable the workflow. A pull request that introduces both at once fails closed because its base commit has no trusted harness to execute.
+
+OSV-Scanner defaults to online advisory lookup, which can send package names, versions, ecosystems, and file hashes to OSV.dev or deps.dev. Offline mode requires `VIBESEC_OSV_DATABASE_DIR`, `VIBESEC_OSV_DATABASE_DATE=YYYY-MM-DD`, and an optional `VIBESEC_OSV_MAX_DATABASE_AGE_DAYS` (default `7`). VibeSec validates the caller-provisioned `<ecosystem>/all.zip` files and their declared age but never downloads or refreshes them. Checkov runs with network disabled. Syft update checks, enrichment, and remote metadata lookup are disabled. Raw scanner outputs are not uploaded. SBOM artifacts can disclose internal package names and versions; the starter retains them separately for 14 days.
+
 ## Develop
 
 ```shell
 python3 -m unittest discover -s tests -v
 scripts/install_tools.sh . .tools/bin
 VIBESEC_ENFORCEMENT=observe scripts/run_minimal_profile.sh . results
+scripts/install_standard_tools.sh . .tools/bin
+VIBESEC_ENFORCEMENT=observe python3 scripts/run_standard_profile.py . results
 ```
 
 Read [the architecture](docs/architecture.md), [threat model](docs/threat-model.md), and [contribution guide](CONTRIBUTING.md) before changing security-sensitive behavior.

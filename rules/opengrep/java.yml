@@ -1,0 +1,14 @@
+rules:
+  - id: vibesec.java.runtime-exec
+    languages: [java]
+    message: Avoid Runtime.exec; prefer a fixed ProcessBuilder argument list with validated values.
+    severity: ERROR
+    metadata:
+      category: command-injection
+      confidence: medium
+      cwe: CWE-78
+      owasp: A03:2021-Injection
+      remediation: Use ProcessBuilder with a fixed argument list and validated values.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: Runtime.getRuntime().exec(...)

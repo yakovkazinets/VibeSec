@@ -1,0 +1,14 @@
+rules:
+  - id: vibesec.javascript.dangerous-eval
+    languages: [javascript, typescript]
+    message: Avoid eval; parse or dispatch explicitly instead.
+    severity: ERROR
+    metadata:
+      category: code-injection
+      confidence: high
+      cwe: CWE-95
+      owasp: A03:2021-Injection
+      remediation: Replace dynamic evaluation with explicit parsing or dispatch.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: eval(...)

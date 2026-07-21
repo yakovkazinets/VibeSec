@@ -43,8 +43,10 @@ def main() -> int:
             negative = base / "negative"
             shutil.copytree(ROOT / "tests/fixtures/opengrep/positive", positive, ignore=shutil.ignore_patterns("__pycache__"))
             shutil.copytree(ROOT / "tests/fixtures/opengrep/negative", negative, ignore=shutil.ignore_patterns("__pycache__"))
-            environment = os.environ.copy()
-            environment.update({"HOME": str(base / "home"), "XDG_CACHE_HOME": str(base / "cache"), "OPENGREP_ENABLE_VERSION_CHECK": "0", "SEMGREP_SEND_METRICS": "off"})
+            (base / "cache").mkdir()
+            (base / "config").mkdir()
+            environment = {key: value for key, value in os.environ.items() if not key.startswith(("OPENGREP_", "SEMGREP_"))}
+            environment.update({"XDG_CACHE_HOME": str(base / "cache"), "XDG_CONFIG_HOME": str(base / "config"), "OPENGREP_ENABLE_VERSION_CHECK": "0", "SEMGREP_SEND_METRICS": "off"})
             positive_results = scan(binary, positive, base / "positive.json", environment)
             negative_results = scan(binary, negative, base / "negative.json", environment)
             observed = {identifier for result in positive_results for identifier in EXPECTED if str(result.get("check_id", "")).endswith(identifier)}

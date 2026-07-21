@@ -1,7 +1,7 @@
 rules:
   - id: vibesec.java.runtime-exec
     languages: [java]
-    message: Avoid Runtime.exec with dynamically assembled input.
+    message: Avoid Runtime.exec; prefer a fixed ProcessBuilder argument list with validated values.
     severity: ERROR
     metadata:
       category: command-injection

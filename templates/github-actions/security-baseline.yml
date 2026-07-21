@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out repository without persisted credentials
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2, verified 2026-07-21
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -45,7 +45,7 @@ jobs:
           fi
       - name: Retain machine-readable and human-readable reports
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2, verified 2026-07-21
         with:
           name: security-baseline-${{ github.run_id }}
           path: |

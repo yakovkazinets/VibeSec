@@ -5,6 +5,7 @@
     "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
     "version": "1.7.12",
     "license": "MIT",
+    "verification_date": "2026-07-21",
     "official_repository": "https://github.com/rhysd/actionlint"
   },
   "gitleaks": {
@@ -13,6 +14,7 @@
     "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz",
     "version": "8.30.1",
     "license": "MIT",
+    "verification_date": "2026-07-21",
     "official_repository": "https://github.com/gitleaks/gitleaks"
   },
   "trivy": {
@@ -21,6 +23,7 @@
     "url": "https://github.com/aquasecurity/trivy/releases/download/v0.72.0/trivy_0.72.0_Linux-64bit.tar.gz",
     "version": "0.72.0",
     "license": "Apache-2.0",
+    "verification_date": "2026-07-21",
     "official_repository": "https://github.com/aquasecurity/trivy"
   },
   "opengrep": {
@@ -29,6 +32,7 @@
     "url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86",
     "version": "1.25.0",
     "license": "LGPL-2.1",
+    "verification_date": "2026-07-21",
     "official_repository": "https://github.com/opengrep/opengrep",
     "signature_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86.sig",
     "certificate_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86.cert",
@@ -41,6 +45,7 @@
     "url": "https://github.com/google/osv-scanner/releases/download/v2.4.0/osv-scanner_linux_amd64",
     "version": "2.4.0",
     "license": "Apache-2.0",
+    "verification_date": "2026-07-21",
     "official_repository": "https://github.com/google/osv-scanner"
   },
   "syft": {
@@ -49,6 +54,7 @@
     "url": "https://github.com/anchore/syft/releases/download/v1.49.0/syft_1.49.0_linux_amd64.tar.gz",
     "version": "1.49.0",
     "license": "Apache-2.0",
+    "verification_date": "2026-07-21",
     "official_repository": "https://github.com/anchore/syft"
   },
   "cosign": {
@@ -57,6 +63,7 @@
     "url": "https://github.com/sigstore/cosign/releases/download/v3.1.2/cosign-linux-amd64",
     "version": "3.1.2",
     "license": "Apache-2.0",
+    "verification_date": "2026-07-21",
     "official_repository": "https://github.com/sigstore/cosign"
   },
   "checkov": {
@@ -65,6 +72,7 @@
     "digest": "sha256:c64ffb6d6fc8087c896341a2c697770a04a1cf558db04fa7b8129d8ca6bce336",
     "version": "3.3.8",
     "license": "Apache-2.0",
+    "verification_date": "2026-07-21",
     "official_repository": "https://github.com/bridgecrewio/checkov"
   }
 }

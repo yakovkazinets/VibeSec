@@ -31,8 +31,10 @@ def validate_tools() -> None:
     for name, config in tools.items():
         if not isinstance(config, dict):
             raise ValueError(f"tool {name} configuration must be an object")
-        if not all(isinstance(config.get(field), str) and config[field] for field in ("version", "license", "official_repository")):
-            raise ValueError(f"tool {name} is missing version, license, or official_repository")
+        if not all(isinstance(config.get(field), str) and config[field] for field in ("version", "license", "official_repository", "verification_date")):
+            raise ValueError(f"tool {name} is missing version, license, official_repository, or verification_date")
+        if config["verification_date"] != "2026-07-21":
+            raise ValueError(f"tool {name} pin must record the current review date")
         official = urlparse(config["official_repository"])
         if official.scheme != "https" or official.hostname != "github.com":
             raise ValueError(f"tool {name} must identify its official GitHub repository")

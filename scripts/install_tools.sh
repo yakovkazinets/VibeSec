@@ -10,9 +10,10 @@ if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
   exit 3
 fi
 
-mkdir -p "$destination"
 temporary_directory="$(mktemp -d)"
 trap 'rm -rf -- "$temporary_directory"' EXIT
+staging="${temporary_directory}/staging"
+mkdir -p "$staging"
 
 for tool in trivy gitleaks actionlint; do
   url="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]]["url"])' "$config_path" "$tool")"
@@ -24,6 +25,14 @@ for tool in trivy gitleaks actionlint; do
     echo "Checksum verification failed for ${tool}." >&2
     exit 2
   fi
-  tar -xzf "${temporary_directory}/${archive}" -C "$temporary_directory"
-  install -m 0755 "${temporary_directory}/${tool}" "${destination}/${tool}"
+  python3 "${repo_root}/scripts/extract_tool_archive.py" \
+    "${temporary_directory}/${archive}" "$tool" "${staging}/${tool}"
+done
+
+# Do not publish any executable until every download, checksum, and archive has
+# passed validation. Each final file replacement is atomic.
+mkdir -p "$destination"
+for tool in trivy gitleaks actionlint; do
+  install -m 0755 "${staging}/${tool}" "${destination}/.${tool}.new"
+  mv -f "${destination}/.${tool}.new" "${destination}/${tool}"
 done

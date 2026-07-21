@@ -10,9 +10,10 @@ if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
   exit 3
 fi
 
-mkdir -p "$destination"
 temporary_directory="$(mktemp -d)"
 trap 'rm -rf -- "$temporary_directory"' EXIT
+staging="${temporary_directory}/staging"
+mkdir -p "$staging"
 
 for tool in cosign opengrep osv-scanner syft; do
   readarray -t metadata < <(python3 - "$config_path" "$tool" <<'PY'
@@ -33,10 +34,10 @@ PY
     exit 2
   fi
   if [[ "$artifact" == *.tar.gz ]]; then
-    tar -xzf "${temporary_directory}/${artifact}" -C "$temporary_directory"
-    install -m 0755 "${temporary_directory}/${tool}" "${destination}/${tool}"
+    python3 "${repo_root}/scripts/extract_tool_archive.py" \
+      "${temporary_directory}/${artifact}" "$tool" "${staging}/${tool}"
   else
-    install -m 0755 "${temporary_directory}/${artifact}" "${destination}/${tool}"
+    install -m 0755 "${temporary_directory}/${artifact}" "${staging}/${tool}"
   fi
   if [[ "$tool" == "opengrep" ]]; then
     readarray -t signature_metadata < <(python3 - "$config_path" <<'PY'
@@ -48,11 +49,19 @@ PY
 )
     curl --fail --location --proto '=https' --tlsv1.2 --output "${temporary_directory}/opengrep.sig" "${signature_metadata[0]}"
     curl --fail --location --proto '=https' --tlsv1.2 --output "${temporary_directory}/opengrep.cert" "${signature_metadata[1]}"
-    "${destination}/cosign" verify-blob \
+    "${staging}/cosign" verify-blob \
       --certificate "${temporary_directory}/opengrep.cert" \
       --signature "${temporary_directory}/opengrep.sig" \
       --certificate-identity "${signature_metadata[2]}" \
       --certificate-oidc-issuer "${signature_metadata[3]}" \
       "${temporary_directory}/${artifact}"
   fi
+done
+
+
+# Publish only after all tools, including Opengrep's signature, validate.
+mkdir -p "$destination"
+for tool in cosign opengrep osv-scanner syft; do
+  install -m 0755 "${staging}/${tool}" "${destination}/.${tool}.new"
+  mv -f "${destination}/.${tool}.new" "${destination}/${tool}"
 done

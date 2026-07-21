@@ -8,11 +8,13 @@ minimum_severity="${VIBESEC_MIN_SEVERITY:-high}"
 enforcement="${VIBESEC_ENFORCEMENT:-observe}"
 mkdir -p "$results_dir"
 
-tool_errors='[]'
+tool_error_args=()
+tool_error_count=0
 record_tool_error() {
   local tool="$1"
   local message="$2"
-  tool_errors="$(python3 -c 'import hashlib,json,sys; a=json.loads(sys.argv[1]); t=sys.argv[2]; m=sys.argv[3]; a.append({"tool":t,"category":"execution","rule_id":"tool-error","severity":"low","file":"","line":None,"description":m,"confidence":"unknown","fingerprint":hashlib.sha256((t+"\\0"+m).encode()).hexdigest(),"result_type":"tool_error"}); print(json.dumps(a))' "$tool_errors" "$tool" "$message")"
+  tool_error_args+=(--tool-error "$tool" "$message")
+  tool_error_count=$((tool_error_count + 1))
 }
 
 "${tool_dir}/trivy" filesystem --scanners vuln,misconfig,secret --format json --output "${results_dir}/trivy.json" --exit-code 0 --no-progress "$repo_root"
@@ -36,7 +38,15 @@ python3 "${repo_root}/scripts/normalize_results.py" \
 normalize_status=$?
 if [[ $normalize_status -ne 0 ]]; then exit 3; fi
 
-python3 -c 'import json,sys; p=sys.argv[1]; e=json.loads(sys.argv[2]); d=json.load(open(p)); d["results"].extend(e); open(p,"w").write(json.dumps(d,indent=2)+"\\n")' "${results_dir}/normalized.json" "$tool_errors"
+if [[ $tool_error_count -eq 0 ]]; then
+  python3 "${repo_root}/scripts/append_tool_errors.py" --results "${results_dir}/normalized.json"
+else
+  python3 "${repo_root}/scripts/append_tool_errors.py" \
+    --results "${results_dir}/normalized.json" \
+    "${tool_error_args[@]}"
+fi
+append_status=$?
+if [[ $append_status -ne 0 ]]; then exit 3; fi
 
 python3 "${repo_root}/scripts/policy_gate.py" \
   --results "${results_dir}/normalized.json" \

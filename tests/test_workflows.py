@@ -34,7 +34,7 @@ class WorkflowSecurityTests(unittest.TestCase):
             self.assertNotIn("secrets.", path.read_text(encoding="utf-8"))
 
     def test_required_scripts_and_outputs_align(self):
-        for script in ("install_tools.sh", "run_minimal_profile.sh", "normalize_results.py", "policy_gate.py", "validate_repository.py"):
+        for script in ("install_tools.sh", "run_minimal_profile.sh", "normalize_results.py", "append_tool_errors.py", "policy_gate.py", "validate_repository.py"):
             self.assertTrue((ROOT / "scripts" / script).is_file())
         for path in WORKFLOWS:
             text = path.read_text(encoding="utf-8")

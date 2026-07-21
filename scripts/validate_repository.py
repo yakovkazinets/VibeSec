@@ -60,7 +60,8 @@ def validate_references() -> None:
     required = (
         ".github/workflows/ci.yml", "templates/github-actions/security-baseline.yml",
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
-        "scripts/policy_gate.py", "scripts/validate_skill.py", "skills/appsec-guardian/SKILL.md",
+        "scripts/append_tool_errors.py", "scripts/policy_gate.py", "scripts/validate_skill.py",
+        "skills/appsec-guardian/SKILL.md",
     )
     missing = [path for path in required if not (ROOT / path).is_file()]
     if missing:

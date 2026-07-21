@@ -27,8 +27,16 @@ jobs:
           persist-credentials: false
       - name: Run unit tests
         run: python3 -m unittest discover -s tests -v
+      - name: Validate repository configuration
+        run: python3 scripts/validate_repository.py
+      - name: Validate YAML syntax
+        run: >-
+          find . -type f \( -name '*.yml' -o -name '*.yaml' \) -print0 |
+          xargs -0 ruby -e 'require "yaml"; ARGV.each { |path| YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false, filename: path) }' --
       - name: Install checksum-verified scanners
         run: scripts/install_tools.sh . .tools/bin
+      - name: Lint repository and starter workflows
+        run: .tools/bin/actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml
       - name: Run minimal profile in observation mode
         id: security
         continue-on-error: true

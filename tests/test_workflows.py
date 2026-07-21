@@ -34,7 +34,7 @@ class WorkflowSecurityTests(unittest.TestCase):
             self.assertNotIn("secrets.", path.read_text(encoding="utf-8"))
 
     def test_required_scripts_and_outputs_align(self):
-        for script in ("install_tools.sh", "run_minimal_profile.sh", "normalize_results.py", "policy_gate.py"):
+        for script in ("install_tools.sh", "run_minimal_profile.sh", "normalize_results.py", "policy_gate.py", "validate_repository.py"):
             self.assertTrue((ROOT / "scripts" / script).is_file())
         for path in WORKFLOWS:
             text = path.read_text(encoding="utf-8")
@@ -47,6 +47,10 @@ class WorkflowSecurityTests(unittest.TestCase):
             self.assertNotIn("results/trivy.json\n", text)
             self.assertNotIn("results/gitleaks.json\n", text)
             self.assertNotIn("results/actionlint.txt\n", text)
+
+    def test_ci_lints_the_copyable_workflow(self):
+        text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml", text)
 
 
 if __name__ == "__main__":

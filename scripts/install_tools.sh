@@ -19,7 +19,7 @@ for tool in trivy gitleaks actionlint; do
   archive="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]]["archive"])' "$config_path" "$tool")"
   expected="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]]["sha256"])' "$config_path" "$tool")"
   curl --fail --location --proto '=https' --tlsv1.2 --output "${temporary_directory}/${archive}" "$url"
-  actual="$(shasum -a 256 "${temporary_directory}/${archive}" | awk '{print $1}')"
+  actual="$(sha256sum "${temporary_directory}/${archive}" | awk '{print $1}')"
   if [[ "$actual" != "$expected" ]]; then
     echo "Checksum verification failed for ${tool}." >&2
     exit 2

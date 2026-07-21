@@ -24,16 +24,17 @@ jobs:
   standard-profile:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      VIBESEC_ROOT: ${{ runner.temp }}/vibesec-trusted
-      VIBESEC_RESULTS: ${{ runner.temp }}/vibesec-results
-      VIBESEC_TOOLS: ${{ runner.temp }}/vibesec-tools
     steps:
       - name: Check out repository without persisted credentials
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Initialize isolated scanner paths
+        run: |
+          echo "VIBESEC_ROOT=$RUNNER_TEMP/vibesec-trusted" >> "$GITHUB_ENV"
+          echo "VIBESEC_RESULTS=$RUNNER_TEMP/vibesec-results" >> "$GITHUB_ENV"
+          echo "VIBESEC_TOOLS=$RUNNER_TEMP/vibesec-tools" >> "$GITHUB_ENV"
       - name: Materialize trusted scanner harness from the base revision
         env:
           TRUSTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
@@ -71,10 +72,10 @@ jobs:
         with:
           name: security-standard-report-${{ github.run_id }}
           path: |
-            ${{ env.VIBESEC_RESULTS }}/normalized.json
-            ${{ env.VIBESEC_RESULTS }}/coverage.json
-            ${{ env.VIBESEC_RESULTS }}/inventory.json
-            ${{ env.VIBESEC_RESULTS }}/report.md
+            ${{ runner.temp }}/vibesec-results/normalized.json
+            ${{ runner.temp }}/vibesec-results/coverage.json
+            ${{ runner.temp }}/vibesec-results/inventory.json
+            ${{ runner.temp }}/vibesec-results/report.md
           if-no-files-found: error
           retention-days: 14
       - name: Check for a complete validated SBOM pair
@@ -95,8 +96,8 @@ jobs:
         with:
           name: security-standard-sbom-${{ github.run_id }}
           path: |
-            ${{ env.VIBESEC_RESULTS }}/sbom.cyclonedx.json
-            ${{ env.VIBESEC_RESULTS }}/sbom.spdx.json
+            ${{ runner.temp }}/vibesec-results/sbom.cyclonedx.json
+            ${{ runner.temp }}/vibesec-results/sbom.spdx.json
           if-no-files-found: error
           retention-days: 14
       - name: Preserve policy and tool failure status

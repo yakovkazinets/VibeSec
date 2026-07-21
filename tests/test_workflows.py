@@ -51,8 +51,8 @@ class WorkflowSecurityTests(unittest.TestCase):
     def test_standard_workflow_uploads_only_sanitized_outputs(self):
         text = (ROOT / "templates/github-actions/security-standard.yml").read_text(encoding="utf-8")
         self.assertNotIn("results/raw", text)
-        self.assertIn("VIBESEC_RESULTS }}/coverage.json", text)
-        self.assertIn("VIBESEC_RESULTS }}/sbom.cyclonedx.json", text)
+        self.assertIn("runner.temp }}/vibesec-results/coverage.json", text)
+        self.assertIn("runner.temp }}/vibesec-results/sbom.cyclonedx.json", text)
         self.assertIn("if-no-files-found: error", text)
 
     def test_standard_workflow_uses_base_revision_harness_for_pull_requests(self):

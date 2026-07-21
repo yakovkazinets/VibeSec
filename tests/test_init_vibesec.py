@@ -58,6 +58,7 @@ class InitVibeSecTests(unittest.TestCase):
         manifest = json.loads((self.target / ".vibesec/install-minimal-all.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["profile"], "minimal")
         self.assertFalse(manifest["network_used_by_initializer"])
+        self.assertIn(".vibesec/install-minimal-all.json", manifest["installed_files"])
 
     def test_standard_support_then_workflow_write(self):
         support, support_payload = self.run_init("standard", write=True)
@@ -164,6 +165,17 @@ class InitVibeSecTests(unittest.TestCase):
         mode = stat.S_IMODE((self.target / "scripts/run_minimal_profile.sh").stat().st_mode)
         self.assertTrue(mode & stat.S_IXUSR)
         self.assertFalse(stat.S_IMODE((self.target / "policy/baseline.json").stat().st_mode) & stat.S_IXUSR)
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root bypasses directory permissions")
+    def test_read_only_destination_fails_without_partial_installation(self):
+        self.target.chmod(0o555)
+        try:
+            completed, payload = self.run_init(write=True)
+            self.assertEqual(completed.returncode, 4)
+            self.assertTrue(payload["error"])
+            self.assertEqual(list(self.target.iterdir()), [])
+        finally:
+            self.target.chmod(0o755)
 
     def test_initializer_has_no_command_network_or_package_execution(self):
         text = SCRIPT.read_text(encoding="utf-8")

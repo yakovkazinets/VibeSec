@@ -189,7 +189,7 @@ def build_plan(catalog: dict[str, Any], profile: str, stage: str) -> list[tuple[
         source, mode = source_entry(relative)
         items.append((source, relative, mode, None))
     manifest_relative = Path(f".vibesec/install-{profile}-{stage}.json")
-    installed = [destination.as_posix() for _, destination, _, _ in items]
+    installed = [destination.as_posix() for _, destination, _, _ in items] + [manifest_relative.as_posix()]
     content = manifest_bytes(profile, stage, str(catalog.get("source_version", "unknown")), installed)
     items.append((None, manifest_relative, 0o644, content))
     return sorted(items, key=lambda item: item[1].as_posix())

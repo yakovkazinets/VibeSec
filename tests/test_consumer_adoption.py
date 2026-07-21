@@ -204,6 +204,13 @@ elif name == "docker":
         )
         self.assertIn("infra/main.tf", detected["iac"]["terraform"])
         self.assertIn("services/go/Dockerfile.worker", detected["dockerfiles"])
+        self.assertEqual(detected["workflows"], [".github/workflows/root.yml", "services/python/.github/workflows/nested.yml"])
+        self.assertNotIn("vendor/ignored.py", detected["source_files"])
+        package_names = [
+            json.loads((FIXTURES / "monorepo" / path).read_text(encoding="utf-8"))["name"]
+            for path in ("packages/alpha/package.json", "packages/beta/package.json")
+        ]
+        self.assertEqual(package_names, ["fictional-shared-name", "fictional-shared-name"])
 
     def test_empty_markdown_binary_no_manifest_and_malformed_names_are_explicit(self):
         cases = {

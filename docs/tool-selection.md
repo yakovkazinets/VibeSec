@@ -10,6 +10,8 @@
 
 Release binaries were chosen over scanner actions to keep execution explicit, avoid unnecessary workflow-token access, and make checksum verification reviewable in `config/tools.json`. GitHub's checkout and artifact actions are pinned to complete commit SHAs with release-tag comments.
 
+Pins reduce exposure to a mutable tag or release asset being replaced, but they do not prove upstream code is safe. Version updates must verify the official repository, release asset, checksum file, license, and release notes together. A checksum mismatch is an installation failure, never permission to substitute an observed checksum automatically.
+
 Selection must follow repository evidence. For example, configuration scanning is relevant only when supported infrastructure or workflow files exist, and adding another dependency scanner to a repository with equivalent controls may create duplicate findings rather than useful coverage.
 
 ## Future evaluation

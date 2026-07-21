@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "source_version": "0.2.1-dev",
+  "common": [
+    "config/tools.json",
+    "policy/severity-thresholds.yml",
+    "policy/suppressions.yml",
+    "scripts/extract_tool_archive.py",
+    "scripts/install_tools.sh",
+    "scripts/policy_gate.py",
+    "scripts/vibesec/__init__.py",
+    "scripts/vibesec/model.py",
+    "scripts/vibesec/normalize.py",
+    "scripts/vibesec/policy.py"
+  ],
+  "profiles": {
+    "minimal": {
+      "support": [
+        "policy/baseline.json",
+        "scripts/append_tool_errors.py",
+        "scripts/normalize_results.py",
+        "scripts/run_minimal_profile.sh",
+        "scripts/vibesec/results.py"
+      ],
+      "workflow_source": "templates/github-actions/security-baseline.yml",
+      "workflow_destination": ".github/workflows/vibesec-minimal.yml"
+    },
+    "standard": {
+      "support": [
+        "config/actionlint-standard.yaml",
+        "config/gitleaks-standard-ignore.txt",
+        "config/gitleaks-standard.toml",
+        "config/opengrep-standard.ignore",
+        "config/syft-standard.yaml",
+        "config/trivy-standard.yaml",
+        "policy/standard-baseline.json",
+        "rules/opengrep/go.yml",
+        "rules/opengrep/java.yml",
+        "rules/opengrep/javascript.yml",
+        "rules/opengrep/python.yml",
+        "scripts/install_standard_tools.sh",
+        "scripts/run_standard_profile.py",
+        "scripts/vibesec/coverage.py",
+        "scripts/vibesec/detection.py",
+        "scripts/vibesec/osv_database.py",
+        "scripts/vibesec/sbom.py"
+      ],
+      "workflow_source": "templates/github-actions/security-standard.yml",
+      "workflow_destination": ".github/workflows/vibesec-standard.yml"
+    }
+  }
+}

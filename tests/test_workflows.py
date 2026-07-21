@@ -4,7 +4,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOWS = [ROOT / ".github/workflows/ci.yml", ROOT / "templates/github-actions/security-baseline.yml"]
+WORKFLOWS = [ROOT / ".github/workflows/ci.yml", ROOT / "templates/github-actions/security-baseline.yml", ROOT / "templates/github-actions/security-standard.yml"]
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -41,6 +41,19 @@ class WorkflowSecurityTests(unittest.TestCase):
             self.assertIn("results/normalized.json", text)
             self.assertIn("results/report.md", text)
 
+    def test_standard_workflow_never_builds_or_installs_target_code(self):
+        text = (ROOT / "templates/github-actions/security-standard.yml").read_text(encoding="utf-8")
+        for prohibited in ("docker build", "npm install", "npm ci", "yarn install", "pnpm install", "pip install -r", "go build", "mvn package", "gradle build"):
+            self.assertNotIn(prohibited, text)
+        self.assertIn("run_standard_profile.py", text)
+        self.assertNotIn("secrets.", text)
+
+    def test_standard_workflow_uploads_only_sanitized_outputs(self):
+        text = (ROOT / "templates/github-actions/security-standard.yml").read_text(encoding="utf-8")
+        self.assertNotIn("results/raw", text)
+        self.assertIn("results/coverage.json", text)
+        self.assertIn("results/sbom.cyclonedx.json", text)
+
     def test_raw_scanner_output_is_not_uploaded(self):
         for path in WORKFLOWS:
             text = path.read_text(encoding="utf-8")
@@ -50,7 +63,7 @@ class WorkflowSecurityTests(unittest.TestCase):
 
     def test_ci_lints_the_copyable_workflow(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        self.assertIn("actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml", text)
+        self.assertIn("actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml", text)
 
     def test_ci_validates_the_bundled_skill(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")

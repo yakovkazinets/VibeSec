@@ -18,8 +18,8 @@ def safe_markdown_cell(value: object, limit: int = 240) -> str:
     return text.replace("|", "\\|").replace("<", "&lt;").replace(">", "&gt;").replace("`", "'")
 
 
-def write_markdown(path: Path, evaluation: dict, expired: list[str]) -> None:
-    lines = ["# VibeSec minimal profile", "", f"Status: **{evaluation['status']}**", ""]
+def write_markdown(path: Path, evaluation: dict, expired: list[str], profile: str = "minimal") -> None:
+    lines = [f"# VibeSec {profile} profile", "", f"Status: **{evaluation['status']}**", ""]
     lines += [
         f"- Findings: {len(evaluation['findings'])}",
         f"- New findings: {len(evaluation['new_findings'])}",
@@ -56,6 +56,7 @@ def main() -> int:
     parser.add_argument("--suppressions", type=Path, required=True)
     parser.add_argument("--minimum-severity")
     parser.add_argument("--enforcement")
+    parser.add_argument("--profile", choices=("minimal", "standard"), default="minimal")
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     try:
@@ -68,13 +69,17 @@ def main() -> int:
         baseline = baseline_payload.get("fingerprints")
         if not isinstance(baseline, list) or not all(isinstance(item, str) for item in baseline):
             raise ConfigurationError("baseline fingerprints must be an array of strings")
+        if baseline_payload.get("profile", "minimal") != args.profile:
+            raise ConfigurationError(f"baseline profile does not match requested {args.profile} profile")
+        if result_payload.get("profile", args.profile) != args.profile:
+            raise ConfigurationError(f"results profile does not match requested {args.profile} profile")
         suppressions, expired = active_suppressions(suppression_payload, date.today())
         evaluation = evaluate(
             result_payload["results"], minimum_severity=args.minimum_severity or policy.get("default_minimum_severity", "high"),
             enforcement=args.enforcement or policy.get("enforcement", "observe"), baseline=set(baseline),
             suppressions=suppressions, today=date.today(),
         )
-        write_markdown(args.report, evaluation, expired)
+        write_markdown(args.report, evaluation, expired, args.profile)
     except ConfigurationError as exc:
         print(str(exc), file=sys.stderr)
         return 3

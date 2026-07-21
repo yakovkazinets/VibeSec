@@ -31,6 +31,8 @@ jobs:
         run: python3 -m unittest discover -s tests -v
       - name: Validate repository configuration
         run: python3 scripts/validate_repository.py
+      - name: Validate local Opengrep rules
+        run: python3 scripts/validate_opengrep_rules.py
       - name: Validate the bundled AppSec Guardian skill
         run: python3 scripts/validate_skill.py skills/appsec-guardian
       - name: Validate YAML syntax
@@ -40,7 +42,7 @@ jobs:
       - name: Install checksum-verified scanners
         run: scripts/install_tools.sh . .tools/bin
       - name: Lint repository and starter workflows
-        run: .tools/bin/actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml
+        run: .tools/bin/actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml
       - name: Run minimal profile in observation mode
         id: security
         continue-on-error: true

@@ -10,9 +10,13 @@ class RepositoryValidationTests(unittest.TestCase):
         tools = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))
         self.assertEqual(set(tools), EXPECTED_TOOLS)
         for config in tools.values():
-            self.assertRegex(config["sha256"], SHA256)
-            self.assertTrue(config["url"].startswith("https://github.com/"))
-            self.assertIn("/releases/download/", config["url"])
+            self.assertTrue(config["official_repository"].startswith("https://github.com/"))
+            if config.get("kind") == "container":
+                self.assertRegex(config["digest"].removeprefix("sha256:"), SHA256)
+            else:
+                self.assertRegex(config["sha256"], SHA256)
+                self.assertTrue(config["url"].startswith("https://github.com/"))
+                self.assertIn("/releases/download/", config["url"])
 
     def test_static_repository_validation(self):
         validate_tools()

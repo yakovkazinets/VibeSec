@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
-EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint"}
+EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "checkov"}
 
 
 def load_object(path: Path) -> dict:
@@ -31,7 +31,16 @@ def validate_tools() -> None:
     for name, config in tools.items():
         if not isinstance(config, dict):
             raise ValueError(f"tool {name} configuration must be an object")
-        if not all(isinstance(config.get(field), str) and config[field] for field in ("archive", "sha256", "url", "version")):
+        if not all(isinstance(config.get(field), str) and config[field] for field in ("version", "license", "official_repository")):
+            raise ValueError(f"tool {name} is missing version, license, or official_repository")
+        official = urlparse(config["official_repository"])
+        if official.scheme != "https" or official.hostname != "github.com":
+            raise ValueError(f"tool {name} must identify its official GitHub repository")
+        if config.get("kind") == "container":
+            if not isinstance(config.get("image"), str) or not config["image"] or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(config.get("digest", ""))):
+                raise ValueError(f"container tool {name} must use an immutable SHA-256 digest")
+            continue
+        if not all(isinstance(config.get(field), str) and config[field] for field in ("archive", "sha256", "url")):
             raise ValueError(f"tool {name} is missing archive, sha256, url, or version")
         if not SHA256.fullmatch(config["sha256"]):
             raise ValueError(f"tool {name} has an invalid SHA-256 checksum")
@@ -54,12 +63,18 @@ def validate_policy() -> None:
     baseline = load_object(ROOT / "policy/baseline.json")
     if not isinstance(baseline.get("fingerprints"), list):
         raise ValueError("policy/baseline.json must contain a fingerprints array")
+    standard_baseline = load_object(ROOT / "policy/standard-baseline.json")
+    if standard_baseline.get("profile") != "standard" or not isinstance(standard_baseline.get("fingerprints"), list):
+        raise ValueError("policy/standard-baseline.json must contain a Standard fingerprints array")
 
 
 def validate_references() -> None:
     required = (
         ".github/workflows/ci.yml", "templates/github-actions/security-baseline.yml",
+        "templates/github-actions/security-standard.yml",
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
+        "scripts/install_standard_tools.sh", "scripts/run_standard_profile.py", "scripts/detect_repository.py",
+        "scripts/validate_sbom.py", "scripts/validate_opengrep_rules.py",
         "scripts/append_tool_errors.py", "scripts/policy_gate.py", "scripts/validate_skill.py",
         "skills/appsec-guardian/SKILL.md",
     )

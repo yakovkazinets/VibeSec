@@ -1,0 +1,76 @@
+name: Security Standard
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "41 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      image_reference:
+        description: Optional prebuilt image pinned as registry/name@sha256:digest
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-standard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  standard-profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install pinned VibeSec parser dependency
+        run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.3
+      - name: Install checksum-verified scanners
+        run: |
+          scripts/install_tools.sh . .tools/bin
+          scripts/install_standard_tools.sh . .tools/bin
+      - name: Scan without building or installing project dependencies
+        id: security
+        continue-on-error: true
+        env:
+          VIBESEC_ENFORCEMENT: observe
+          VIBESEC_MIN_SEVERITY: high
+          VIBESEC_NETWORK_MODE: online
+          VIBESEC_IMAGE_REFERENCE: ${{ github.event_name != 'pull_request' && inputs.image_reference || '' }}
+        run: python3 scripts/run_standard_profile.py . results
+      - name: Write human-readable summary
+        if: always()
+        run: |
+          if [[ -f results/report.md ]]; then
+            sed -E 's/([A-Za-z0-9_=-]{20,})/[redacted]/g' results/report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "VibeSec did not generate a report; treat this run as a tool failure." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Retain normalized results, coverage, and validated SBOMs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: security-standard-${{ github.run_id }}
+          path: |
+            results/normalized.json
+            results/coverage.json
+            results/inventory.json
+            results/report.md
+            results/sbom.cyclonedx.json
+            results/sbom.spdx.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Preserve policy and tool failure status
+        if: steps.security.outcome == 'failure'
+        env:
+          SECURITY_OUTCOME: ${{ steps.security.outcome }}
+        run: |
+          echo "Security evaluation failed (${SECURITY_OUTCOME}); inspect the retained report."
+          exit 1

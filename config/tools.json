@@ -3,18 +3,57 @@
     "archive": "actionlint_1.7.12_linux_amd64.tar.gz",
     "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
     "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
-    "version": "1.7.12"
+    "version": "1.7.12",
+    "license": "MIT",
+    "official_repository": "https://github.com/rhysd/actionlint"
   },
   "gitleaks": {
     "archive": "gitleaks_8.30.1_linux_x64.tar.gz",
     "sha256": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
     "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz",
-    "version": "8.30.1"
+    "version": "8.30.1",
+    "license": "MIT",
+    "official_repository": "https://github.com/gitleaks/gitleaks"
   },
   "trivy": {
     "archive": "trivy_0.72.0_Linux-64bit.tar.gz",
     "sha256": "bbb64b9695866ce4a7a8f5c9592002c5961cab378577fa3f8a040df362b9b2ea",
     "url": "https://github.com/aquasecurity/trivy/releases/download/v0.72.0/trivy_0.72.0_Linux-64bit.tar.gz",
-    "version": "0.72.0"
+    "version": "0.72.0",
+    "license": "Apache-2.0",
+    "official_repository": "https://github.com/aquasecurity/trivy"
+  },
+  "opengrep": {
+    "archive": "opengrep_manylinux_x86",
+    "sha256": "9ac4aebb47ba3f7b0d8fc641ac8749cb6c2f253f616131a67d9631e00d4bea33",
+    "url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86",
+    "version": "1.25.0",
+    "license": "LGPL-2.1",
+    "official_repository": "https://github.com/opengrep/opengrep",
+    "signature": "sigstore-certificate-and-signature"
+  },
+  "osv-scanner": {
+    "archive": "osv-scanner_linux_amd64",
+    "sha256": "15314940c10d26af9c6649f150b8a47c1262e8fc7e17b1d1029b0e479e8ed8a0",
+    "url": "https://github.com/google/osv-scanner/releases/download/v2.4.0/osv-scanner_linux_amd64",
+    "version": "2.4.0",
+    "license": "Apache-2.0",
+    "official_repository": "https://github.com/google/osv-scanner"
+  },
+  "syft": {
+    "archive": "syft_1.49.0_linux_amd64.tar.gz",
+    "sha256": "7aa2f03ee92739cf643279ba3990548b9925d4e22cae13f46831ee62821147fe",
+    "url": "https://github.com/anchore/syft/releases/download/v1.49.0/syft_1.49.0_linux_amd64.tar.gz",
+    "version": "1.49.0",
+    "license": "Apache-2.0",
+    "official_repository": "https://github.com/anchore/syft"
+  },
+  "checkov": {
+    "kind": "container",
+    "image": "bridgecrew/checkov",
+    "digest": "sha256:c64ffb6d6fc8087c896341a2c697770a04a1cf558db04fa7b8129d8ca6bce336",
+    "version": "3.3.8",
+    "license": "Apache-2.0",
+    "official_repository": "https://github.com/bridgecrewio/checkov"
   }
 }

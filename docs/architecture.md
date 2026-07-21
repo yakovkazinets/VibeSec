@@ -14,6 +14,8 @@ The foundation does not execute application builds, test suites, package lifecyc
 
 The minimal profile installs checksum-verified release binaries, runs Trivy, Gitleaks, and actionlint, normalizes their output, applies baseline and suppression policy, writes JSON and Markdown reports, then retains only those normalized reports. Installation precedes scanning so an unverified binary cannot influence results. Normalization precedes policy so tool-specific formats cannot silently change enforcement. Raw scanner output stays runner-local because it may contain discovered secret material. Artifact upload runs even after failure so maintainers can distinguish findings from broken tooling.
 
+The imported-skill validator is a separate passive component. It bounds the package, decodes strict UTF-8, canonicalizes LF and Unicode NFC, rejects ambiguous YAML and Markdown structures, validates local references inside a canonical skill root, and hashes normalized content. Validation precedes interpretation so parser-confusion data cannot gain authority while its structure is still disputed. The validator never executes scripts, installs packages, follows external links, reads secrets, or treats body text as governing instructions.
+
 Trivy provides broad filesystem dependency, secret, and configuration coverage. Gitleaks provides a dedicated second view of secrets. actionlint validates GitHub Actions syntax and common expression problems. Repository-aware selection matters because irrelevant scanners add noise, runtime, and maintenance without adding meaningful coverage.
 
 `.github/workflows/ci.yml` protects VibeSec itself. `templates/github-actions/security-baseline.yml` is the consumer starter. The starter requires the accompanying `scripts/`, `config/`, and `policy/` directories; this avoids downloading mutable VibeSec code at runtime.
@@ -32,3 +34,5 @@ Every trigger starts in observation mode. After maintainers review historical fi
 ## Planned, not implemented
 
 Opengrep, Semgrep, OSV-Scanner, Checkov, ZAP, fuzzing, cosign, SLSA, and OSSF Scorecard are future profile candidates. None is executed or implied by the minimal profile.
+
+A complete skill package manager, archive ingestion, automatic external installation, cross-agent execution, and imported-script execution are also outside v0.1.

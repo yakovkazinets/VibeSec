@@ -14,7 +14,14 @@ Assets include repository source, workflow tokens, scanner reports, policy decis
 - Historical findings can prevent adoption. The default is observation; reviewed fingerprints can be baselined before `new` enforcement.
 - Suppressions can become permanent blind spots. Each requires a reason, owner, and expiration date; expired suppressions reactivate findings.
 - DAST can damage a live service. DAST is not implemented and must not target production by default in future profiles.
+- Parser differentials can make two consumers assign different meaning to one imported skill. Duplicate YAML keys, aliases, anchors, custom tags, implicit booleans, unexpected types, excessive nesting, repeated front matter, malformed fences, and competing skill definitions fail closed under one strict schema.
+- Encoding and display controls can hide or change instructions. UTF-8 BOMs, invalid UTF-8, bidirectional controls, and unexpected zero-width characters are rejected; line endings and Unicode are canonicalized to LF and NFC before hashing.
+- Filesystem canonicalization can redirect references. Parent traversal, missing files, excessive path depth, case or normalization collisions, non-ASCII v0.1 skill paths, broken symlinks, and symlinks resolving outside the canonical root are rejected.
+- Markdown can hide instruction-like content in examples, quotes, code fences, fixtures, or HTML comments. These regions—and all imported body text—remain non-authoritative data. Unclosed or nested fences and unclosed comments fail validation.
+- Oversized packages can exhaust parser resources. Skill, reference, total-size, file-count, and path-depth limits are enforced before interpretation.
 
 ## Residual risk
 
 Pins can reference an already-compromised upstream commit, checksums attest bytes rather than benign behavior, hosted runners and vulnerability databases can fail, scanners have false positives and false negatives, and no application build or runtime behavior is analyzed. Reviews must consider these limitations.
+
+Unicode homoglyph detection is conservative in v0.1: non-ASCII package paths are rejected, but natural-language body text is not subjected to a full confusable-character database. Semantic Markdown interpretation may still differ across renderers, so ambiguous structures fail closed and imported prose never receives authority from parsing alone.

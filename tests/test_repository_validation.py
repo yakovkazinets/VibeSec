@@ -19,6 +19,9 @@ class RepositoryValidationTests(unittest.TestCase):
         validate_policy()
         validate_references()
 
+    def test_yaml_dependency_is_exactly_pinned(self):
+        self.assertEqual((ROOT / "requirements.txt").read_text(encoding="utf-8"), "PyYAML==6.0.3\n")
+
 
 if __name__ == "__main__":
     unittest.main()

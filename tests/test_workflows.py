@@ -52,6 +52,11 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn("actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml", text)
 
+    def test_ci_validates_the_bundled_skill(self):
+        text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("pip install --disable-pip-version-check --requirement requirements.txt", text)
+        self.assertIn("python3 scripts/validate_skill.py skills/appsec-guardian", text)
+
 
 if __name__ == "__main__":
     unittest.main()

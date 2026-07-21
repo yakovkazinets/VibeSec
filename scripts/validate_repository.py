@@ -60,11 +60,14 @@ def validate_references() -> None:
     required = (
         ".github/workflows/ci.yml", "templates/github-actions/security-baseline.yml",
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
-        "scripts/policy_gate.py", "skills/appsec-guardian/SKILL.md",
+        "scripts/policy_gate.py", "scripts/validate_skill.py", "skills/appsec-guardian/SKILL.md",
     )
     missing = [path for path in required if not (ROOT / path).is_file()]
     if missing:
         raise ValueError(f"required files are missing: {', '.join(missing)}")
+    requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    if requirements != ["PyYAML==6.0.3"]:
+        raise ValueError("requirements.txt must contain the reviewed PyYAML pin")
 
 
 def main() -> int:

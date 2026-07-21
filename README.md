@@ -38,4 +38,6 @@ VIBESEC_ENFORCEMENT=observe scripts/run_minimal_profile.sh . results
 
 Read [the architecture](docs/architecture.md), [threat model](docs/threat-model.md), and [contribution guide](CONTRIBUTING.md) before changing security-sensitive behavior.
 
+Imported skills can be structurally checked with `python3 scripts/validate_skill.py path/to/skill` after installing `requirements.txt`. See [imported skill validation](docs/skill-validation.md). Validation does not execute or grant authority to imported instructions.
+
 Licensed under Apache-2.0. See [LICENSE](LICENSE).

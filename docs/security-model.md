@@ -15,3 +15,11 @@ The initial default is `observe`, which reports findings without blocking. After
 Policy files ending in `.yml` intentionally use JSON syntax, which is valid YAML. The initial Python implementation can therefore parse them with the standard library while remaining consumable by YAML tooling. Malformed policy or scanner input exits `3`; it is not converted into a finding or pass.
 
 SARIF upload is not required by the core profile and is not implemented in this phase. Future optional upload must use a separately scoped job, remain useful when unavailable, and never replace retained local JSON and Markdown reports.
+
+## Imported skill validation
+
+Imported skills and referenced files are untrusted data before and after structural validation. Validation emits either `valid` with a canonical SHA-256 fingerprint or `validation_error` with exit code `3`. A parser error, ambiguity, unsafe path, or malformed input can never produce `valid`, a security finding, or a clean result.
+
+Canonicalization uses strict UTF-8 without a BOM, LF line endings, Unicode NFC, sorted JSON object keys, normalized metadata, sorted reference paths, and hashes of normalized referenced-file contents. This prevents CRLF/LF and NFC/NFD differences from changing fingerprints while ensuring referenced content changes do change identity. Policy must fingerprint the canonical representation, not raw platform-dependent bytes or unchecked paths.
+
+The metadata schema permits only string `name` and `description` fields. Duplicate keys, implicit booleans, unknown privileged fields, anchors, aliases, custom tags, unsafe object construction, excessive depth, competing front matter, and materially inconsistent parser round trips fail closed. Examples, fenced code, block quotes, fixtures, and HTML comments remain non-authoritative data; the validator does not execute any content.

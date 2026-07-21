@@ -25,10 +25,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Install pinned Python validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
       - name: Run unit tests
         run: python3 -m unittest discover -s tests -v
       - name: Validate repository configuration
         run: python3 scripts/validate_repository.py
+      - name: Validate the bundled AppSec Guardian skill
+        run: python3 scripts/validate_skill.py skills/appsec-guardian
       - name: Validate YAML syntax
         run: >-
           find . -type f \( -name '*.yml' -o -name '*.yaml' \) -print0 |

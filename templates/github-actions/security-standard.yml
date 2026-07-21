@@ -32,9 +32,11 @@ jobs:
           persist-credentials: false
       - name: Initialize isolated scanner paths
         run: |
-          echo "VIBESEC_ROOT=$RUNNER_TEMP/vibesec-trusted" >> "$GITHUB_ENV"
-          echo "VIBESEC_RESULTS=$RUNNER_TEMP/vibesec-results" >> "$GITHUB_ENV"
-          echo "VIBESEC_TOOLS=$RUNNER_TEMP/vibesec-tools" >> "$GITHUB_ENV"
+          {
+            echo "VIBESEC_ROOT=$RUNNER_TEMP/vibesec-trusted"
+            echo "VIBESEC_RESULTS=$RUNNER_TEMP/vibesec-results"
+            echo "VIBESEC_TOOLS=$RUNNER_TEMP/vibesec-tools"
+          } >> "$GITHUB_ENV"
       - name: Materialize trusted scanner harness from the base revision
         env:
           TRUSTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}

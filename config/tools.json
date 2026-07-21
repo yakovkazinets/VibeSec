@@ -30,7 +30,10 @@
     "version": "1.25.0",
     "license": "LGPL-2.1",
     "official_repository": "https://github.com/opengrep/opengrep",
-    "signature": "sigstore-certificate-and-signature"
+    "signature_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86.sig",
+    "certificate_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86.cert",
+    "certificate_identity": "https://github.com/opengrep/opengrep/.github/workflows/rolling-release.yml@refs/heads/main",
+    "certificate_oidc_issuer": "https://token.actions.githubusercontent.com"
   },
   "osv-scanner": {
     "archive": "osv-scanner_linux_amd64",
@@ -47,6 +50,14 @@
     "version": "1.49.0",
     "license": "Apache-2.0",
     "official_repository": "https://github.com/anchore/syft"
+  },
+  "cosign": {
+    "archive": "cosign-linux-amd64",
+    "sha256": "f7622ed3cf22e55e1ae6377c080979ff77a22da9981c11df222a2e444991e7cf",
+    "url": "https://github.com/sigstore/cosign/releases/download/v3.1.2/cosign-linux-amd64",
+    "version": "3.1.2",
+    "license": "Apache-2.0",
+    "official_repository": "https://github.com/sigstore/cosign"
   },
   "checkov": {
     "kind": "container",

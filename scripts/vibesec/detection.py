@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-SKIP_DIRS = {".git", ".tools", "node_modules", "vendor", "dist", "build", ".venv", "venv"}
+SKIP_DIRS = {".git", ".tools", ".cache", "node_modules", "vendor", "dist", "build", "results", "reports", ".venv", "venv"}
 LANGUAGE_SUFFIXES = {
     ".js": "javascript", ".jsx": "javascript", ".mjs": "javascript",
     ".ts": "typescript", ".tsx": "typescript", ".py": "python",
@@ -44,7 +44,7 @@ def inventory(root: Path) -> dict[str, Any]:
     iac: dict[str, list[str]] = {key: [] for key in ("terraform", "kubernetes", "helm", "kustomize", "cloudformation", "bicep", "arm")}
     for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
         relative = path.relative_to(root)
-        if any(part in SKIP_DIRS for part in relative.parts) or not path.is_file():
+        if any(part in SKIP_DIRS for part in relative.parts) or path.is_symlink() or not path.is_file():
             continue
         rel = relative.as_posix()
         name = path.name

@@ -14,7 +14,7 @@ mkdir -p "$destination"
 temporary_directory="$(mktemp -d)"
 trap 'rm -rf -- "$temporary_directory"' EXIT
 
-for tool in opengrep osv-scanner syft; do
+for tool in cosign opengrep osv-scanner syft; do
   readarray -t metadata < <(python3 - "$config_path" "$tool" <<'PY'
 import json, sys
 item = json.load(open(sys.argv[1], encoding="utf-8"))[sys.argv[2]]
@@ -37,5 +37,22 @@ PY
     install -m 0755 "${temporary_directory}/${tool}" "${destination}/${tool}"
   else
     install -m 0755 "${temporary_directory}/${artifact}" "${destination}/${tool}"
+  fi
+  if [[ "$tool" == "opengrep" ]]; then
+    readarray -t signature_metadata < <(python3 - "$config_path" <<'PY'
+import json, sys
+item = json.load(open(sys.argv[1], encoding="utf-8"))["opengrep"]
+for key in ("signature_url", "certificate_url", "certificate_identity", "certificate_oidc_issuer"):
+    print(item[key])
+PY
+)
+    curl --fail --location --proto '=https' --tlsv1.2 --output "${temporary_directory}/opengrep.sig" "${signature_metadata[0]}"
+    curl --fail --location --proto '=https' --tlsv1.2 --output "${temporary_directory}/opengrep.cert" "${signature_metadata[1]}"
+    "${destination}/cosign" verify-blob \
+      --certificate "${temporary_directory}/opengrep.cert" \
+      --signature "${temporary_directory}/opengrep.sig" \
+      --certificate-identity "${signature_metadata[2]}" \
+      --certificate-oidc-issuer "${signature_metadata[3]}" \
+      "${temporary_directory}/${artifact}"
   fi
 done

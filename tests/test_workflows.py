@@ -64,6 +64,7 @@ class WorkflowSecurityTests(unittest.TestCase):
     def test_ci_lints_the_copyable_workflow(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn("actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml", text)
+        self.assertIn("python3 scripts/test_opengrep_rules.py .tools/bin/opengrep", text)
 
     def test_ci_validates_the_bundled_skill(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")

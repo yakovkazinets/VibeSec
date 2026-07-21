@@ -13,7 +13,7 @@ class OpengrepRuleTests(unittest.TestCase):
     def test_positive_and_negative_fixtures_cover_each_language(self):
         for side in ("positive", "negative"):
             directory = ROOT / "tests/fixtures/opengrep" / side
-            self.assertEqual({path.suffix for path in directory.iterdir()}, {".js", ".py", ".java", ".go"})
+            self.assertEqual({path.suffix for path in directory.iterdir() if path.is_file()}, {".js", ".py", ".java", ".go"})
 
 
 if __name__ == "__main__":

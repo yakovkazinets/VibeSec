@@ -26,7 +26,7 @@ class DetectionCoverageSbomTests(unittest.TestCase):
         self.assertEqual(result["iac"]["kubernetes"], ["deployment.yml"])
 
     def test_markdown_distinguishes_coverage_states(self):
-        payload = {"schema_version": 1, "tools": [{"tool": "checkov", "scope": "iac", "state": "not_applicable", "reason": "none detected"}]}
+        payload = {"schema_version": 1, "tools": [{"tool": "checkov", "version": "test", "scope": "iac", "state": "not_applicable", "reason": "none detected"}]}
         validate_coverage(payload)
         self.assertIn("not_applicable", markdown(payload))
         payload["tools"][0]["state"] = "clean"

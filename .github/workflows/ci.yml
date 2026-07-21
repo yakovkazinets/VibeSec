@@ -41,6 +41,10 @@ jobs:
           xargs -0 ruby -e 'require "yaml"; ARGV.each { |path| YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false, filename: path) }' --
       - name: Install checksum-verified scanners
         run: scripts/install_tools.sh . .tools/bin
+      - name: Install signature and checksum-verified Standard scanners
+        run: scripts/install_standard_tools.sh . .tools/bin
+      - name: Exercise local Opengrep rules
+        run: python3 scripts/test_opengrep_rules.py .tools/bin/opengrep
       - name: Lint repository and starter workflows
         run: .tools/bin/actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml
       - name: Run minimal profile in observation mode

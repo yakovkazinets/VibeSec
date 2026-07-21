@@ -13,15 +13,15 @@ def validate_coverage(payload: Any) -> dict[str, Any]:
     for item in payload["tools"]:
         if not isinstance(item, dict) or item.get("state") not in STATES:
             raise ValueError("coverage tool entries require a valid state")
-        if not all(isinstance(item.get(key), str) and item[key] for key in ("tool", "scope", "reason")):
-            raise ValueError("coverage tool entries require tool, scope, and reason")
+        if not all(isinstance(item.get(key), str) and item[key] for key in ("tool", "version", "scope", "reason")):
+            raise ValueError("coverage tool entries require tool, version, scope, and reason")
     return payload
 
 
 def markdown(payload: dict[str, Any]) -> str:
     validate_coverage(payload)
-    lines = ["## Standard profile coverage", "", "| Tool | Scope | State | Reason |", "|---|---|---|---|"]
+    lines = ["## Standard profile coverage", "", "| Tool | Version | Scope | State | Reason |", "|---|---|---|---|---|"]
     for item in sorted(payload["tools"], key=lambda value: (value["tool"], value["scope"])):
-        values = [str(item[key]).replace("|", "\\|").replace("\n", " ") for key in ("tool", "scope", "state", "reason")]
+        values = [str(item[key]).replace("|", "\\|").replace("\n", " ") for key in ("tool", "version", "scope", "state", "reason")]
         lines.append("| " + " | ".join(values) + " |")
     return "\n".join(lines) + "\n"

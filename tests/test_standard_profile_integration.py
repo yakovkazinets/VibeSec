@@ -28,9 +28,13 @@ else: json.dump({"results":[]}, open(output, "w"))
 ''')
         self.write_tool("osv-scanner", r'''#!/usr/bin/env python3
 import json, os, sys
-if os.getenv("FAKE_OSV_MODE") == "fail": raise SystemExit(8)
-output = sys.argv[sys.argv.index("--output") + 1]
-json.dump({"results":[]}, open(output, "w"))
+mode = os.getenv("FAKE_OSV_MODE", "pass")
+if mode == "fail": raise SystemExit(8)
+output = sys.argv[sys.argv.index("--output-file") + 1]
+payload = {"results":[]}
+if mode == "finding": payload = {"results":[{"source":{"path":"requirements.txt"},"packages":[{"package":{"name":"fixture"},"vulnerabilities":[{"id":"OSV-TEST","summary":"Synthetic advisory","database_specific":{"severity":"HIGH"}}]}]}]}
+json.dump(payload, open(output, "w"))
+if mode == "finding": raise SystemExit(1)
 ''')
         self.write_tool("syft", r'''#!/usr/bin/env python3
 import json, sys
@@ -80,6 +84,7 @@ json.dump([], open(output, "w"))
         self.assertEqual(states["opengrep"], "ran")
         self.assertEqual(states["checkov"], "ran")
         self.assertEqual(states["trivy-image"], "not_configured")
+        self.assertTrue(all(entry["version"] for entry in self.load_json("coverage.json")["tools"]))
         self.assertIn("Standard profile coverage", (self.results / "report.md").read_text(encoding="utf-8"))
         self.assertTrue((self.results / "sbom.cyclonedx.json").is_file())
         self.assertTrue((self.results / "sbom.spdx.json").is_file())
@@ -89,6 +94,13 @@ json.dump([], open(output, "w"))
         self.assertEqual(completed.returncode, 2, completed.stderr)
         results = self.load_json("normalized.json")["results"]
         self.assertTrue(any(item["tool"] == "osv-scanner" and item["result_type"] == "tool_error" for item in results))
+
+    def test_osv_finding_exit_is_not_misclassified_as_tool_failure(self):
+        completed = self.run_profile(FAKE_OSV_MODE="finding", VIBESEC_ENFORCEMENT="all")
+        self.assertEqual(completed.returncode, 1, completed.stderr)
+        results = self.load_json("normalized.json")["results"]
+        self.assertTrue(any(item["tool"] == "osv-scanner" and item["result_type"] == "finding" for item in results))
+        self.assertFalse(any(item["tool"] == "osv-scanner" and item["result_type"] == "tool_error" for item in results))
 
     def test_malformed_scanner_output_returns_three_not_clean(self):
         completed = self.run_profile(FAKE_OPENGREP_MODE="malformed")

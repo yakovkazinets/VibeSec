@@ -58,7 +58,7 @@ def run(scanner: str, argv: list[str], raw_path: Path | None, *, cwd: Path, env:
     if stdout_output and raw_path is not None:
         raw_path.write_bytes(completed.stdout)
     # Finding exits are scanner-specific; these values mean the scanner completed.
-    accepted = {0, 1} if scanner in {"gitleaks", "actionlint", "checkov"} else {0}
+    accepted = {0, 1} if scanner in {"gitleaks", "actionlint", "checkov", "osv-scanner"} else {0}
     if completed.returncode not in accepted:
         return f"{scanner} exited with status {completed.returncode}"
     if raw_path is not None and not raw_path.is_file():
@@ -88,6 +88,19 @@ def main() -> int:
     tools = (args.tool_dir or root / ".tools/bin").resolve()
     if not root.is_dir() or (args.image_reference and not IMAGE_DIGEST.fullmatch(args.image_reference)):
         print("invalid repository root or image reference; images require an immutable sha256 digest", file=sys.stderr)
+        return 3
+    try:
+        tool_manifest = json.loads((root / "config/tools.json").read_text(encoding="utf-8"))
+        if not isinstance(tool_manifest, dict):
+            raise ValueError("tool manifest must be an object")
+        for required_tool in ("opengrep", "osv-scanner", "syft", "checkov", "trivy", "gitleaks", "actionlint"):
+            if not isinstance(tool_manifest.get(required_tool), dict) or not isinstance(tool_manifest[required_tool].get("version"), str):
+                raise ValueError(f"tool manifest is missing {required_tool} version metadata")
+        checkov_manifest = tool_manifest["checkov"]
+        if not isinstance(checkov_manifest.get("image"), str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(checkov_manifest.get("digest", ""))):
+            raise ValueError("Checkov must use an immutable SHA-256 image digest")
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        print(f"invalid tool manifest: {exc}", file=sys.stderr)
         return 3
     database_date = os.getenv("VIBESEC_OSV_DATABASE_DATE", "")
     if args.network_mode == "offline":
@@ -130,13 +143,13 @@ def main() -> int:
 
     opengrep_output = raw / "opengrep.json"
     if set(repo_inventory["languages"]) & {"javascript", "typescript", "python", "java", "go"}:
-        execute("opengrep", "first-party source", command(tools / "opengrep", "scan", "--config", str(root / "rules/opengrep"), "--json-output", str(opengrep_output), "--disable-version-check", "--metrics=off", str(root)), opengrep_output, normalizer="opengrep")
+        execute("opengrep", "first-party source", command(tools / "opengrep", "scan", "--config", str(root / "rules/opengrep"), "--json-output", str(opengrep_output), "--disable-version-check", str(root)), opengrep_output, normalizer="opengrep")
     else:
         coverage.append({"tool": "opengrep", "scope": "first-party source", "state": "not_applicable", "reason": "no supported language files detected"})
 
     osv_output = raw / "osv.json"
     if repo_inventory["manifests"]:
-        osv_args = ["scan", "source", "--recursive", "--format", "json", "--output", str(osv_output), "--allow-no-lockfiles"]
+        osv_args = ["scan", "source", "--recursive", "--format", "json", "--output-file", str(osv_output), "--allow-no-lockfiles"]
         if args.network_mode == "offline":
             osv_args += ["--offline", "--offline-vulnerabilities"]
         osv_args.append(str(root))
@@ -167,7 +180,7 @@ def main() -> int:
     iac_files = [path for values in repo_inventory["iac"].values() for path in values] + repo_inventory["dockerfiles"] + repo_inventory["workflows"]
     checkov_output = raw / "checkov.json"
     if iac_files:
-        manifest = json.loads((root / "config/tools.json").read_text(encoding="utf-8"))["checkov"]
+        manifest = checkov_manifest
         image = f'{manifest["image"]}@{manifest["digest"]}'
         execute("checkov", "infrastructure as code", command("docker", "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--tmpfs", "/tmp:rw,noexec,nosuid,size=128m", "--volume", f"{root}:/workspace:ro", image, "--directory", "/workspace", "--output", "json", "--compact", "--quiet", "--download-external-modules", "false"), checkov_output, normalizer="checkov", stdout=True, reason="immutable Checkov container scanned detected IaC with network disabled")
     else:
@@ -192,8 +205,19 @@ def main() -> int:
         image_output = raw / "trivy-image.json"
         execute("trivy-image", "prebuilt container image", command(tools / "trivy", "image", "--scanners", "vuln", "--format", "json", "--output", str(image_output), "--exit-code", "0", "--no-progress", args.image_reference), image_output, normalizer="trivy-image")
 
+    for entry in coverage:
+        manifest_name = "trivy" if entry["tool"] == "trivy-image" else entry["tool"]
+        try:
+            entry["version"] = str(tool_manifest[manifest_name]["version"])
+        except (KeyError, TypeError) as exc:
+            print(f"tool manifest has no version for {manifest_name}", file=sys.stderr)
+            return 3
     normalized_payload = {"schema_version": 1, "profile": "standard", "results": normalized}
-    coverage_payload = validate_coverage({"schema_version": 1, "profile": "standard", "inventory": repo_inventory, "tools": coverage})
+    coverage_payload = validate_coverage({
+        "schema_version": 1, "profile": "standard", "inventory": repo_inventory,
+        "network_mode": args.network_mode, "osv_database_date": database_date or None,
+        "sbom_formats": ["cyclonedx-json", "spdx-json"], "tools": coverage,
+    })
     atomic_json(results / "normalized.json", normalized_payload)
     atomic_json(results / "coverage.json", coverage_payload)
     policy = command(sys.executable, root / "scripts/policy_gate.py", "--results", results / "normalized.json", "--policy", root / "policy/severity-thresholds.yml", "--baseline", root / "policy/standard-baseline.json", "--suppressions", root / "policy/suppressions.yml", "--minimum-severity", args.minimum_severity, "--enforcement", args.enforcement, "--profile", "standard", "--report", results / "report.md")

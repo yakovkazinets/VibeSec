@@ -43,6 +43,10 @@ class NormalizeTests(unittest.TestCase):
         result = normalize_osv(path)[0]
         self.assertEqual((result.tool, result.severity, result.file), ("osv-scanner", "high", "go.mod"))
 
+    def test_osv_ecosystem_severity_is_supported(self):
+        path = self.write_json({"results": [{"source": {"path": "go.mod"}, "packages": [{"package": {"name": "example"}, "vulnerabilities": [{"id": "GO-TEST", "summary": "Fixture advisory", "ecosystem_specific": {"severity": "HIGH"}}]}]}]})
+        self.assertEqual(normalize_osv(path)[0].severity, "high")
+
     def test_checkov_and_trivy_image_categories(self):
         checkov = self.write_json({"results": {"failed_checks": [{"check_id": "CKV_TEST", "check_name": "Fixture", "file_path": "/main.tf", "file_line_range": [2, 3]}]}})
         image = self.write_json({"Results": [{"Target": "fixture@sha256:abc", "Vulnerabilities": [{"VulnerabilityID": "CVE-TEST", "Severity": "CRITICAL", "Title": "Fixture"}]}]})

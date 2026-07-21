@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
-EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "checkov"}
+EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "cosign", "checkov"}
 
 
 def load_object(path: Path) -> dict:
@@ -49,6 +49,10 @@ def validate_tools() -> None:
             raise ValueError(f"tool {name} must use an official versioned GitHub release URL")
         if config["archive"] not in parsed.path or config["version"] not in parsed.path:
             raise ValueError(f"tool {name} URL, archive, and version are inconsistent")
+        if name == "opengrep":
+            for field in ("signature_url", "certificate_url", "certificate_identity", "certificate_oidc_issuer"):
+                if not isinstance(config.get(field), str) or not config[field]:
+                    raise ValueError(f"Opengrep is missing Sigstore field {field}")
 
 
 def validate_policy() -> None:
@@ -75,6 +79,7 @@ def validate_references() -> None:
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
         "scripts/install_standard_tools.sh", "scripts/run_standard_profile.py", "scripts/detect_repository.py",
         "scripts/validate_sbom.py", "scripts/validate_opengrep_rules.py",
+        "scripts/test_opengrep_rules.py",
         "scripts/append_tool_errors.py", "scripts/policy_gate.py", "scripts/validate_skill.py",
         "skills/appsec-guardian/SKILL.md",
     )

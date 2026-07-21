@@ -61,6 +61,8 @@ def normalize_trivy(path: Path) -> list[Finding]:
         target = str(result.get("Target", ""))
         result_class = str(result.get("Class", result.get("Type", "filesystem")))
         for vulnerability in result.get("Vulnerabilities") or []:
+            if not isinstance(vulnerability, dict):
+                raise ValueError("malformed Trivy output: vulnerabilities must be objects")
             findings.append(Finding.create(
                 tool="trivy", category="dependency", rule_id=str(vulnerability.get("VulnerabilityID", "unknown")),
                 severity=str(vulnerability.get("Severity", "unknown")), file=target,
@@ -68,6 +70,8 @@ def normalize_trivy(path: Path) -> list[Finding]:
                 confidence="confirmed",
             ))
         for item in result.get("Misconfigurations") or []:
+            if not isinstance(item, dict) or not isinstance(item.get("CauseMetadata", {}), dict):
+                raise ValueError("malformed Trivy output: misconfigurations must be objects")
             findings.append(Finding.create(
                 tool="trivy", category="configuration", rule_id=str(item.get("ID", "unknown")),
                 severity=str(item.get("Severity", "unknown")), file=str(item.get("CauseMetadata", {}).get("Resource", target)),
@@ -75,6 +79,8 @@ def normalize_trivy(path: Path) -> list[Finding]:
                 confidence="possible",
             ))
         for secret in result.get("Secrets") or []:
+            if not isinstance(secret, dict):
+                raise ValueError("malformed Trivy output: secrets must be objects")
             findings.append(Finding.create(
                 tool="trivy", category="secret", rule_id=str(secret.get("RuleID", "secret")),
                 severity=str(secret.get("Severity", "high")), file=target, line=_line(secret.get("StartLine")),
@@ -122,9 +128,12 @@ def normalize_opengrep(path: Path) -> list[Finding]:
 
 def _osv_severity(vulnerability: dict[str, Any]) -> str:
     database = vulnerability.get("database_specific") or {}
+    ecosystem = vulnerability.get("ecosystem_specific") or {}
     if database and not isinstance(database, dict):
         raise ValueError("malformed OSV output: database_specific must be an object")
-    candidate = database.get("severity") if isinstance(database, dict) else None
+    if ecosystem and not isinstance(ecosystem, dict):
+        raise ValueError("malformed OSV output: ecosystem_specific must be an object")
+    candidate = database.get("severity") or ecosystem.get("severity")
     return _text(candidate or "unknown", field="severity")
 
 
@@ -181,7 +190,7 @@ def normalize_checkov(path: Path) -> list[Finding]:
             findings.append(Finding.create(
                 tool="checkov", category="iac", rule_id=_text(item.get("check_id"), field="check_id", required=True),
                 severity=_text(item.get("severity") or "medium", field="severity"),
-                file=_text(item.get("file_abs_path") or item.get("file_path") or "", field="file_path"), line=line,
+                file=_text(item.get("file_path") or item.get("file_abs_path") or "", field="file_path"), line=line,
                 description=_text(item.get("check_name") or "Infrastructure policy finding", field="check_name"), confidence="possible",
             ))
     return findings

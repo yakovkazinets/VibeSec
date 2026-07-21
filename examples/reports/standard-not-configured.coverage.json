@@ -1,0 +1,15 @@
+{
+  "schema_version": 1, "profile": "standard",
+  "limitations": ["Image coverage is absent in this fictional pull-request example."],
+  "outside_coverage": ["Private registry access and runtime behavior were not assessed."],
+  "tools": [
+    {"tool":"opengrep","version":"example","scope":"source","state":"ran","reason":"completed","relevant_artifacts":["src/example.go"],"output_files":["raw/opengrep.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"osv-scanner","version":"example","scope":"dependencies","state":"ran","reason":"completed","relevant_artifacts":["go.mod"],"output_files":["raw/osv.json"],"network_access":"advisory_queries","application_code_executed":false},
+    {"tool":"syft","version":"example","scope":"sbom","state":"ran","reason":"completed","relevant_artifacts":["go.mod"],"output_files":["sbom.cyclonedx.json","sbom.spdx.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"checkov","version":"example","scope":"iac","state":"not_applicable","reason":"no IaC","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false},
+    {"tool":"trivy","version":"example","scope":"configuration","state":"ran","reason":"completed","relevant_artifacts":["Dockerfile"],"output_files":["raw/trivy.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"gitleaks","version":"example","scope":"secrets","state":"ran","reason":"completed","relevant_artifacts":[".git"],"output_files":["raw/gitleaks.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"actionlint","version":"example","scope":"workflows","state":"not_applicable","reason":"no workflows","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false},
+    {"tool":"trivy-image","version":"example","scope":"image","state":"not_configured","reason":"disabled on untrusted pull request","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false}
+  ]
+}

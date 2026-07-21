@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "profile": "standard",
+  "results": [{
+    "tool": "opengrep", "category": "sast", "rule_id": "fictional.example.rule",
+    "severity": "medium", "file": "src/example.py", "line": 12,
+    "description": "Fictional review example with no source snippet", "confidence": "possible",
+    "fingerprint": "4444444444444444444444444444444444444444444444444444444444444444", "result_type": "finding"
+  }]
+}

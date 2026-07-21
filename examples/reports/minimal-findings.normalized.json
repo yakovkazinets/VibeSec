@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "profile": "minimal",
+  "results": [{
+    "tool": "gitleaks", "category": "secret", "rule_id": "fictional-example",
+    "severity": "high", "file": "examples/fictional.txt", "line": 7,
+    "description": "Synthetic documented finding without secret material", "confidence": "possible",
+    "fingerprint": "1111111111111111111111111111111111111111111111111111111111111111", "result_type": "finding"
+  }]
+}

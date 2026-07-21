@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "profile": "minimal",
+  "results": [{
+    "tool": "trivy", "category": "execution", "rule_id": "tool-error",
+    "severity": "low", "file": "", "line": null,
+    "description": "Trivy exited with a fictional nonzero status", "confidence": "confirmed",
+    "fingerprint": "2222222222222222222222222222222222222222222222222222222222222222", "result_type": "tool_error"
+  }]
+}

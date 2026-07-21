@@ -1,0 +1,15 @@
+{
+  "schema_version": 1, "profile": "standard",
+  "limitations": ["Mixed fictional states demonstrate classification, not security."],
+  "outside_coverage": ["Application execution was outside scope."],
+  "tools": [
+    {"tool":"opengrep","version":"example","scope":"source","state":"ran","reason":"completed","relevant_artifacts":["src/example.py"],"output_files":["raw/opengrep.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"osv-scanner","version":"example","scope":"dependencies","state":"tool_error","reason":"fictional scanner failure","relevant_artifacts":["requirements.txt"],"output_files":[],"network_access":"advisory_queries","application_code_executed":false},
+    {"tool":"syft","version":"example","scope":"sbom","state":"ran","reason":"completed","relevant_artifacts":["requirements.txt"],"output_files":["sbom.cyclonedx.json","sbom.spdx.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"checkov","version":"example","scope":"iac","state":"not_applicable","reason":"no IaC detected","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false},
+    {"tool":"trivy","version":"example","scope":"configuration","state":"ran","reason":"completed","relevant_artifacts":["src/example.py"],"output_files":["raw/trivy.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"gitleaks","version":"example","scope":"secrets","state":"ran","reason":"completed","relevant_artifacts":[".git"],"output_files":["raw/gitleaks.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"actionlint","version":"example","scope":"workflows","state":"not_applicable","reason":"no workflows detected","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false},
+    {"tool":"trivy-image","version":"example","scope":"image","state":"not_configured","reason":"digest absent","relevant_artifacts":["Dockerfile"],"output_files":[],"network_access":"none","application_code_executed":false}
+  ]
+}

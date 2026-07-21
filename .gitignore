@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Test and coverage output
+.coverage
+coverage.xml
+htmlcov/
+
+# Generated tools and security reports
+.tools/
+results/
+reports/
+*.sarif
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Temporary files
+*.log
+*.tmp

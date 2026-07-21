@@ -1,12 +1,41 @@
 # VibeSec
 
-An open-source security toolkit for developers and AI-assisted coding workflows.
+VibeSec is an open-source application-security toolkit for vibe coders, solo developers, startups, and small teams. It combines a repository-aware coding-agent skill with a copyable GitHub Actions baseline.
 
-The project will provide:
+VibeSec cannot guarantee that an application is secure. Scanner coverage is incomplete, findings may be wrong, and a clean scan covers only the checks that completed successfully.
 
-- A reusable security skill for coding agents
-- A copy-and-paste GitHub Actions security pipeline
-- Open-source SAST, SCA, secret, IaC, container, and DAST tooling
-- Secure defaults, documented procedures, and actionable remediation guidance
+## Minimal profile
 
-This project is currently under development.
+The initial profile uses:
+
+- Trivy for filesystem dependency, secret, and configuration scanning.
+- Gitleaks for dedicated secret detection.
+- actionlint for GitHub Actions syntax and expression checks.
+
+It does not build or execute application code. Standard and Advanced features—including SAST, OSV-Scanner, Checkov, DAST, fuzzing, signing, provenance, and Scorecard—are planned but not implemented.
+
+## Use the starter workflow
+
+Copy the starter and its required local support directories into an application repository:
+
+```shell
+mkdir -p .github/workflows
+cp templates/github-actions/security-baseline.yml .github/workflows/security-baseline.yml
+cp -R scripts config policy /path/to/application/
+```
+
+Start with `VIBESEC_ENFORCEMENT: observe`. Review historical findings, record reviewed fingerprints in `policy/baseline.json`, then change to `new` when ready to block newly introduced high or critical findings. See [the security model](docs/security-model.md) and [false-positive guide](docs/false-positive-guide.md).
+
+Pull requests, pushes to `main`, weekly schedules, and manual runs use the same minimal scan. Fork pull requests receive no secrets. Reports remain useful without GitHub Advanced Security and are retained as JSON and Markdown artifacts.
+
+## Develop
+
+```shell
+python3 -m unittest discover -s tests -v
+scripts/install_tools.sh . .tools/bin
+VIBESEC_ENFORCEMENT=observe scripts/run_minimal_profile.sh . results
+```
+
+Read [the architecture](docs/architecture.md), [threat model](docs/threat-model.md), and [contribution guide](CONTRIBUTING.md) before changing security-sensitive behavior.
+
+Licensed under Apache-2.0. See [LICENSE](LICENSE).

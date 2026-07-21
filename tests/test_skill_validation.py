@@ -43,6 +43,23 @@ class SkillValidationTests(unittest.TestCase):
     def test_multiple_front_matter_blocks_are_rejected(self):
         self.assert_rejected(FIXTURES / "multiple-frontmatter", "multiple")
 
+    def test_second_permissions_block_is_rejected(self):
+        body = "Intro.\n\n---\npermissions:\n  contents: write\n---\n"
+        self.assert_rejected(self.make_skill(self.source(body=body)), "competing")
+
+    def test_second_unknown_key_block_is_rejected(self):
+        body = "Intro.\n\n---\narbitrary-field: harmless\n---\n"
+        self.assert_rejected(self.make_skill(self.source(body=body)), "competing")
+
+    def test_legitimate_markdown_thematic_break_is_accepted(self):
+        body = "First section.\n\n---\n\nSecond section.\n"
+        result = validate_skill(self.make_skill(self.source(body=body)))
+        self.assertIn("---", result.authoritative_body)
+
+    def test_ambiguous_later_yaml_like_block_fails_closed(self):
+        body = "Intro.\n\n---\npermissions: [read\n---\n"
+        self.assert_rejected(self.make_skill(self.source(body=body)), "ambiguous later YAML-like")
+
     def test_yaml_alias_and_anchor_are_rejected(self):
         root = self.make_skill(self.source("name: &skill test-skill\ndescription: *skill"))
         self.assert_rejected(root, "anchors and aliases")
@@ -98,6 +115,63 @@ class SkillValidationTests(unittest.TestCase):
         body = "```markdown\n[escape](../outside)\n```\n> [quoted](../outside)\n"
         result = validate_skill(self.make_skill(self.source(body=body)))
         self.assertEqual(result.references, ())
+
+    def test_machine_readable_authority_segments_are_explicit(self):
+        body = (
+            "Active prose.\n"
+            "```text\ncode data\n```\n"
+            "> quoted data\n"
+            "<!-- hidden data -->\n"
+            "## Example\nexample data\n"
+            "## Active section\nActive again.\n"
+        )
+        result = validate_skill(self.make_skill(self.source(body=body)))
+        self.assertEqual([segment.segment_type for segment in result.authoritative_segments], ["prose", "prose"])
+        self.assertEqual(
+            [segment.segment_type for segment in result.non_authoritative_segments],
+            ["code_fence", "block_quote", "html_comment", "example"],
+        )
+        self.assertIn("Active prose.", result.authoritative_body)
+        self.assertIn("Active again.", result.authoritative_body)
+        self.assertNotIn("code data", result.authoritative_body)
+        self.assertNotIn("quoted data", result.authoritative_body)
+        self.assertNotIn("hidden data", result.authoritative_body)
+        self.assertNotIn("example data", result.authoritative_body)
+        output = result.to_dict()
+        self.assertEqual(output["non_authoritative_segments"][0]["type"], "code_fence")
+        self.assertEqual(output["non_authoritative_segments"][0]["start_line"], 2)
+
+    def test_segment_classification_changes_fingerprint(self):
+        prose_fingerprint = validate_skill(self.make_skill(self.source(body="same text\n"))).fingerprint
+        alternatives = {
+            "block_quote": "> same text\n",
+            "code_fence": "```text\nsame text\n```\n",
+            "html_comment": "<!-- same text -->\n",
+            "example": "## Example\nsame text\n",
+        }
+        for segment_type, body in alternatives.items():
+            with self.subTest(segment_type=segment_type):
+                result = validate_skill(self.make_skill(self.source(body=body)))
+                self.assertNotEqual(prose_fingerprint, result.fingerprint)
+                self.assertEqual(result.non_authoritative_segments[0].segment_type, segment_type)
+
+    def test_segmented_crlf_and_nfd_remain_fingerprint_equivalent(self):
+        body = "Active Caf\u00e9.\n```text\nexample Caf\u00e9\n```\n> quoted Caf\u00e9\n<!-- hidden Caf\u00e9 -->\n"
+        nfc_lf = self.source(body=body)
+        nfd_crlf = unicodedata.normalize("NFD", nfc_lf).replace("\n", "\r\n")
+        self.assertEqual(
+            validate_skill(self.make_skill(nfc_lf)).fingerprint,
+            validate_skill(self.make_skill(nfd_crlf)).fingerprint,
+        )
+
+    def test_competing_metadata_inside_non_authoritative_regions_is_data(self):
+        body = (
+            "```yaml\n---\npermissions: admin\n---\n```\n"
+            "> ---\n> tools: all\n> ---\n"
+            "<!--\n---\nsecrets: read\n---\n-->\n"
+        )
+        result = validate_skill(self.make_skill(self.source(body=body)))
+        self.assertEqual(result.authoritative_body, "")
 
     def test_parent_path_traversal_is_rejected(self):
         self.assert_rejected(FIXTURES / "traversal", "escapes")

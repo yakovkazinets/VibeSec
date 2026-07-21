@@ -28,10 +28,9 @@ PROHIBITED_BIDI = {
 PROHIBITED_ZERO_WIDTH = {"\u200b", "\u200c", "\u200d", "\u2060", "\ufeff"}
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 LINK_PATTERN = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
-SECOND_FRONT_MATTER = re.compile(
-    r"(?ms)^---[ \t]*\n(?:(?!^---[ \t]*$).)*?^(?:name|description)[ \t]*:.*?^---[ \t]*$"
-)
 FENCE_START = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+HEADING = re.compile(r"^(#{1,6})[ \t]+(.+?)\s*$")
+MAPPING_LIKE = re.compile(r"^[ \t]*[A-Za-z_][A-Za-z0-9_-]*[ \t]*:")
 
 
 class SkillValidationError(ValueError):
@@ -58,12 +57,31 @@ StrictSafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
 
 
 @dataclass(frozen=True)
+class ContentSegment:
+    segment_type: str
+    start_line: int
+    end_line: int
+    text: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "type": self.segment_type,
+            "start_line": self.start_line,
+            "end_line": self.end_line,
+            "text": self.text,
+        }
+
+
+@dataclass(frozen=True)
 class ValidatedSkill:
     root: Path
     metadata: dict[str, str]
     body: str
     references: tuple[str, ...]
     reference_hashes: dict[str, str]
+    authoritative_body: str
+    authoritative_segments: tuple[ContentSegment, ...]
+    non_authoritative_segments: tuple[ContentSegment, ...]
     canonical: str
     fingerprint: str
 
@@ -73,6 +91,9 @@ class ValidatedSkill:
             "metadata": self.metadata,
             "references": list(self.references),
             "reference_hashes": self.reference_hashes,
+            "authoritative_body": self.authoritative_body,
+            "authoritative_segments": [segment.to_dict() for segment in self.authoritative_segments],
+            "non_authoritative_segments": [segment.to_dict() for segment in self.non_authoritative_segments],
             "fingerprint": self.fingerprint,
         }
 
@@ -114,8 +135,6 @@ def _parse_metadata(source: str) -> tuple[dict[str, str], str]:
         raise SkillValidationError("front matter is unclosed or ambiguous")
     yaml_text = source[4:closing]
     body = source[closing + 5 :]
-    if SECOND_FRONT_MATTER.search(body):
-        raise SkillValidationError("multiple or competing front-matter blocks are prohibited")
     try:
         for event in yaml.parse(yaml_text, Loader=StrictSafeLoader):
             if isinstance(event, AliasEvent) or (isinstance(event, NodeEvent) and event.anchor is not None):
@@ -149,45 +168,107 @@ def _parse_metadata(source: str) -> tuple[dict[str, str], str]:
     return canonical_metadata, body
 
 
-def _classify_markdown(body: str) -> tuple[list[bool], list[bool]]:
+def _segment_markdown(body: str) -> tuple[ContentSegment, ...]:
     lines = body.splitlines(keepends=True)
     in_fence: tuple[str, int] | None = None
     in_comment = False
-    fenced: list[bool] = []
-    commented: list[bool] = []
-    for line in lines:
+    example_level: int | None = None
+    classified: list[tuple[str, int, str]] = []
+    for line_number, line in enumerate(lines, start=1):
         stripped = line.rstrip("\n")
         match = FENCE_START.match(stripped)
-        current_fenced = in_fence is not None
+        if in_fence is not None:
+            if match:
+                marker, suffix = match.groups()
+                if marker[0] == in_fence[0] and len(marker) >= in_fence[1] and not suffix.strip():
+                    in_fence = None
+                else:
+                    raise SkillValidationError("nested or malformed Markdown code fence")
+            classified.append(("code_fence", line_number, line))
+            continue
         if match:
             marker, suffix = match.groups()
-            if in_fence is None:
-                in_fence = (marker[0], len(marker))
-                current_fenced = True
-            elif marker[0] == in_fence[0] and len(marker) >= in_fence[1] and not suffix.strip():
-                current_fenced = True
-                in_fence = None
-            else:
-                raise SkillValidationError("nested or malformed Markdown code fence")
-        fenced.append(current_fenced)
-        if not current_fenced:
-            opens = line.count("<!--")
-            closes = line.count("-->")
-            if closes > opens and not in_comment:
-                raise SkillValidationError("Markdown contains an unmatched HTML comment close")
-            was_comment = in_comment or opens > 0
-            if opens > closes:
-                in_comment = True
-            elif closes >= opens and closes > 0:
+            in_fence = (marker[0], len(marker))
+            classified.append(("code_fence", line_number, line))
+            continue
+        if in_comment:
+            if "<!--" in line:
+                raise SkillValidationError("nested Markdown HTML comment")
+            if "-->" in line:
+                before, after = line.split("-->", 1)
+                del before
+                if after.strip():
+                    raise SkillValidationError("HTML comment mixed with authoritative prose is ambiguous")
                 in_comment = False
-            commented.append(was_comment)
+            classified.append(("html_comment", line_number, line))
+            continue
+        if "-->" in line and "<!--" not in line:
+            raise SkillValidationError("Markdown contains an unmatched HTML comment close")
+        if "<!--" in line:
+            before, after_open = line.split("<!--", 1)
+            if before.strip():
+                raise SkillValidationError("HTML comment mixed with authoritative prose is ambiguous")
+            if "-->" in after_open:
+                _, after_close = after_open.split("-->", 1)
+                if after_close.strip():
+                    raise SkillValidationError("HTML comment mixed with authoritative prose is ambiguous")
+            else:
+                in_comment = True
+            classified.append(("html_comment", line_number, line))
+            continue
+        heading = HEADING.match(stripped)
+        if heading:
+            level = len(heading.group(1))
+            title = heading.group(2).strip().casefold().rstrip(":")
+            if example_level is not None and level <= example_level:
+                example_level = None
+            if title == "example" or title == "examples" or title.startswith("example "):
+                example_level = level
+        if example_level is not None:
+            classified.append(("example", line_number, line))
+        elif line.lstrip().startswith(">"):
+            classified.append(("block_quote", line_number, line))
         else:
-            commented.append(False)
+            classified.append(("prose", line_number, line))
     if in_fence is not None:
         raise SkillValidationError("Markdown code fence is unclosed")
     if in_comment:
         raise SkillValidationError("Markdown HTML comment is unclosed")
-    return fenced, commented
+    segments: list[ContentSegment] = []
+    for segment_type, line_number, line in classified:
+        if segments and segments[-1].segment_type == segment_type and segments[-1].end_line + 1 == line_number:
+            previous = segments[-1]
+            segments[-1] = ContentSegment(segment_type, previous.start_line, line_number, previous.text + line)
+        else:
+            segments.append(ContentSegment(segment_type, line_number, line_number, line))
+    return tuple(segments)
+
+
+def _reject_competing_front_matter(segments: tuple[ContentSegment, ...]) -> None:
+    authoritative_lines: list[tuple[int, str]] = []
+    for segment in segments:
+        if segment.segment_type == "prose":
+            authoritative_lines.extend(
+                (segment.start_line + offset, line)
+                for offset, line in enumerate(segment.text.splitlines())
+            )
+    delimiter_positions = [index for index, (_, line) in enumerate(authoritative_lines) if line.strip() == "---"]
+    for position_index, opening in enumerate(delimiter_positions):
+        for closing in delimiter_positions[position_index + 1 :]:
+            if closing <= opening + 1:
+                continue
+            candidate_lines = authoritative_lines[opening + 1 : closing]
+            if any(candidate_lines[index][0] + 1 != candidate_lines[index + 1][0] for index in range(len(candidate_lines) - 1)):
+                continue
+            candidate = "\n".join(line for _, line in candidate_lines)
+            try:
+                parsed = yaml.load(candidate, Loader=StrictSafeLoader)
+            except (yaml.YAMLError, SkillValidationError) as exc:
+                if any(MAPPING_LIKE.match(line) for _, line in candidate_lines):
+                    raise SkillValidationError("ambiguous later YAML-like metadata block") from exc
+                continue
+            if isinstance(parsed, dict):
+                raise SkillValidationError("multiple or competing front-matter blocks are prohibited")
 
 
 def _validate_tree(root: Path) -> None:
@@ -222,12 +303,12 @@ def _validate_tree(root: Path) -> None:
         raise SkillValidationError("skill package exceeds file-count or total-size limits")
 
 
-def _local_references(root: Path, body: str, fenced: list[bool], commented: list[bool]) -> dict[str, str]:
+def _local_references(root: Path, segments: tuple[ContentSegment, ...]) -> dict[str, str]:
     references: dict[str, str] = {}
-    for index, line in enumerate(body.splitlines()):
-        if fenced[index] or commented[index] or line.lstrip().startswith(">"):
+    for segment in segments:
+        if segment.segment_type != "prose":
             continue
-        for raw_target in LINK_PATTERN.findall(line):
+        for raw_target in LINK_PATTERN.findall(segment.text):
             target = raw_target.strip().strip("<>").split("#", 1)[0]
             if not target:
                 continue
@@ -266,15 +347,22 @@ def validate_skill(root: Path) -> ValidatedSkill:
     except OSError as exc:
         raise SkillValidationError("SKILL.md is missing or unreadable") from exc
     metadata, body = _parse_metadata(source)
-    fenced, commented = _classify_markdown(body)
-    reference_hashes = _local_references(root, body, fenced, commented)
+    segments = _segment_markdown(body)
+    _reject_competing_front_matter(segments)
+    authoritative_segments = tuple(segment for segment in segments if segment.segment_type == "prose")
+    non_authoritative_segments = tuple(segment for segment in segments if segment.segment_type != "prose")
+    authoritative_body = "".join(segment.text for segment in authoritative_segments)
+    reference_hashes = _local_references(root, segments)
     references = tuple(reference_hashes)
     canonical_object = {
-        "body": body,
+        "segments": [segment.to_dict() for segment in segments],
         "metadata": metadata,
         "references": reference_hashes,
         "schema_version": 1,
     }
     canonical = json.dumps(canonical_object, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-    return ValidatedSkill(root, metadata, body, references, reference_hashes, canonical, fingerprint)
+    return ValidatedSkill(
+        root, metadata, body, references, reference_hashes, authoritative_body,
+        authoritative_segments, non_authoritative_segments, canonical, fingerprint,
+    )

@@ -11,6 +11,7 @@ from .model import Finding
 
 MAX_INPUT_BYTES = 25 * 1024 * 1024
 MAX_TEXT = 2_000
+MAX_ITEMS = 100_000
 CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
@@ -50,40 +51,67 @@ def _line(value: Any) -> int | None:
     return result
 
 
+def _items(value: Any, *, field: str, allow_missing: bool = True) -> list[Any]:
+    if value is None and allow_missing:
+        return []
+    if not isinstance(value, list) or len(value) > MAX_ITEMS:
+        raise ValueError(f"malformed scanner output: {field} must be a bounded array")
+    return value
+
+
+def _path(value: Any, *, field: str) -> str:
+    result = _text(value, field=field).replace("\\", "/")
+    if result == "/workspace":
+        return ""
+    if result.startswith("/workspace/"):
+        result = result[len("/workspace/"):]
+    result = result.lstrip("/")
+    while result.startswith("./"):
+        result = result[2:]
+    if ".." in result.split("/"):
+        raise ValueError(f"malformed scanner output: {field} contains parent traversal")
+    return result
+
+
 def normalize_trivy(path: Path) -> list[Finding]:
     payload = _load_json(path)
-    if not isinstance(payload, dict) or not isinstance(payload.get("Results", []), list):
+    if not isinstance(payload, dict):
         raise ValueError("malformed Trivy output: expected object with Results array")
+    results = payload.get("Results")
+    if results is None and isinstance(payload.get("SchemaVersion"), int) and isinstance(payload.get("Trivy"), dict):
+        results = []
+    if not isinstance(results, list):
+        raise ValueError("malformed Trivy output: expected Results array or validated clean report metadata")
     findings: list[Finding] = []
-    for result in payload.get("Results", []):
+    for result in _items(results, field="Results", allow_missing=False):
         if not isinstance(result, dict):
             raise ValueError("malformed Trivy output: Results entries must be objects")
-        target = str(result.get("Target", ""))
-        result_class = str(result.get("Class", result.get("Type", "filesystem")))
-        for vulnerability in result.get("Vulnerabilities") or []:
+        target = _path(result.get("Target", ""), field="Target")
+        result_class = _text(result.get("Class", result.get("Type", "filesystem")), field="Class")
+        for vulnerability in _items(result.get("Vulnerabilities"), field="Vulnerabilities"):
             if not isinstance(vulnerability, dict):
                 raise ValueError("malformed Trivy output: vulnerabilities must be objects")
             findings.append(Finding.create(
-                tool="trivy", category="dependency", rule_id=str(vulnerability.get("VulnerabilityID", "unknown")),
-                severity=str(vulnerability.get("Severity", "unknown")), file=target,
-                description=str(vulnerability.get("Title") or vulnerability.get("Description") or "Dependency vulnerability"),
+                tool="trivy", category="dependency", rule_id=_text(vulnerability.get("VulnerabilityID"), field="VulnerabilityID", required=True),
+                severity=_text(vulnerability.get("Severity", "unknown"), field="Severity"), file=target,
+                description=_text(vulnerability.get("Title") or vulnerability.get("Description") or "Dependency vulnerability", field="description"),
                 confidence="confirmed",
             ))
-        for item in result.get("Misconfigurations") or []:
+        for item in _items(result.get("Misconfigurations"), field="Misconfigurations"):
             if not isinstance(item, dict) or not isinstance(item.get("CauseMetadata", {}), dict):
                 raise ValueError("malformed Trivy output: misconfigurations must be objects")
             findings.append(Finding.create(
-                tool="trivy", category="configuration", rule_id=str(item.get("ID", "unknown")),
-                severity=str(item.get("Severity", "unknown")), file=str(item.get("CauseMetadata", {}).get("Resource", target)),
+                tool="trivy", category="configuration", rule_id=_text(item.get("ID"), field="ID", required=True),
+                severity=_text(item.get("Severity", "unknown"), field="Severity"), file=_path(item.get("CauseMetadata", {}).get("Resource", target), field="Resource"),
                 line=_line(item.get("CauseMetadata", {}).get("StartLine")), description=_text(item.get("Title") or item.get("Description") or result_class, field="description"),
                 confidence="possible",
             ))
-        for secret in result.get("Secrets") or []:
+        for secret in _items(result.get("Secrets"), field="Secrets"):
             if not isinstance(secret, dict):
                 raise ValueError("malformed Trivy output: secrets must be objects")
             findings.append(Finding.create(
-                tool="trivy", category="secret", rule_id=str(secret.get("RuleID", "secret")),
-                severity=str(secret.get("Severity", "high")), file=target, line=_line(secret.get("StartLine")),
+                tool="trivy", category="secret", rule_id=_text(secret.get("RuleID", "secret"), field="RuleID"),
+                severity=_text(secret.get("Severity", "high"), field="Severity"), file=target, line=_line(secret.get("StartLine")),
                 description=_text(secret.get("Title") or "Potential secret detected; value omitted", field="description"), confidence="possible",
             ))
     return findings
@@ -94,12 +122,12 @@ def normalize_gitleaks(path: Path) -> list[Finding]:
     if not isinstance(payload, list):
         raise ValueError("malformed Gitleaks output: expected an array")
     findings: list[Finding] = []
-    for item in payload:
+    for item in _items(payload, field="Gitleaks results", allow_missing=False):
         if not isinstance(item, dict):
             raise ValueError("malformed Gitleaks output: entries must be objects")
         findings.append(Finding.create(
-            tool="gitleaks", category="secret", rule_id=str(item.get("RuleID", "secret")), severity="high",
-            file=_text(item.get("File", ""), field="file"), line=_line(item.get("StartLine")),
+            tool="gitleaks", category="secret", rule_id=_text(item.get("RuleID", "secret"), field="RuleID"), severity="high",
+            file=_path(item.get("File", ""), field="file"), line=_line(item.get("StartLine")),
             description=_text(item.get("Description") or "Potential secret detected; value omitted", field="description"), confidence="possible",
         ))
     return findings
@@ -110,7 +138,7 @@ def normalize_opengrep(path: Path) -> list[Finding]:
     if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
         raise ValueError("malformed Opengrep output: expected object with results array")
     findings: list[Finding] = []
-    for item in payload["results"]:
+    for item in _items(payload["results"], field="Opengrep results", allow_missing=False):
         if not isinstance(item, dict) or not isinstance(item.get("extra"), dict):
             raise ValueError("malformed Opengrep output: result entries require extra objects")
         extra = item["extra"]
@@ -120,7 +148,7 @@ def normalize_opengrep(path: Path) -> list[Finding]:
         findings.append(Finding.create(
             tool="opengrep", category="sast", rule_id=_text(item.get("check_id"), field="check_id", required=True),
             severity=_text(extra.get("severity", "warning"), field="severity"),
-            file=_text(item.get("path", ""), field="path"), line=_line(start.get("line")),
+            file=_path(item.get("path", ""), field="path"), line=_line(start.get("line")),
             description=_text(extra.get("message") or "Static analysis finding", field="message"), confidence="possible",
         ))
     return findings
@@ -134,29 +162,32 @@ def _osv_severity(vulnerability: dict[str, Any]) -> str:
     if ecosystem and not isinstance(ecosystem, dict):
         raise ValueError("malformed OSV output: ecosystem_specific must be an object")
     candidate = database.get("severity") or ecosystem.get("severity")
-    return _text(candidate or "unknown", field="severity")
+    return _text(candidate or "medium", field="severity")
 
 
 def normalize_osv(path: Path) -> list[Finding]:
     payload = _load_json(path)
-    if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
+    if not isinstance(payload, dict) or "results" not in payload:
         raise ValueError("malformed OSV-Scanner output: expected object with results array")
+    results = [] if payload["results"] is None else payload["results"]
+    if not isinstance(results, list):
+        raise ValueError("malformed OSV-Scanner output: results must be an array or null clean result")
     findings: list[Finding] = []
-    for result in payload["results"]:
+    for result in _items(results, field="OSV results", allow_missing=False):
         if not isinstance(result, dict) or not isinstance(result.get("packages", []), list):
             raise ValueError("malformed OSV-Scanner output: results entries require packages arrays")
         source = result.get("source") or {}
         if source and not isinstance(source, dict):
             raise ValueError("malformed OSV-Scanner output: source must be an object")
-        source_path = _text(source.get("path", "") if isinstance(source, dict) else "", field="source.path")
-        for package_result in result.get("packages", []):
+        source_path = _path(source.get("path", "") if isinstance(source, dict) else "", field="source.path")
+        for package_result in _items(result.get("packages"), field="packages"):
             if not isinstance(package_result, dict) or not isinstance(package_result.get("vulnerabilities", []), list):
                 raise ValueError("malformed OSV-Scanner output: package entries require vulnerabilities arrays")
             package = package_result.get("package") or {}
             if not isinstance(package, dict):
                 raise ValueError("malformed OSV-Scanner output: package must be an object")
             package_name = _text(package.get("name") or "package", field="package.name")
-            for vulnerability in package_result.get("vulnerabilities", []):
+            for vulnerability in _items(package_result.get("vulnerabilities"), field="vulnerabilities"):
                 if not isinstance(vulnerability, dict):
                     raise ValueError("malformed OSV-Scanner output: vulnerability entries must be objects")
                 advisory = _text(vulnerability.get("id"), field="vulnerability.id", required=True)
@@ -182,7 +213,7 @@ def normalize_checkov(path: Path) -> list[Finding]:
         results = document.get("results")
         if not isinstance(results, dict) or not isinstance(results.get("failed_checks", []), list):
             raise ValueError("malformed Checkov output: results.failed_checks must be an array")
-        for item in results.get("failed_checks", []):
+        for item in _items(results.get("failed_checks"), field="failed_checks"):
             if not isinstance(item, dict):
                 raise ValueError("malformed Checkov output: failed checks must be objects")
             ranges = item.get("file_line_range") or []
@@ -190,7 +221,7 @@ def normalize_checkov(path: Path) -> list[Finding]:
             findings.append(Finding.create(
                 tool="checkov", category="iac", rule_id=_text(item.get("check_id"), field="check_id", required=True),
                 severity=_text(item.get("severity") or "medium", field="severity"),
-                file=_text(item.get("file_path") or item.get("file_abs_path") or "", field="file_path"), line=line,
+                file=_path(item.get("file_path") or item.get("file_abs_path") or "", field="file_path"), line=line,
                 description=_text(item.get("check_name") or "Infrastructure policy finding", field="check_name"), confidence="possible",
             ))
     return findings
@@ -208,10 +239,14 @@ ACTIONLINT_PATTERN = re.compile(r"^(?P<file>.*?):(?P<line>\d+):(?P<col>\d+): (?P
 
 def normalize_actionlint(path: Path) -> list[Finding]:
     try:
+        if path.stat().st_size > MAX_INPUT_BYTES:
+            raise ValueError(f"scanner output exceeds {MAX_INPUT_BYTES} bytes")
         lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeError) as exc:
         raise ValueError(f"malformed actionlint output: {exc}") from exc
     findings: list[Finding] = []
+    if len(lines) > MAX_ITEMS:
+        raise ValueError("malformed actionlint output: too many lines")
     for line in lines:
         if not line.strip():
             continue
@@ -219,9 +254,9 @@ def normalize_actionlint(path: Path) -> list[Finding]:
         if not match:
             raise ValueError(f"malformed actionlint output line: {line!r}")
         findings.append(Finding.create(
-            tool="actionlint", category="ci", rule_id=match.group("rule") or "workflow-lint",
-            severity="medium", file=match.group("file"), line=int(match.group("line")),
-            description=match.group("message"), confidence="confirmed",
+            tool="actionlint", category="ci", rule_id=_text(match.group("rule") or "workflow-lint", field="rule"),
+            severity="medium", file=_path(match.group("file"), field="file"), line=_line(match.group("line")),
+            description=_text(match.group("message"), field="message", required=True), confidence="confirmed",
         ))
     return findings
 

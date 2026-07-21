@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from scripts.vibesec.coverage import markdown, validate_coverage
 from scripts.vibesec.detection import DetectionError, inventory
-from scripts.vibesec.sbom import validate_cyclonedx, validate_spdx
+from scripts.vibesec.sbom import sanitize_repository_paths, validate_cyclonedx, validate_spdx
 
 
 class DetectionCoverageSbomTests(unittest.TestCase):
@@ -81,6 +81,14 @@ class DetectionCoverageSbomTests(unittest.TestCase):
         (self.root / "two.py").write_text("pass\n", encoding="utf-8")
         with patch("scripts.vibesec.detection.MAX_FILES", 1), self.assertRaises(DetectionError):
             inventory(self.root)
+
+    def test_sbom_absolute_repository_paths_are_removed(self):
+        path = self.root / "sbom.json"
+        absolute = str(self.root / "requirements.txt")
+        path.write_text(json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.6", "components": [{"name": absolute}]}), encoding="utf-8")
+        sanitize_repository_paths(path, self.root)
+        self.assertNotIn(str(self.root), path.read_text(encoding="utf-8"))
+        self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["components"][0]["name"], "requirements.txt")
 
 
 if __name__ == "__main__":

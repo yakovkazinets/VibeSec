@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from scripts.vibesec.normalize import normalize_checkov, normalize_gitleaks, normalize_opengrep, normalize_osv, normalize_trivy, normalize_trivy_image
+from scripts.vibesec.normalize import normalize_actionlint, normalize_checkov, normalize_gitleaks, normalize_opengrep, normalize_osv, normalize_trivy, normalize_trivy_image
 
 
 class NormalizeTests(unittest.TestCase):
@@ -47,6 +47,9 @@ class NormalizeTests(unittest.TestCase):
         path = self.write_json({"results": [{"source": {"path": "go.mod"}, "packages": [{"package": {"name": "example"}, "vulnerabilities": [{"id": "GO-TEST", "summary": "Fixture advisory", "ecosystem_specific": {"severity": "HIGH"}}]}]}]})
         self.assertEqual(normalize_osv(path)[0].severity, "high")
 
+    def test_osv_null_results_is_a_valid_clean_v2_report(self):
+        self.assertEqual(normalize_osv(self.write_json({"results": None, "experimental_config": {}})), [])
+
     def test_checkov_and_trivy_image_categories(self):
         checkov = self.write_json({"results": {"failed_checks": [{"check_id": "CKV_TEST", "check_name": "Fixture", "file_path": "/main.tf", "file_line_range": [2, 3]}]}})
         image = self.write_json({"Results": [{"Target": "fixture@sha256:abc", "Vulnerabilities": [{"VulnerabilityID": "CVE-TEST", "Severity": "CRITICAL", "Title": "Fixture"}]}]})
@@ -57,6 +60,31 @@ class NormalizeTests(unittest.TestCase):
         path = self.write_json({"results": [{"check_id": "x", "path": "a.py", "start": {"line": -1}, "extra": {"severity": "ERROR", "message": "x"}}]})
         with self.assertRaises(ValueError):
             normalize_opengrep(path)
+
+    def test_trivy_requires_results_and_scalar_fields(self):
+        with self.assertRaises(ValueError):
+            normalize_trivy(self.write_json({}))
+        self.assertEqual(normalize_trivy(self.write_json({"SchemaVersion": 2, "Trivy": {"Version": "0.72.0"}})), [])
+        with self.assertRaises(ValueError):
+            normalize_trivy(self.write_json({"Results": [{"Target": {}, "Vulnerabilities": []}]}))
+
+    def test_absolute_container_paths_become_repository_relative(self):
+        checkov = self.write_json({"results": {"failed_checks": [{"check_id": "CKV_TEST", "file_path": "/workspace/iac/main.tf", "check_name": "Fixture"}]}})
+        self.assertEqual(normalize_checkov(checkov)[0].file, "iac/main.tf")
+
+    def test_parent_traversal_and_non_array_findings_fail_closed(self):
+        with self.assertRaises(ValueError):
+            normalize_opengrep(self.write_json({"results": [{"check_id": "x", "path": "../escape.py", "start": {}, "extra": {"severity": "ERROR", "message": "x"}}]}))
+        with self.assertRaises(ValueError):
+            normalize_trivy(self.write_json({"Results": [{"Vulnerabilities": {}}]}))
+
+    def test_actionlint_text_is_sanitized(self):
+        temporary = tempfile.NamedTemporaryFile(mode="w", delete=False)
+        temporary.write("/workspace/.github/workflows/ci.yml:2:3: Fixture [syntax-check]\n")
+        temporary.close()
+        self.addCleanup(Path(temporary.name).unlink, missing_ok=True)
+        result = normalize_actionlint(Path(temporary.name))[0]
+        self.assertEqual(result.file, ".github/workflows/ci.yml")
 
 
 if __name__ == "__main__":

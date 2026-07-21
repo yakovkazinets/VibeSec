@@ -20,7 +20,7 @@ from vibesec.detection import DetectionError, inventory  # noqa: E402
 from vibesec.model import Finding  # noqa: E402
 from vibesec.normalize import normalize_file  # noqa: E402
 from vibesec.osv_database import validate_offline_database  # noqa: E402
-from vibesec.sbom import validate_cyclonedx, validate_spdx  # noqa: E402
+from vibesec.sbom import sanitize_repository_paths, validate_cyclonedx, validate_spdx  # noqa: E402
 
 IMAGE_DIGEST = re.compile(r"^[A-Za-z0-9._/-]+@sha256:[0-9a-f]{64}$")
 TRUSTED_GITHUB_EVENTS = {"push", "schedule", "workflow_dispatch"}
@@ -62,19 +62,18 @@ def run(scanner: str, argv: list[str], raw_path: Path | None, *, cwd: Path,
         except OSError as exc:
             return f"{scanner} could not clear its output: {type(exc).__name__}"
     try:
-        with tempfile.TemporaryFile() as stderr_stream:
-            if stdout_output and raw_path is not None:
-                raw_path.parent.mkdir(parents=True, exist_ok=True)
-                with raw_path.open("xb") as stdout_stream:
-                    completed = subprocess.run(
-                        argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
-                        stdout=stdout_stream, stderr=stderr_stream, timeout=900, check=False,
-                    )
-            else:
+        if stdout_output and raw_path is not None:
+            raw_path.parent.mkdir(parents=True, exist_ok=True)
+            with raw_path.open("xb") as stdout_stream:
                 completed = subprocess.run(
                     argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL, stderr=stderr_stream, timeout=900, check=False,
+                    stdout=stdout_stream, stderr=subprocess.DEVNULL, timeout=900, check=False,
                 )
+        else:
+            completed = subprocess.run(
+                argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=900, check=False,
+            )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"{scanner} could not complete: {type(exc).__name__}"
     accepted = {0, 1} if scanner in {"gitleaks", "actionlint", "checkov", "osv-scanner"} else {0}
@@ -212,7 +211,11 @@ def main() -> int:
     osv_output = raw / "osv.json"
     manifests = repo_inventory["manifests"]
     if manifests:
-        osv_args: list[str | Path] = ["--config", "/dev/null", "scan", "source", "--recursive", "--format", "json", "--output-file", osv_output, "--allow-no-lockfiles", "--no-call-analysis"]
+        osv_args: list[str | Path] = [
+            "scan", "source", "--config", "/dev/null", "--recursive", "--format", "json",
+            "--output-file", osv_output, "--allow-no-lockfiles", "--no-call-analysis=go",
+            "--no-call-analysis=rust", "--no-resolve",
+        ]
         if osv_database:
             osv_args += ["--offline", "--offline-vulnerabilities", "--local-db-path", str(osv_database["path"])]
         osv_args.append(".")
@@ -237,6 +240,8 @@ def main() -> int:
             "--output", f"spdx-json={spdx}", "--quiet"), None, cwd=root, env=environment)
         if not error:
             try:
+                sanitize_repository_paths(cyclonedx, root)
+                sanitize_repository_paths(spdx, root)
                 cdx_payload = validate_cyclonedx(cyclonedx)
                 spdx_payload = validate_spdx(spdx)
                 sbom_formats = [f"CycloneDX {cdx_payload['specVersion']}", str(spdx_payload["spdxVersion"])]

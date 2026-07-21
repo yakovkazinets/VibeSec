@@ -47,7 +47,9 @@ else: json.dump({"results":[]}, open(output, "w"))
         self.write_tool("osv-scanner", r'''#!/usr/bin/env python3
 import json, os, sys
 assert sys.argv[sys.argv.index("--config") + 1] == "/dev/null"
-assert "--no-call-analysis" in sys.argv
+assert "--no-call-analysis=go" in sys.argv and "--no-call-analysis=rust" in sys.argv
+assert "--no-resolve" in sys.argv
+assert sys.argv[1:3] == ["scan", "source"]
 mode = os.getenv("FAKE_OSV_MODE", "pass")
 if mode == "fail": raise SystemExit(8)
 output = sys.argv[sys.argv.index("--output-file") + 1]
@@ -169,6 +171,10 @@ print(json.dumps({"results":{"failed_checks":[]}}))
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("Synthetic test finding", json.dumps(self.load_json("normalized.json")))
 
+    def test_new_mode_blocks_unbaselined_finding(self):
+        completed = self.run_profile(FAKE_OPENGREP_MODE="finding", VIBESEC_ENFORCEMENT="new")
+        self.assertEqual(completed.returncode, 1, completed.stderr)
+
     def test_offline_mode_requires_and_uses_explicit_fresh_database(self):
         database = self.target.parent / "osv-db"
         (database / "PyPI").mkdir(parents=True)
@@ -199,13 +205,40 @@ print(json.dumps({"results":{"failed_checks":[]}}))
 
     def test_image_scan_is_disabled_for_unknown_github_events(self):
         completed = self.run_profile(
-            GITHUB_ACTIONS="true", GITHUB_EVENT_NAME="pull_request_target",
+            GITHUB_ACTIONS="true", GITHUB_EVENT_NAME="pull_request",
             VIBESEC_IMAGE_REFERENCE="registry.example/image@sha256:" + "a" * 64,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
         entry = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "trivy-image")
         self.assertEqual(entry["state"], "not_configured")
-        self.assertIn("unknown", entry["reason"])
+        self.assertIn("untrusted", entry["reason"])
+
+    def test_dockerfile_without_image_is_an_explicit_coverage_gap(self):
+        (self.target / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+        completed = self.run_profile()
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        entry = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "trivy-image")
+        self.assertEqual(entry["state"], "not_configured")
+        self.assertEqual(entry["relevant_artifacts"], ["Dockerfile"])
+
+    def test_digest_image_runs_only_on_trusted_event(self):
+        completed = self.run_profile(
+            GITHUB_ACTIONS="true", GITHUB_EVENT_NAME="push",
+            VIBESEC_IMAGE_REFERENCE="registry.example/image@sha256:" + "b" * 64,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        entry = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "trivy-image")
+        self.assertEqual(entry["state"], "ran")
+        self.assertEqual(entry["network_access"], "scanner_managed")
+
+    def test_no_relevant_standard_artifacts_are_not_reported_as_clean_runs(self):
+        for relative in ("main.py", "requirements.txt", "main.tf", ".github/workflows/test.yml"):
+            (self.target / relative).unlink()
+        completed = self.run_profile()
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        states = {item["tool"]: item["state"] for item in self.load_json("coverage.json")["tools"]}
+        for tool in ("opengrep", "osv-scanner", "syft", "checkov", "actionlint", "trivy-image"):
+            self.assertEqual(states[tool], "not_applicable")
 
 
 if __name__ == "__main__":

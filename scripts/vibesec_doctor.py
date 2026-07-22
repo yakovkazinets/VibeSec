@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -26,6 +27,7 @@ from vibesec.installation import InstallationError, verify_installation  # noqa:
 from vibesec.github_actions import KNOWN_NODE20_PINS, MAX_AUDIT_FILE_BYTES  # noqa: E402
 from vibesec.output import emit, envelope, safe_text  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
+from vibesec.supply_chain import PROVENANCE_NAME, SupplyChainError, validate_verification_record  # noqa: E402
 from vibesec.version import VersionError, read_version  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -158,6 +160,61 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
     diagnostics.append(diagnostic("installation", f"INSTALLATION_{state.status.upper()}", severity,
                                   f"Installation verification status is {state.status}.",
                                   "Review installation verification details before scanner diagnosis.", "docs/installation-verification.md"))
+    if state.source_type == "bundle":
+        verification_path = state.target / ".vibesec/release-verification.json"
+        if not verification_path.exists():
+            diagnostics.append(diagnostic(
+                "release_assurance", "RELEASE_METADATA_MISSING", "warning",
+                "The bundle installation has no external release verification record.",
+                "Verify the complete release set with a separately trusted verifier and preserve its record.",
+                "docs/software-supply-chain-assurance.md",
+            ))
+        else:
+            try:
+                if verification_path.is_symlink() or not verification_path.is_file():
+                    raise SupplyChainError("verification record is not a regular file")
+                record = validate_verification_record(
+                    loads_strict(verification_path.read_bytes(), maximum_bytes=64_000)
+                )
+                manifest_hashes = {
+                    manifest.get("bundle_manifest_sha256") for manifest in state.manifests
+                    if manifest.get("schema_version") == 2
+                }
+                source_commits = {manifest.get("source_commit") for manifest in state.manifests}
+                if (record["version"] != state.version or record["source_commit"] not in source_commits
+                        or record["bundle_manifest_sha256"] not in manifest_hashes):
+                    raise SupplyChainError("release verification record does not match the installed bundle")
+                tools = loads_strict((state.target / "config/tools.json").read_bytes())
+                expected_tool = f"cosign/{tools['cosign']['version']}"
+                if record["signature_verified"] and record["verification_tool"] != expected_tool:
+                    diagnostics.append(diagnostic(
+                        "release_assurance", "RELEASE_VERIFIER_UNSUPPORTED", "error",
+                        "The recorded signature verifier version differs from the installed reviewed Cosign pin.",
+                        "Reverify with the supported independently trusted Cosign version.",
+                        "docs/release-signing.md",
+                    ))
+                if not record["signature_verified"]:
+                    diagnostics.append(diagnostic(
+                        "release_assurance", "RELEASE_SIGNATURE_UNVERIFIED", "warning",
+                        "Release checksums were recorded without publisher-identity verification.",
+                        "Perform keyless verification with the exact certificate identity and issuer.",
+                        "docs/release-signing.md",
+                    ))
+                provenance_path = state.target / ".vibesec" / PROVENANCE_NAME
+                if provenance_path.exists():
+                    if provenance_path.is_symlink() or not provenance_path.is_file():
+                        raise SupplyChainError("preserved provenance is not a regular file")
+                    provenance_data = provenance_path.read_bytes()
+                    loads_strict(provenance_data, maximum_bytes=5_000_000)
+                    if hashlib.sha256(provenance_data).hexdigest() != record["provenance_sha256"]:
+                        raise SupplyChainError("preserved provenance digest does not match verification record")
+            except (KeyError, OSError, StrictJSONError, SupplyChainError, TypeError, ValueError):
+                diagnostics.append(diagnostic(
+                    "release_assurance", "RELEASE_METADATA_INVALID", "error",
+                    "Preserved release verification metadata or provenance is malformed or inconsistent.",
+                    "Reverify from the original closed artifact set; do not bypass bundle verification.",
+                    "docs/software-supply-chain-assurance.md",
+                ))
     for message in state.errors:
         diagnostics.append(diagnostic("installation", "INSTALLATION_BLOCKING", "error", message,
                                       "Restore the matching versioned file set; do not overwrite local policy blindly.", "docs/installation-verification.md"))

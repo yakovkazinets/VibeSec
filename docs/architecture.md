@@ -43,6 +43,6 @@ Every trigger starts in observation mode. After maintainers review historical fi
 
 ## Planned, not implemented
 
-ZAP, fuzzing, SLSA provenance, and OSSF Scorecard remain future profile candidates. None is executed or implied by either current profile.
+Fuzzing and an external OpenSSF Scorecard service remain future candidates. Release preparation now emits SLSA-aligned provenance and an offline Scorecard-oriented posture report, but claims no SLSA level or external OpenSSF score. Neither changes Minimal or Standard scanner coverage.
 
 A complete skill package manager, archive ingestion, automatic external installation, cross-agent execution, and imported-script execution are also outside v0.1.

@@ -16,6 +16,8 @@ Open or reference an issue for changes that alter policy, scanner selection, res
 6. Document verified upstream versions, licenses, checksums, signatures or image digests, network behavior, and overlap.
 7. Add a changelog entry for user-visible behavior.
 
+Dependency updates must use an official upstream source, immutable version or digest, recorded license, reviewed checksum or signature, and positive and negative accountability. Do not commit downloaded binaries. Release-manifest, provenance, checksum, identity, issuer, action-pin, or release-workflow changes require two-person review and must preserve the manual trusted trigger and no-publication boundary.
+
 Scanner findings are untrusted input. Fixtures must be harmless, unmistakably fake, and must never contain usable credentials or offensive payloads. A suppression contribution must include a fingerprint, reason, owner, and expiration date. Never weaken an existing control silently.
 
 ## Security capability accountability
@@ -25,3 +27,5 @@ Any change to a scanner, rule, profile, normalization, policy behavior, coverage
 A scanner version bump must record the old and new version, checksum/signature or image-digest verification, fixture-result changes, normalized-schema changes, runtime changes, network/privacy changes, new false positives, removed findings, and a documented review conclusion. Review expected count or severity changes; never weaken them merely to make CI pass. See [security validation policy](docs/security-validation-policy.md).
 
 Contributions are licensed under Apache-2.0. Participation is governed by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+Run `python3 scripts/validate_supply_chain_posture.py` for release or dependency-policy changes. Live OIDC signing is intentionally excluded from pull-request CI; use only controlled offline fixtures there.

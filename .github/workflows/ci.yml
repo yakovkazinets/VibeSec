@@ -194,8 +194,23 @@ jobs:
           python3 -m unittest -v tests.test_authenticated_security_testing
           tests.test_project_capabilities tests.test_workflows
 
+  supply-chain-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted supply-chain validators without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Validate release manifests provenance tampering and workflow boundaries offline
+        run: >-
+          python3 -m unittest -v tests.test_supply_chain_assurance
+          tests.test_distribution_bundle tests.test_distribution_lifecycle tests.test_workflows
+      - name: Validate offline repository supply-chain posture
+        run: python3 scripts/validate_supply_chain_posture.py
+
   validate:
-    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts]
+    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -225,17 +240,20 @@ jobs:
           python3 scripts/init_vibesec.py --bundle "${bundle_dir}/first.zip" --profile minimal \
             --target "${bundle_dir}/minimal" --capabilities-file .vibesec/project-capabilities.json --write > "${bundle_dir}/init.json"
           python3 scripts/verify_installation.py --target "${bundle_dir}/minimal" --json > "${bundle_dir}/installation.json"
-          python3 scripts/vibesec_doctor.py --target "${bundle_dir}/minimal" --json > "${bundle_dir}/doctor.json"
           set +e
+          python3 scripts/vibesec_doctor.py --target "${bundle_dir}/minimal" --json > "${bundle_dir}/doctor.json"
+          doctor_status=$?
           python3 scripts/plan_vibesec_upgrade.py --target "${bundle_dir}/minimal" --bundle "${bundle_dir}/first.zip" --json > "${bundle_dir}/upgrade.json"
           upgrade_status=$?
           set -e
+          test "${doctor_status}" -eq 1
           test "${upgrade_status}" -eq 1
           python3 -m json.tool "${bundle_dir}/build-first.json" >/dev/null
           python3 -m json.tool "${bundle_dir}/verify.json" >/dev/null
           python3 -m json.tool "${bundle_dir}/installation.json" >/dev/null
           python3 -m json.tool "${bundle_dir}/doctor.json" >/dev/null
           python3 -m json.tool "${bundle_dir}/upgrade.json" >/dev/null
+          python3 -c 'import json,sys; payload=json.load(open(sys.argv[1], encoding="utf-8")); assert payload["status"] == "warning"; assert "RELEASE_METADATA_MISSING" in {item["code"] for item in payload["result"]["diagnostics"]}' "${bundle_dir}/doctor.json"
       - name: Validate source syntax and static data formats
         run: |
           syntax_cache="$(mktemp -d)"
@@ -259,7 +277,7 @@ jobs:
       - name: Exercise local Opengrep rules
         run: python3 scripts/test_opengrep_rules.py .tools/bin/opengrep
       - name: Lint repository and starter workflows
-        run: .tools/bin/actionlint -no-color .github/workflows/ci.yml .github/workflows/dast-integration.yml .github/workflows/api-security-integration.yml .github/workflows/authenticated-dast-integration.yml .github/workflows/authenticated-api-integration.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml templates/github-actions/dast-baseline.yml templates/github-actions/api-security-baseline.yml
+        run: .tools/bin/actionlint -no-color .github/workflows/ci.yml .github/workflows/dast-integration.yml .github/workflows/api-security-integration.yml .github/workflows/authenticated-dast-integration.yml .github/workflows/authenticated-api-integration.yml .github/workflows/release-candidate.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml templates/github-actions/dast-baseline.yml templates/github-actions/api-security-baseline.yml
       - name: Run minimal profile in observation mode
         id: security
         continue-on-error: true

@@ -4,6 +4,9 @@
     "VERSION",
     "config/adoption-files.json",
     "config/github-actions.json",
+    "config/provenance-schema.json",
+    "config/release-manifest-schema.json",
+    "config/supply-chain-policy.json",
     "config/tools.json",
     "policy/severity-thresholds.yml",
     "policy/suppressions.yml",
@@ -30,6 +33,7 @@
     "scripts/vibesec/paths.py",
     "scripts/vibesec/policy.py",
     "scripts/vibesec/strict_json.py",
+    "scripts/vibesec/supply_chain.py",
     "scripts/vibesec/version.py",
     "scripts/vibesec_doctor.py"
   ],
@@ -53,15 +57,20 @@
     "docs/framework-sast-coverage.md",
     "docs/installation-verification.md",
     "docs/profile-selection.md",
+    "docs/provenance.md",
     "docs/project-capabilities.md",
     "docs/quickstart.md",
     "docs/security-model.md",
+    "docs/software-supply-chain-assurance.md",
+    "docs/release-signing.md",
+    "docs/release-threat-model.md",
     "docs/threat-model.md",
     "docs/troubleshooting.md",
     "docs/upgrading.md",
     "scripts/init_vibesec.py",
     "scripts/plan_vibesec_upgrade.py",
-    "scripts/verify_consumer_bundle.py"
+    "scripts/verify_consumer_bundle.py",
+    "scripts/verify_release_artifacts.py"
   ],
   "executable_files": [
     "scripts/append_tool_errors.py",
@@ -82,6 +91,7 @@
     "scripts/validate_api_security_artifacts.py",
     "scripts/write_minimal_artifacts.py",
     "scripts/verify_consumer_bundle.py",
+    "scripts/verify_release_artifacts.py",
     "scripts/verify_installation.py",
     "scripts/validate_project_capabilities.py",
     "scripts/vibesec_doctor.py"

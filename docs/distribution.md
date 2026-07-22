@@ -13,6 +13,14 @@ python3 scripts/build_consumer_bundle.py --output dist/vibesec-consumer.zip
 python3 scripts/verify_consumer_bundle.py dist/vibesec-consumer.zip
 ```
 
+Local development bundles are intentionally unsigned. The future official v1
+artifact model wraps the unchanged deterministic ZIP with strict checksums, a
+release manifest, CycloneDX and SPDX identity records, SLSA-aligned provenance,
+and a keyless Sigstore bundle. See [software supply-chain assurance](software-supply-chain-assurance.md)
+and [release signing](release-signing.md). Verification of the outer release set
+must use an independently trusted verifier before extracting or executing the
+ZIP; internal consistency alone does not prove publisher identity or safety.
+
 An optional full lowercase commit SHA may be recorded with `--source-commit`. The version always comes from the strict UTF-8 `VERSION` file; no distribution command invokes Git or a network service.
 
 The file set is selected only by `config/adoption-files.json`. It includes both profile support sets, workflow templates, policies, local Opengrep rules, distribution commands, offline documentation, the license, and security notices. It excludes tests, fixtures, Git data, caches, scanner binaries, vulnerability databases, dependencies, arbitrary untracked files, and prior artifacts.
@@ -38,4 +46,11 @@ python3 scripts/init_vibesec.py --bundle dist/vibesec-consumer.zip --profile min
 
 Standard remains two-stage: initialize `support`, merge reviewed support to the default branch, and then initialize `workflow`. Bundle and source-tree initialization share conflict, path, atomic-write, and rollback protections.
 
-Development bundles are intentionally unsigned. Signing and provenance are deferred until a release process and durable identity policy exist. Verification proves internal format consistency, not publisher identity or application security. Do not extract or execute a suspicious bundle; preserve it privately if policy permits and report its source and verifier error through the security-reporting process.
+Development bundles are intentionally unsigned. The manual release-candidate
+process prepares keyless signing and provenance without publishing a release;
+an official v1 release remains a future maintainer decision. Inner bundle
+verification proves internal consistency, while outer signature verification
+adds the reviewed publisher identity. Neither proves application security. Do
+not extract or execute a suspicious bundle; preserve it privately if policy
+permits and report its source and verifier error through the security-reporting
+process.

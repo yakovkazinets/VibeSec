@@ -40,6 +40,7 @@ REQUIRED_CONSUMER_PATHS = {
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
     "scripts/plan_vibesec_upgrade.py", "scripts/vibesec/bundle.py",
     "scripts/vibesec/github_actions.py",
+    "scripts/vibesec/supply_chain.py",
     "scripts/generate_finding_intelligence.py", "scripts/vibesec/finding_intelligence.py",
     "scripts/validate_project_capabilities.py",
     "templates/github-actions/security-baseline.yml", "templates/github-actions/security-standard.yml",
@@ -49,12 +50,15 @@ REQUIRED_CONSUMER_PATHS = {
     "config/zap-passive-plan-schema.json", "scripts/vibesec/zap_automation.py",
     "docs/authenticated-security-testing.md", "docs/authenticated-security-threat-model.md",
     "docs/distribution.md", "docs/dast-baseline.md", "docs/dast-threat-model.md", "docs/github-actions-runtime.md", "docs/installation-verification.md", "docs/doctor.md", "docs/upgrading.md",
+    "docs/software-supply-chain-assurance.md", "docs/release-signing.md", "docs/provenance.md", "docs/release-threat-model.md",
+    "scripts/verify_release_artifacts.py", "config/release-manifest-schema.json", "config/provenance-schema.json", "config/supply-chain-policy.json",
 }
 REQUIRED_EXECUTABLES = {
     "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py", "scripts/run_dast_baseline.py", "scripts/validate_dast_artifacts.py",
     "scripts/run_api_security_baseline.py", "scripts/validate_api_security_artifacts.py",
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
     "scripts/plan_vibesec_upgrade.py",
+    "scripts/verify_release_artifacts.py",
     "scripts/generate_finding_intelligence.py",
     "scripts/validate_project_capabilities.py",
 }

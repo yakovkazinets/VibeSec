@@ -9,8 +9,9 @@ DAST_INTEGRATION = ROOT / ".github/workflows/dast-integration.yml"
 API_INTEGRATION = ROOT / ".github/workflows/api-security-integration.yml"
 AUTH_DAST_INTEGRATION = ROOT / ".github/workflows/authenticated-dast-integration.yml"
 AUTH_API_INTEGRATION = ROOT / ".github/workflows/authenticated-api-integration.yml"
+RELEASE_CANDIDATE = ROOT / ".github/workflows/release-candidate.yml"
 STARTERS = [ROOT / "templates/github-actions/security-baseline.yml", ROOT / "templates/github-actions/security-standard.yml", ROOT / "templates/github-actions/dast-baseline.yml", ROOT / "templates/github-actions/api-security-baseline.yml"]
-WORKFLOWS = [CI, DAST_INTEGRATION, API_INTEGRATION, AUTH_DAST_INTEGRATION, AUTH_API_INTEGRATION, *STARTERS]
+WORKFLOWS = [CI, DAST_INTEGRATION, API_INTEGRATION, AUTH_DAST_INTEGRATION, AUTH_API_INTEGRATION, RELEASE_CANDIDATE, *STARTERS]
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -96,6 +97,7 @@ class WorkflowSecurityTests(unittest.TestCase):
             ".github/workflows/api-security-integration.yml",
             ".github/workflows/authenticated-dast-integration.yml",
             ".github/workflows/authenticated-api-integration.yml",
+            ".github/workflows/release-candidate.yml",
             "templates/github-actions/security-baseline.yml",
             "templates/github-actions/security-standard.yml",
             "templates/github-actions/dast-baseline.yml",
@@ -123,7 +125,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn('exit_file="$(mktemp "$SELF_SCAN_RESULTS/.scan-exit-code.XXXXXX")"', text)
         self.assertIn('mv "$exit_file" "$SELF_SCAN_RESULTS/scan-exit-code.txt"', text)
-        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts]", text)
+        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]", text)
         self.assertNotIn("dast-accountability", text)
         validation = text.index("Validate Standard self-scan artifacts and exact states")
         preservation = text.index("Preserve Standard scan exit contract")
@@ -133,6 +135,13 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn("pip install --disable-pip-version-check --requirement requirements.txt", text)
         self.assertIn("python3 scripts/validate_skill.py skills/appsec-guardian", text)
+
+    def test_bundle_validation_requires_expected_unsigned_release_warning(self):
+        text = CI.read_text(encoding="utf-8")
+        self.assertIn("doctor_status=$?", text)
+        self.assertIn('test "${doctor_status}" -eq 1', text)
+        self.assertIn('payload["status"] == "warning"', text)
+        self.assertIn('"RELEASE_METADATA_MISSING" in', text)
 
     def test_live_controlled_dast_fixture_is_separate_from_required_ci(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
@@ -159,6 +168,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         for job in ("self-scan-minimal", "self-scan-standard", "scanner-accountability", "security-artifacts", "dast-artifacts", "api-security-artifacts"):
             self.assertIn(job, needs)
         self.assertIn("authenticated-security-artifacts", needs)
+        self.assertIn("supply-chain-artifacts", needs)
         self.assertIn("finding-intelligence-artifacts", needs)
         self.assertNotIn("dast-accountability", needs)
         dast = text.split("  dast-artifacts:", 1)[1].split("\n  validate:", 1)[0]

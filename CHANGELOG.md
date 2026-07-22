@@ -2,10 +2,10 @@
 
 ## Unreleased
 
+- Add strict release manifests, deterministic checksums, SLSA-aligned provenance, SBOM linkage, keyless Cosign signing preparation, offline posture validation, a manual trusted release-candidate workflow, consumer verification guidance, and tampering accountability without publishing a release.
 - Expand framework-aware Opengrep coverage for Express, Next.js, React, Flask, Django, FastAPI, and Spring with exact positive/negative fixture accountability.
 - Add deterministic finding grouping, provenance, explainable priority, optional backward-compatible group policy, schemas, reports, and consumer lifecycle support.
 - Require full reviewed evidence agreement for same-scanner fingerprint deduplication, account for all 32 Opengrep rules, and publish validated finding-intelligence artifacts for every DAST/API state.
-
 - Add opt-in static-bearer authenticated DAST and OpenAPI testing with scanner-step-only GitHub secret scoping, stdin delivery, tmpfs raw evidence, in-memory redaction, narrow authenticated/unauthenticated correlation, controlled fixtures, lifecycle validation, and separate live accountability workflows.
 - Add the separate opt-in OpenAPI API Security Baseline with immutable Schemathesis 4.24.2, strict schema validation, internal-only container isolation, safe-method defaults, bounded structured normalization, independent policy, controlled fixtures, consumer lifecycle support, and mandatory artifact validation.
 - Modernize every supplied GitHub Actions reference to reviewed full-SHA Node 24 releases, add a strict offline action inventory, and preserve checkout credential and artifact-upload boundaries.

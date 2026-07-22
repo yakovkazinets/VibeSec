@@ -13,6 +13,12 @@ python3 scripts/vibesec_doctor.py --target /path/to/app --profile standard --jso
 
 It starts with installation verification, then checks runtime assumptions, profile/stage consistency, configuration and policy parsing, action pins and workflow safety, optional Docker relevance, OSV offline metadata, immutable image references, fork restrictions, security-workflow overlap, development-version drift, and unsupported-repository indicators.
 
+For bundle installations it also reports missing external release metadata,
+checksum-only records that did not verify publisher identity, mutable release
+references, an unsupported recorded Cosign version, metadata that disagrees
+with the installation manifest, and malformed or digest-mismatched preserved
+provenance. Signing is not required for local source-tree development.
+
 For authenticated testing, doctor validates the dependency rules, strict secret name, fixed bearer model, and exact workflow placement. It reports literal credentials, bearer values, JWT-like material, unsupported modes, public or raw-report markers, PR/push/reusable triggers, dynamic secret expressions, secret references outside the scanner environment assignment, upload exposure, and authenticated workflow material when the capability is false. Diagnostics redact values and never inspect the GitHub secret itself.
 
 Doctor reports `GITHUB_ACTION_NODE20_PIN` when an installed VibeSec workflow still contains a known checkout v4.2.2 or upload-artifact v4.6.2 pin. The repair is a reviewed, preservation-aware upgrade to the inventory's Node 24 pin—not a fallback override. Doctor cannot query the runner service, so self-hosted maintainers must confirm Actions Runner 2.327.1 or newer separately.

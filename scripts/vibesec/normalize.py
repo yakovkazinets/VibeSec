@@ -96,6 +96,10 @@ def normalize_trivy(path: Path) -> list[Finding]:
                 severity=_text(vulnerability.get("Severity", "unknown"), field="Severity"), file=target,
                 description=_text(vulnerability.get("Title") or vulnerability.get("Description") or "Dependency vulnerability", field="description"),
                 confidence="confirmed",
+                package_ecosystem=_text(result.get("Type"), field="Type") or None,
+                package_name=_text(vulnerability.get("PkgName"), field="PkgName") or None,
+                installed_version=_text(vulnerability.get("InstalledVersion"), field="InstalledVersion") or None,
+                advisory_id=_text(vulnerability.get("VulnerabilityID"), field="VulnerabilityID", required=True),
             ))
         for item in _items(result.get("Misconfigurations"), field="Misconfigurations"):
             if not isinstance(item, dict) or not isinstance(item.get("CauseMetadata", {}), dict):
@@ -142,6 +146,9 @@ def normalize_opengrep(path: Path) -> list[Finding]:
         if not isinstance(item, dict) or not isinstance(item.get("extra"), dict):
             raise ValueError("malformed Opengrep output: result entries require extra objects")
         extra = item["extra"]
+        metadata = extra.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            raise ValueError("malformed Opengrep output: metadata must be an object")
         start = item.get("start") or {}
         if not isinstance(start, dict):
             raise ValueError("malformed Opengrep output: start must be an object")
@@ -149,7 +156,14 @@ def normalize_opengrep(path: Path) -> list[Finding]:
             tool="opengrep", category="sast", rule_id=_text(item.get("check_id"), field="check_id", required=True),
             severity=_text(extra.get("severity", "warning"), field="severity"),
             file=_path(item.get("path", ""), field="path"), line=_line(start.get("line")),
-            description=_text(extra.get("message") or "Static analysis finding", field="message"), confidence="possible",
+            end_line=_line((item.get("end") or {}).get("line")) if isinstance(item.get("end") or {}, dict) else None,
+            description=_text(extra.get("message") or "Static analysis finding", field="message"),
+            confidence={"high": "confirmed", "medium": "possible", "low": "unknown"}.get(
+                _text(metadata.get("confidence", "medium"), field="metadata.confidence").lower(), "possible"),
+            cwe=_text(metadata.get("cwe"), field="metadata.cwe") or None,
+            vulnerability_family=_text(metadata.get("category"), field="metadata.category") or None,
+            sink_category=_text(metadata.get("category"), field="metadata.category") or None,
+            framework=_text(metadata.get("framework"), field="metadata.framework") or None,
         ))
     return findings
 
@@ -187,15 +201,23 @@ def normalize_osv(path: Path) -> list[Finding]:
             if not isinstance(package, dict):
                 raise ValueError("malformed OSV-Scanner output: package must be an object")
             package_name = _text(package.get("name") or "package", field="package.name")
+            ecosystem = _text(package.get("ecosystem"), field="package.ecosystem") or None
+            installed_version = _text(package.get("version"), field="package.version") or None
             for vulnerability in _items(package_result.get("vulnerabilities"), field="vulnerabilities"):
                 if not isinstance(vulnerability, dict):
                     raise ValueError("malformed OSV-Scanner output: vulnerability entries must be objects")
                 advisory = _text(vulnerability.get("id"), field="vulnerability.id", required=True)
+                aliases = vulnerability.get("aliases") or []
+                if not isinstance(aliases, list) or any(not isinstance(item, str) for item in aliases):
+                    raise ValueError("malformed OSV output: vulnerability aliases must be an array of strings")
+                correlation_advisory = next((item for item in aliases if item.upper().startswith("CVE-")), advisory)
                 summary = _text(vulnerability.get("summary") or f"Vulnerability in {package_name}", field="summary")
                 findings.append(Finding.create(
                     tool="osv-scanner", category="dependency", rule_id=advisory,
                     severity=_osv_severity(vulnerability), file=source_path,
                     description=summary, confidence="confirmed",
+                    package_ecosystem=ecosystem, package_name=package_name,
+                    installed_version=installed_version, advisory_id=correlation_advisory,
                 ))
     return findings
 

@@ -7,8 +7,203 @@ rules:
       category: command-injection
       confidence: high
       cwe: CWE-78
+      framework: language-generic
+      language: python
       owasp: A03:2021-Injection
       remediation: Invoke the program directly with a fixed argument sequence.
+      false_positive_notes: A constant command with no externally influenced data may be safe but shell parsing remains risky.
       license: Apache-2.0
       provenance: original-vibesec
     pattern: subprocess.$FUNC(..., shell=True, ...)
+  - id: vibesec.python.flask-debug-mode
+    languages: [python]
+    message: Do not enable the Flask debugger in a deployed application.
+    severity: ERROR
+    metadata:
+      category: debug-mode
+      confidence: high
+      cwe: CWE-489
+      framework: flask
+      language: python
+      owasp: A05:2021-Security-Misconfiguration
+      remediation: Disable debug mode and use environment-specific development configuration.
+      false_positive_notes: A development-only entry point may be acceptable if it cannot be deployed.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: $APP.run(..., debug=True, ...)
+  - id: vibesec.python.flask-untrusted-send-file
+    languages: [python]
+    message: Do not send a request-controlled file path directly.
+    severity: ERROR
+    metadata:
+      category: path-traversal
+      confidence: high
+      cwe: CWE-22
+      framework: flask
+      language: python
+      owasp: A01:2021-Broken-Access-Control
+      remediation: Map an opaque identifier to a fixed file under a trusted directory.
+      false_positive_notes: Prior canonicalization and containment validation may make the path safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: send_file(request.args.get(...), ...)
+  - id: vibesec.python.flask-untrusted-redirect
+    languages: [python]
+    message: Do not redirect directly to a request-controlled destination.
+    severity: ERROR
+    metadata:
+      category: open-redirect
+      confidence: high
+      cwe: CWE-601
+      framework: flask
+      language: python
+      owasp: A01:2021-Broken-Access-Control
+      remediation: Select destinations from a fixed allowlist of local application routes.
+      false_positive_notes: A separately validated same-origin URL may be safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: redirect(request.args.get(...), ...)
+  - id: vibesec.python.flask-request-command
+    languages: [python]
+    message: Do not execute request-controlled input as an operating-system command.
+    severity: ERROR
+    metadata:
+      category: command-injection
+      confidence: high
+      cwe: CWE-78
+      framework: flask
+      language: python
+      owasp: A03:2021-Injection
+      remediation: Use a fixed executable and validated argument list without a shell.
+      false_positive_notes: A closed server-side command mapping may make the value safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: os.system(request.args.get(...))
+  - id: vibesec.python.flask-request-deserialization
+    languages: [python]
+    message: Do not deserialize request data with pickle.
+    severity: ERROR
+    metadata:
+      category: insecure-deserialization
+      confidence: high
+      cwe: CWE-502
+      framework: flask
+      language: python
+      owasp: A08:2021-Software-and-Data-Integrity-Failures
+      remediation: Use a constrained data format and validate its schema.
+      false_positive_notes: Cryptographic authentication does not remove all unsafe object-construction risk.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: pickle.loads(request.data)
+  - id: vibesec.python.django-raw-sql-concatenation
+    languages: [python]
+    message: Do not concatenate values into a Django raw SQL query.
+    severity: ERROR
+    metadata:
+      category: sql-injection
+      confidence: high
+      cwe: CWE-89
+      framework: django
+      language: python
+      owasp: A03:2021-Injection
+      remediation: Use Django query APIs or parameterized raw queries.
+      false_positive_notes: A value selected solely from a fixed server-side mapping may be safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: $MODEL.objects.raw($SQL + $VALUE)
+  - id: vibesec.python.django-csrf-exempt
+    languages: [python]
+    message: Review disabled Django CSRF protection on this view.
+    severity: WARNING
+    metadata:
+      category: csrf-disabled
+      confidence: high
+      cwe: CWE-352
+      framework: django
+      language: python
+      owasp: A01:2021-Broken-Access-Control
+      remediation: Retain CSRF protection or use an explicitly reviewed non-cookie authentication design.
+      false_positive_notes: A webhook with independent signature verification may intentionally omit CSRF checks.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: '@csrf_exempt'
+  - id: vibesec.python.django-unsafe-mark-safe
+    languages: [python]
+    message: Do not mark request-controlled content as safe HTML.
+    severity: ERROR
+    metadata:
+      category: cross-site-scripting
+      confidence: high
+      cwe: CWE-79
+      framework: django
+      language: python
+      owasp: A03:2021-Injection
+      remediation: Preserve template escaping or sanitize with a reviewed HTML allowlist.
+      false_positive_notes: A value produced by a trusted sanitizer may be safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: mark_safe($REQUEST.$FIELD)
+  - id: vibesec.python.fastapi-untrusted-file-response
+    languages: [python]
+    message: Do not return a request-controlled filesystem path.
+    severity: ERROR
+    metadata:
+      category: path-traversal
+      confidence: high
+      cwe: CWE-22
+      framework: fastapi
+      language: python
+      owasp: A01:2021-Broken-Access-Control
+      remediation: Map an opaque identifier to a fixed file under a trusted directory.
+      false_positive_notes: Prior canonicalization and containment validation may make the path safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: FileResponse($REQUEST.query_params.get(...), ...)
+  - id: vibesec.python.fastapi-request-command
+    languages: [python]
+    message: Do not execute a FastAPI request value as an operating-system command.
+    severity: ERROR
+    metadata:
+      category: command-injection
+      confidence: high
+      cwe: CWE-78
+      framework: fastapi
+      language: python
+      owasp: A03:2021-Injection
+      remediation: Use a fixed executable with validated arguments and no command shell.
+      false_positive_notes: A closed server-side command mapping may make the value safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: os.system($REQUEST.query_params.get(...))
+  - id: vibesec.python.fastapi-request-deserialization
+    languages: [python]
+    message: Do not deserialize request data with pickle.
+    severity: ERROR
+    metadata:
+      category: insecure-deserialization
+      confidence: high
+      cwe: CWE-502
+      framework: fastapi
+      language: python
+      owasp: A08:2021-Software-and-Data-Integrity-Failures
+      remediation: Use a constrained format and validate the request schema.
+      false_positive_notes: Cryptographic authentication does not remove unsafe object-construction risk.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: pickle.loads($REQUEST.body())
+  - id: vibesec.python.fastapi-permissive-cors
+    languages: [python]
+    message: Do not combine wildcard CORS origins with credential support.
+    severity: ERROR
+    metadata:
+      category: permissive-cors
+      confidence: high
+      cwe: CWE-942
+      framework: fastapi
+      language: python
+      owasp: A05:2021-Security-Misconfiguration
+      remediation: Configure a reviewed explicit origin allowlist.
+      false_positive_notes: None; browsers reject some wildcard credential combinations but the configuration is misleading and unsafe to extend.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: CORSMiddleware(..., allow_origins=["*"], ..., allow_credentials=True, ...)

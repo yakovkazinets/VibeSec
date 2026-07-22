@@ -7,8 +7,155 @@ rules:
       category: code-injection
       confidence: high
       cwe: CWE-95
+      framework: language-generic
+      language: javascript-typescript
       owasp: A03:2021-Injection
       remediation: Replace dynamic evaluation with explicit parsing or dispatch.
+      false_positive_notes: Generated parsers and intentionally sandboxed interpreters require manual review.
       license: Apache-2.0
       provenance: original-vibesec
     pattern: eval(...)
+  - id: vibesec.javascript.express-untrusted-redirect
+    languages: [javascript, typescript]
+    message: Do not redirect directly to a request-controlled destination.
+    severity: ERROR
+    metadata:
+      category: open-redirect
+      confidence: high
+      cwe: CWE-601
+      framework: express
+      language: javascript-typescript
+      owasp: A01:2021-Broken-Access-Control
+      remediation: Resolve redirect destinations through a fixed allowlist of local paths.
+      false_positive_notes: A separately validated request property may be safe and requires manual review.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: $RES.redirect($REQ.$FIELD)
+  - id: vibesec.javascript.express-untrusted-file-path
+    languages: [javascript, typescript]
+    message: Do not pass a request-controlled path directly to Express sendFile.
+    severity: ERROR
+    metadata:
+      category: path-traversal
+      confidence: high
+      cwe: CWE-22
+      framework: express
+      language: javascript-typescript
+      owasp: A01:2021-Broken-Access-Control
+      remediation: Map an opaque identifier to a fixed file below a trusted root.
+      false_positive_notes: Framework root constraints and prior canonicalization may make a path safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: $RES.sendFile($REQ.$FIELD)
+  - id: vibesec.javascript.express-permissive-cors
+    languages: [javascript, typescript]
+    message: An argument-free CORS middleware call permits every origin by default.
+    severity: WARNING
+    metadata:
+      category: permissive-cors
+      confidence: high
+      cwe: CWE-942
+      framework: express
+      language: javascript-typescript
+      owasp: A05:2021-Security-Misconfiguration
+      remediation: Configure an explicit reviewed origin allowlist and credential policy.
+      false_positive_notes: A public unauthenticated API may intentionally permit all origins.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: cors()
+  - id: vibesec.javascript.express-request-command
+    languages: [javascript, typescript]
+    message: Do not execute request-controlled input as a child-process command.
+    severity: ERROR
+    metadata:
+      category: command-injection
+      confidence: high
+      cwe: CWE-78
+      framework: express
+      language: javascript-typescript
+      owasp: A03:2021-Injection
+      remediation: Execute a fixed program with a validated argument array and no command shell.
+      false_positive_notes: A request field constrained to a closed server-side allowlist may be safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: $CHILD.exec($REQ.$FIELD)
+  - id: vibesec.javascript.express-request-template
+    languages: [javascript, typescript]
+    message: Do not use a request-controlled template name.
+    severity: ERROR
+    metadata:
+      category: template-injection
+      confidence: high
+      cwe: CWE-1336
+      framework: express
+      language: javascript-typescript
+      owasp: A03:2021-Injection
+      remediation: Select templates through a fixed server-side mapping.
+      false_positive_notes: A closed allowlist applied before this call may make the value safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: $RES.render($REQ.$FIELD, ...)
+  - id: vibesec.javascript.next-untrusted-redirect
+    languages: [javascript, typescript]
+    message: Do not redirect a Next.js response directly to request-controlled input.
+    severity: ERROR
+    metadata:
+      category: open-redirect
+      confidence: high
+      cwe: CWE-601
+      framework: nextjs
+      language: javascript-typescript
+      owasp: A01:2021-Broken-Access-Control
+      remediation: Resolve the destination through a fixed allowlist of application routes.
+      false_positive_notes: A URL parsed and restricted to the application origin may be safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: NextResponse.redirect($REQ.$FIELD)
+  - id: vibesec.javascript.next-request-file-path
+    languages: [javascript, typescript]
+    message: Do not pass request-controlled input directly to a filesystem read.
+    severity: ERROR
+    metadata:
+      category: path-traversal
+      confidence: high
+      cwe: CWE-22
+      framework: nextjs
+      language: javascript-typescript
+      owasp: A01:2021-Broken-Access-Control
+      remediation: Map an opaque identifier to a fixed path below a trusted root.
+      false_positive_notes: Prior path canonicalization and containment checks may make the path safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: $FS.readFile($REQ.$FIELD, ...)
+  - id: vibesec.javascript.next-public-secret
+    languages: [javascript, typescript]
+    message: Do not expose a secret-shaped value through a NEXT_PUBLIC environment variable.
+    severity: ERROR
+    metadata:
+      category: secret-exposure
+      confidence: high
+      cwe: CWE-200
+      framework: nextjs
+      language: javascript-typescript
+      owasp: A02:2021-Cryptographic-Failures
+      remediation: Keep secrets in server-only environment variables and never serialize them to clients.
+      false_positive_notes: A value named token may be intentionally public and non-sensitive.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern-regex: 'process\\.env\\.NEXT_PUBLIC_(?:.*SECRET|.*TOKEN|.*PASSWORD|.*PRIVATE_KEY)'
+  - id: vibesec.javascript.react-dangerous-html
+    languages: [javascript, typescript]
+    message: Review React dangerous HTML injection and ensure the value is sanitized.
+    severity: ERROR
+    metadata:
+      category: cross-site-scripting
+      confidence: medium
+      cwe: CWE-79
+      framework: react
+      language: javascript-typescript
+      owasp: A03:2021-Injection
+      remediation: Render structured elements or sanitize HTML with a reviewed allowlist sanitizer.
+      false_positive_notes: Constant or correctly sanitized HTML may be safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: '<$TAG dangerouslySetInnerHTML={{__html: $VALUE}} />'

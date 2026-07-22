@@ -62,6 +62,18 @@ class Finding:
     confidence: str
     fingerprint: str
     result_type: str = "finding"
+    end_line: int | None = None
+    cwe: str | None = None
+    vulnerability_family: str | None = None
+    sink_category: str | None = None
+    framework: str | None = None
+    package_ecosystem: str | None = None
+    package_name: str | None = None
+    installed_version: str | None = None
+    advisory_id: str | None = None
+    direct_dependency: bool | None = None
+    reachable_sink: bool | None = None
+    known_exploited: bool | None = None
 
     def __post_init__(self) -> None:
         if self.result_type not in RESULT_TYPES:
@@ -72,7 +84,10 @@ class Finding:
             raise ValueError(f"unsupported confidence: {self.confidence}")
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        required = {"tool", "category", "rule_id", "severity", "file", "line", "description",
+                    "confidence", "fingerprint", "result_type"}
+        return {key: value for key, value in payload.items() if key in required or value is not None}
 
     @classmethod
     def create(
@@ -87,8 +102,26 @@ class Finding:
         description: str,
         confidence: str = "possible",
         result_type: str = "finding",
+        end_line: int | None = None,
+        cwe: str | None = None,
+        vulnerability_family: str | None = None,
+        sink_category: str | None = None,
+        framework: str | None = None,
+        package_ecosystem: str | None = None,
+        package_name: str | None = None,
+        installed_version: str | None = None,
+        advisory_id: str | None = None,
+        direct_dependency: bool | None = None,
+        reachable_sink: bool | None = None,
+        known_exploited: bool | None = None,
     ) -> "Finding":
         normalized_file = normalize_path(file)
         normalized_severity = normalize_severity(severity) if result_type == "finding" else "low"
         fingerprint = fingerprint_for(tool, category, rule_id, normalized_file, line, description)
-        return cls(tool, category, rule_id, normalized_severity, normalized_file, line, description, confidence, fingerprint, result_type)
+        return cls(
+            tool, category, rule_id, normalized_severity, normalized_file, line,
+            description, confidence, fingerprint, result_type, end_line, cwe,
+            vulnerability_family, sink_category, framework, package_ecosystem,
+            package_name, installed_version, advisory_id, direct_dependency,
+            reachable_sink, known_exploited,
+        )

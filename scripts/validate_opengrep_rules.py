@@ -10,7 +10,10 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_LANGUAGES = {"javascript", "typescript", "python", "java", "go"}
-REQUIRED_METADATA = {"category", "confidence", "cwe", "owasp", "remediation", "license", "provenance"}
+REQUIRED_METADATA = {
+    "category", "confidence", "cwe", "framework", "language", "owasp",
+    "remediation", "false_positive_notes", "license", "provenance",
+}
 
 
 class StrictLoader(yaml.SafeLoader):
@@ -55,6 +58,9 @@ def validate(directory: Path) -> list[str]:
                 raise ValueError(f"{identifier} must define the exact reviewed metadata fields")
             if metadata.get("license") != "Apache-2.0" or metadata.get("provenance") != "original-vibesec":
                 raise ValueError(f"{identifier} has invalid license or provenance")
+            for field in REQUIRED_METADATA:
+                if not isinstance(metadata.get(field), str) or not metadata[field].strip():
+                    raise ValueError(f"{identifier} metadata {field} must be a non-empty string")
             identifiers.append(identifier)
     if not identifiers:
         raise ValueError("no Opengrep rules found")

@@ -7,8 +7,11 @@ rules:
       category: command-injection
       confidence: high
       cwe: CWE-78
+      framework: language-generic
+      language: go
       owasp: A03:2021-Injection
       remediation: Call exec.Command with the intended executable and validated arguments.
+      false_positive_notes: A constant command passed through a shell remains risky but may not be externally exploitable.
       license: Apache-2.0
       provenance: original-vibesec
     pattern-either:

@@ -33,16 +33,17 @@ def main() -> int:
                 build_product_view(ROOT, view, exclusions)
                 repository = inventory(view)
                 capabilities = load_capabilities_file(view / ".vibesec/project-capabilities.json")
+                derived = derive_image_expectation(
+                    github_actions=True,
+                    github_event=args.github_event,
+                    image_reference=args.image_reference,
+                    has_dockerfile=bool(repository["dockerfiles"]),
+                    strict_event=True,
+                )
                 if not capabilities["capabilities"]["container_image"]:
                     expectation = ImageExpectation("not_applicable", "project capability manifest declares container_image=false")
                 else:
-                    expectation = derive_image_expectation(
-                        github_actions=True,
-                        github_event=args.github_event,
-                        image_reference=args.image_reference,
-                        has_dockerfile=bool(repository["dockerfiles"]),
-                        strict_event=True,
-                    )
+                    expectation = derived
                 if expectation.state not in STATES:
                     raise ImageStateError("derived state is outside the supported coverage vocabulary")
             finally:

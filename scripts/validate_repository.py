@@ -99,7 +99,7 @@ def validate_policy() -> None:
 
 def validate_references() -> None:
     required = (
-        ".github/workflows/ci.yml", "templates/github-actions/security-baseline.yml",
+        ".github/workflows/ci.yml", ".github/workflows/dast-integration.yml", "templates/github-actions/security-baseline.yml",
         "templates/github-actions/security-standard.yml", "templates/github-actions/dast-baseline.yml",
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
         "scripts/install_standard_tools.sh", "scripts/run_standard_profile.py", "scripts/detect_repository.py",

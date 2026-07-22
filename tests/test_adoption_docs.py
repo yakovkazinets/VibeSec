@@ -75,7 +75,7 @@ class AdoptionDocumentationTests(unittest.TestCase):
             target = Path(temporary) / "consumer"
             target.mkdir()
             initialized = subprocess.run(
-                ["python3", "scripts/init_vibesec.py", "--profile", "minimal", "--target", str(target), "--write"],
+                ["python3", "scripts/init_vibesec.py", "--profile", "minimal", "--target", str(target), "--all-capabilities", "--write"],
                 cwd=ROOT, text=True, capture_output=True, check=False,
             )
             self.assertEqual(initialized.returncode, 0, initialized.stderr)
@@ -98,7 +98,7 @@ class AdoptionDocumentationTests(unittest.TestCase):
             target = Path(temporary) / "consumer"
             target.mkdir()
             initialized = subprocess.run(
-                ["python3", "scripts/init_vibesec.py", "--profile", "standard", "--target", str(target), "--write"],
+                ["python3", "scripts/init_vibesec.py", "--profile", "standard", "--target", str(target), "--all-capabilities", "--write"],
                 cwd=ROOT, text=True, capture_output=True, check=False,
             )
             self.assertEqual(initialized.returncode, 0, initialized.stderr)

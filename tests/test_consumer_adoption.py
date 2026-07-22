@@ -36,6 +36,8 @@ class ConsumerAdoptionTests(unittest.TestCase):
         command = ["python3", str(INIT), "--profile", profile, "--target", str(self.target), "--write"]
         if stage:
             command += ["--stage", stage]
+        else:
+            command.append("--all-capabilities")
         return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
 
     def initialize_dast(self):

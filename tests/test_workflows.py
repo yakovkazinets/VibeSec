@@ -4,7 +4,10 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOWS = [ROOT / ".github/workflows/ci.yml", ROOT / "templates/github-actions/security-baseline.yml", ROOT / "templates/github-actions/security-standard.yml", ROOT / "templates/github-actions/dast-baseline.yml"]
+CI = ROOT / ".github/workflows/ci.yml"
+DAST_INTEGRATION = ROOT / ".github/workflows/dast-integration.yml"
+STARTERS = [ROOT / "templates/github-actions/security-baseline.yml", ROOT / "templates/github-actions/security-standard.yml", ROOT / "templates/github-actions/dast-baseline.yml"]
+WORKFLOWS = [CI, DAST_INTEGRATION, *STARTERS]
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -36,7 +39,7 @@ class WorkflowSecurityTests(unittest.TestCase):
     def test_required_scripts_and_outputs_align(self):
         for script in ("install_tools.sh", "run_minimal_profile.sh", "normalize_results.py", "append_tool_errors.py", "policy_gate.py", "validate_repository.py"):
             self.assertTrue((ROOT / "scripts" / script).is_file())
-        for path in WORKFLOWS:
+        for path in [CI, *STARTERS]:
             text = path.read_text(encoding="utf-8")
             self.assertIn("normalized.json", text)
             self.assertIn("report.md", text)
@@ -71,7 +74,7 @@ class WorkflowSecurityTests(unittest.TestCase):
 
     def test_ci_lints_the_copyable_workflow(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        self.assertIn("actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml", text)
+        self.assertIn("actionlint -no-color .github/workflows/ci.yml .github/workflows/dast-integration.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml", text)
         self.assertIn("python3 scripts/test_opengrep_rules.py .tools/bin/opengrep", text)
 
     def test_standard_self_scan_exercises_checkov_and_always_validates_evidence(self):
@@ -93,7 +96,8 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn('exit_file="$(mktemp "$SELF_SCAN_RESULTS/.scan-exit-code.XXXXXX")"', text)
         self.assertIn('mv "$exit_file" "$SELF_SCAN_RESULTS/scan-exit-code.txt"', text)
-        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-accountability, dast-artifacts]", text)
+        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts]", text)
+        self.assertNotIn("dast-accountability", text)
         validation = text.index("Validate Standard self-scan artifacts and exact states")
         preservation = text.index("Preserve Standard scan exit contract")
         self.assertLess(validation, preservation)
@@ -103,13 +107,33 @@ class WorkflowSecurityTests(unittest.TestCase):
         self.assertIn("pip install --disable-pip-version-check --requirement requirements.txt", text)
         self.assertIn("python3 scripts/validate_skill.py skills/appsec-guardian", text)
 
-    def test_ci_runs_live_controlled_dast_fixture(self):
+    def test_live_controlled_dast_fixture_is_separate_from_required_ci(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        self.assertIn("python3 scripts/test_dast_container.py", text)
+        self.assertNotIn("python3 scripts/test_dast_container.py", text)
+        integration = DAST_INTEGRATION.read_text(encoding="utf-8")
+        self.assertIn("name: DAST integration accountability", integration)
+        self.assertIn("workflow_dispatch:", integration)
+        self.assertIn("schedule:", integration)
+        self.assertNotIn("pull_request:", integration)
+        self.assertNotIn("pull_request_target", integration)
+        self.assertIn("python3 scripts/test_dast_container.py", integration)
+        self.assertNotIn("http://", integration)
+        self.assertNotIn("https://", integration)
+        self.assertNotIn("secrets.", integration)
+        self.assertNotIn("release", integration.casefold())
         harness = (ROOT / "scripts/test_dast_container.py").read_text(encoding="utf-8")
         self.assertIn('"--internal"', harness)
         self.assertIn('"--user", "65532:65532"', harness)
         self.assertNotIn("docker build", harness)
+
+    def test_required_validate_keeps_dast_artifacts_without_live_dast(self):
+        text = CI.read_text(encoding="utf-8")
+        needs = next(line for line in text.splitlines() if line.strip().startswith("needs: ["))
+        for job in ("self-scan-minimal", "self-scan-standard", "scanner-accountability", "security-artifacts", "dast-artifacts"):
+            self.assertIn(job, needs)
+        self.assertNotIn("dast-accountability", needs)
+        dast = text.split("  dast-artifacts:", 1)[1].split("\n  validate:", 1)[0]
+        self.assertIn("tests.test_dast_baseline", dast)
 
     def test_ci_skips_security_upload_after_early_failure(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")

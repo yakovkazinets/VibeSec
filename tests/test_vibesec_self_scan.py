@@ -60,7 +60,7 @@ class VibeSecSelfScanTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn("unrecognized arguments", completed.stderr)
 
-    def test_controlled_product_self_scan_has_exact_states_and_exit_zero(self):
+    def test_controlled_product_self_scan_has_event_aware_exact_states_and_exit_zero(self):
         from tests.test_standard_profile_integration import StandardProfileIntegrationTests
 
         harness = StandardProfileIntegrationTests(
@@ -75,25 +75,37 @@ class VibeSecSelfScanTests(unittest.TestCase):
             }
             environment.update({
                 "PATH": f"{harness.tools}:{environment['PATH']}",
-                "VIBESEC_EXPECTED_ROOT": str(ROOT),
-                "GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "pull_request",
+                "VIBESEC_EXPECTED_ROOT": str(ROOT), "GITHUB_ACTIONS": "true",
             })
-            results = harness.target.parent / "self-scan-results"
-            completed = subprocess.run(
-                [sys.executable, "scripts/run_vibesec_self_scan.py", str(results),
-                 "--tool-dir", str(harness.tools)],
-                cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
-            )
-            self.assertEqual(completed.returncode, 0, completed.stderr)
-            coverage = json.loads((results / "coverage.json").read_text(encoding="utf-8"))
-            states = {item["tool"]: item["state"] for item in coverage["tools"]}
-            self.assertEqual(states, {
-                "opengrep": "ran", "osv-scanner": "ran", "syft": "ran",
-                "checkov": "ran", "trivy": "ran", "gitleaks": "ran",
-                "actionlint": "ran", "trivy-image": "not_configured",
-            })
-            policy = json.loads((results / "policy-result.json").read_text(encoding="utf-8"))
-            self.assertEqual(policy["exit_code"], 0)
+            for event, image_state in (("pull_request", "not_configured"), ("push", "not_applicable")):
+                with self.subTest(event=event):
+                    environment["GITHUB_EVENT_NAME"] = event
+                    results = harness.target.parent / f"self-scan-results-{event}"
+                    completed = subprocess.run(
+                        [sys.executable, "scripts/run_vibesec_self_scan.py", str(results),
+                         "--tool-dir", str(harness.tools)],
+                        cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
+                    )
+                    self.assertEqual(completed.returncode, 0, completed.stderr)
+                    coverage = json.loads((results / "coverage.json").read_text(encoding="utf-8"))
+                    states = {item["tool"]: item["state"] for item in coverage["tools"]}
+                    self.assertEqual(states, {
+                        "opengrep": "ran", "osv-scanner": "ran", "syft": "ran",
+                        "checkov": "ran", "trivy": "ran", "gitleaks": "ran",
+                        "actionlint": "ran", "trivy-image": image_state,
+                    })
+                    validation = subprocess.run(
+                        [sys.executable, "scripts/validate_security_artifacts.py", "--profile", "standard",
+                         "--results", str(results), "--expect-state", "opengrep=ran",
+                         "--expect-state", "osv-scanner=ran", "--expect-state", "syft=ran",
+                         "--expect-state", "checkov=ran", "--expect-state", "trivy=ran",
+                         "--expect-state", "gitleaks=ran", "--expect-state", "actionlint=ran",
+                         "--expect-state", f"trivy-image={image_state}"],
+                        cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
+                    )
+                    self.assertEqual(validation.returncode, 0, validation.stderr)
+                    policy = json.loads((results / "policy-result.json").read_text(encoding="utf-8"))
+                    self.assertEqual(policy["exit_code"], 0)
         finally:
             harness.doCleanups()
 

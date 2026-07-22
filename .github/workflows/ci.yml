@@ -64,6 +64,14 @@ jobs:
           python3 scripts/run_standard_profile.py . self-scan-standard --vibesec-root . --tool-dir .tools/bin
           scan_exit=$?
           set -e
+          case "$scan_exit" in
+            0|1|2|3) ;;
+            *) scan_exit=3 ;;
+          esac
+          mkdir -p self-scan-standard
+          exit_file="$(mktemp self-scan-standard/.scan-exit-code.XXXXXX)"
+          printf '%s\n' "$scan_exit" > "$exit_file"
+          mv "$exit_file" self-scan-standard/scan-exit-code.txt
           echo "exit_code=${scan_exit}" >> "$GITHUB_OUTPUT"
       - name: Validate Standard self-scan artifacts and exact states
         if: always() && steps.standard.outcome != 'skipped'
@@ -74,13 +82,7 @@ jobs:
           --expect-state actionlint=ran --expect-state trivy-image=not_configured
       - name: Preserve Standard scan exit contract
         if: always() && steps.standard.outcome != 'skipped'
-        env:
-          STANDARD_SCAN_EXIT: ${{ steps.standard.outputs.exit_code }}
-        run: |
-          case "$STANDARD_SCAN_EXIT" in
-            0|1|2|3) exit "$STANDARD_SCAN_EXIT" ;;
-            *) exit 3 ;;
-          esac
+        run: python3 scripts/preserve_scan_exit.py self-scan-standard/scan-exit-code.txt
 
   scanner-accountability:
     runs-on: ubuntu-latest
@@ -115,7 +117,7 @@ jobs:
       - name: Run artifact, failure-path, fork, and trust-boundary regressions
         run: >-
           python3 -m unittest -v tests.test_security_accountability tests.test_minimal_profile_integration
-          tests.test_standard_profile_integration tests.test_workflows tests.test_policy tests.test_results
+          tests.test_standard_profile_integration tests.test_scan_exit tests.test_workflows tests.test_policy tests.test_results
 
   validate:
     needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts]

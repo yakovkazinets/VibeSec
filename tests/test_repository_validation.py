@@ -9,9 +9,10 @@ class RepositoryValidationTests(unittest.TestCase):
     def test_tool_release_metadata_is_complete(self):
         tools = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))
         self.assertEqual(set(tools), EXPECTED_TOOLS)
-        for config in tools.values():
+        for name, config in tools.items():
             self.assertTrue(config["official_repository"].startswith("https://github.com/"))
-            self.assertEqual(config["verification_date"], "2026-07-21")
+            expected_date = "2026-07-22" if name == "schemathesis" else "2026-07-21"
+            self.assertEqual(config["verification_date"], expected_date)
             if config.get("kind") == "container":
                 self.assertRegex(config["digest"].removeprefix("sha256:"), SHA256)
             else:

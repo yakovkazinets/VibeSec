@@ -12,11 +12,13 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.bundle import validate_catalog  # noqa: E402
+from vibesec.api_security import load_config as load_api_config  # noqa: E402
 from vibesec.dast import load_config  # noqa: E402
 from vibesec.github_actions import (  # noqa: E402
     GitHubActionsError, audit_tracked_files, load_inventory,
 )
 from vibesec.strict_json import loads_strict  # noqa: E402
+from vibesec.schemathesis_runtime import trusted_schemathesis_command  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
 from vibesec.zap_automation import (  # noqa: E402
     CONTAINER_ZAP_HOME, JOB_TYPES, REPORT_FILENAME, REPORT_TEMPLATE,
@@ -25,12 +27,15 @@ from vibesec.zap_automation import (  # noqa: E402
 )
 from validate_security_capabilities import validate_matrix  # noqa: E402
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
-EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "cosign", "checkov", "zap-baseline", "dast-fixture-python"}
+EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "cosign", "checkov", "zap-baseline", "dast-fixture-python", "schemathesis"}
 EXPECTED_VIBESEC_VARIABLES = {
     "VIBESEC_ENFORCEMENT", "VIBESEC_MIN_SEVERITY", "VIBESEC_TOOL_DIR", "VIBESEC_NETWORK_MODE",
     "VIBESEC_OSV_DATABASE_DIR", "VIBESEC_OSV_DATABASE_DATE", "VIBESEC_OSV_MAX_DATABASE_AGE_DAYS",
     "VIBESEC_IMAGE_REFERENCE", "VIBESEC_DAST_IMAGE_REFERENCE", "VIBESEC_DAST_CONTAINER_PORT",
     "VIBESEC_DAST_BASE_PATH", "VIBESEC_DAST_ENFORCEMENT", "VIBESEC_DAST_MIN_SEVERITY",
+    "VIBESEC_API_IMAGE_REFERENCE", "VIBESEC_API_SCHEMA_PATH", "VIBESEC_API_CONTAINER_PORT",
+    "VIBESEC_API_BASE_PATH", "VIBESEC_API_SAFE_METHODS_ONLY", "VIBESEC_API_ENFORCEMENT",
+    "VIBESEC_API_MIN_SEVERITY",
 }
 
 
@@ -53,7 +58,8 @@ def validate_tools() -> None:
             raise ValueError(f"tool {name} configuration must be an object")
         if not all(isinstance(config.get(field), str) and config[field] for field in ("version", "license", "official_repository", "verification_date")):
             raise ValueError(f"tool {name} is missing version, license, official_repository, or verification_date")
-        if config["verification_date"] != "2026-07-21":
+        expected_date = "2026-07-22" if name == "schemathesis" else "2026-07-21"
+        if config["verification_date"] != expected_date:
             raise ValueError(f"tool {name} pin must record the current review date")
         official = urlparse(config["official_repository"])
         if official.scheme != "https" or official.hostname != "github.com":
@@ -98,12 +104,18 @@ def validate_policy() -> None:
     dast_suppressions = load_object(ROOT / "policy/dast-suppressions.json")
     if dast_suppressions.get("profile") != "dast-baseline" or not isinstance(dast_suppressions.get("suppressions"), list):
         raise ValueError("policy/dast-suppressions.json must contain a DAST Baseline suppressions array")
+    api_baseline = load_object(ROOT / "policy/api-security-baseline.json")
+    if api_baseline.get("profile") != "api-security-baseline" or not isinstance(api_baseline.get("fingerprints"), list):
+        raise ValueError("policy/api-security-baseline.json must contain API fingerprints")
+    api_suppressions = load_object(ROOT / "policy/api-security-suppressions.json")
+    if api_suppressions.get("profile") != "api-security-baseline" or not isinstance(api_suppressions.get("suppressions"), list):
+        raise ValueError("policy/api-security-suppressions.json must contain API suppressions")
 
 
 def validate_references() -> None:
     required = (
-        ".github/workflows/ci.yml", ".github/workflows/dast-integration.yml", "templates/github-actions/security-baseline.yml",
-        "templates/github-actions/security-standard.yml", "templates/github-actions/dast-baseline.yml",
+        ".github/workflows/ci.yml", ".github/workflows/dast-integration.yml", ".github/workflows/api-security-integration.yml", "templates/github-actions/security-baseline.yml",
+        "templates/github-actions/security-standard.yml", "templates/github-actions/dast-baseline.yml", "templates/github-actions/api-security-baseline.yml",
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
         "scripts/install_standard_tools.sh", "scripts/run_standard_profile.py", "scripts/detect_repository.py",
         "scripts/validate_sbom.py", "scripts/validate_opengrep_rules.py",
@@ -118,12 +130,16 @@ def validate_references() -> None:
         "scripts/validate_security_artifacts.py", "config/security-capabilities.json", "config/self-scan-scope.json",
         "scripts/run_dast_baseline.py", "scripts/test_dast_container.py", "scripts/validate_dast_artifacts.py",
         "scripts/vibesec/dast.py", "scripts/vibesec/zap_automation.py", "scripts/vibesec/zap_diagnostics.py",
+        "scripts/run_api_security_baseline.py", "scripts/validate_api_security_artifacts.py",
+        "scripts/vibesec/api_security.py", "scripts/vibesec/schemathesis_runtime.py",
+        "config/api-security-result-schema.json",
         "config/github-actions.json", "scripts/vibesec/github_actions.py",
         "config/zap-passive-plan-schema.json",
         "config/environment-variables.json", "docs/quickstart.md", "docs/profile-selection.md",
         "docs/github-actions-runtime.md",
         "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md", "docs/distribution.md",
         "docs/installation-verification.md", "docs/doctor.md", "docs/dast-baseline.md", "docs/dast-threat-model.md",
+        "docs/api-security-baseline.md", "docs/api-security-threat-model.md", "scripts/test_api_security_container.py",
         "docs/security-validation-policy.md", "docs/security-capability-matrix.md", "docs/self-hosted-validation.md",
         "examples/reports/README.md",
         "skills/appsec-guardian/SKILL.md",
@@ -170,6 +186,24 @@ def validate_dast_command_contract() -> None:
             raise ValueError("production DAST runner must create and delete the trusted plan")
 
 
+def validate_api_command_contract() -> None:
+    config = load_api_config(ROOT)
+    command = trusted_schemathesis_command(port=8080, base_path="/", config=config, safe_methods_only=True)
+    flattened = " ".join(command)
+    required = ("--phases examples,coverage,fuzzing", "--mode all", "--workers 1", "--max-examples 20",
+                "--max-failures 20", "--request-timeout 5", "--generation-deterministic",
+                "--generation-database none", "--report ndjson")
+    prohibited = ("stateful", "--header", "--auth", "--hooks", "--config", "--proxy", "--report-junit")
+    if any(item not in flattened for item in required) or any(item in flattened for item in prohibited):
+        raise ValueError("API command differs from the reviewed bounded stateless contract")
+    methods = [command[index + 1] for index, item in enumerate(command) if item == "--include-method"]
+    if methods != ["GET", "HEAD", "OPTIONS"]:
+        raise ValueError("API safe-method default differs from the reviewed set")
+    for relative in ("scripts/run_api_security_baseline.py", "tests/test_api_security_baseline.py"):
+        if "trusted_scanner_container_command(" not in (ROOT / relative).read_text(encoding="utf-8"):
+            raise ValueError(f"{relative} must use the shared Schemathesis command builder")
+
+
 def validate_adoption_metadata() -> None:
     version = read_version(ROOT)
     if version != "0.3.0-dev":
@@ -178,8 +212,8 @@ def validate_adoption_metadata() -> None:
     common = adoption.get("common")
     profiles = adoption.get("profiles")
     addons = adoption.get("addons")
-    if not isinstance(common, list) or not isinstance(profiles, dict) or set(profiles) != {"minimal", "standard"} or not isinstance(addons, dict) or set(addons) != {"dast-baseline"}:
-        raise ValueError("adoption catalog must define common, Minimal, Standard, and the DAST Baseline add-on")
+    if not isinstance(common, list) or not isinstance(profiles, dict) or set(profiles) != {"minimal", "standard"} or not isinstance(addons, dict) or set(addons) != {"dast-baseline", "api-security-baseline"}:
+        raise ValueError("adoption catalog must define common, Minimal, Standard, and both runtime add-ons")
     for profile, config in profiles.items():
         if not isinstance(config, dict) or not isinstance(config.get("support"), list):
             raise ValueError(f"adoption catalog profile {profile} is malformed")
@@ -235,7 +269,7 @@ def validate_github_actions_documentation() -> None:
     if any(marker not in runtime for marker in markers):
         raise ValueError("GitHub Actions runtime documentation is incomplete")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts]"
+    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts]"
     if expected not in ci or ci.count("\n  validate:\n") != 1:
         raise ValueError("validate must remain the single required aggregate CI job")
 
@@ -246,6 +280,7 @@ def main() -> int:
         validate_policy()
         validate_references()
         validate_dast_command_contract()
+        validate_api_command_contract()
         validate_adoption_metadata()
         validate_github_actions_documentation()
         inventory = load_inventory(ROOT / "config/github-actions.json")

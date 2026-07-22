@@ -25,7 +25,8 @@ MAX_MANIFESTS = 5
 MAX_WORKFLOW_BYTES = 1_000_000
 PRESERVATION_SENSITIVE = {
     "policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json",
-    "policy/dast-suppressions.json", "policy/suppressions.yml",
+    "policy/dast-suppressions.json", "policy/api-security-baseline.json",
+    "policy/api-security-suppressions.json", ".vibesec/api-security-baseline.json", "policy/suppressions.yml",
 }
 
 
@@ -108,6 +109,7 @@ def _workflow_checks(path: Path, relative: str, errors: list[str], warnings: lis
     if not any(marker in text for marker in (
         "VIBESEC_ENFORCEMENT: observe", "VIBESEC_ENFORCEMENT: new", "VIBESEC_ENFORCEMENT: all",
         "VIBESEC_DAST_ENFORCEMENT: observe", "VIBESEC_DAST_ENFORCEMENT: new", "VIBESEC_DAST_ENFORCEMENT: all",
+        "VIBESEC_API_ENFORCEMENT: observe", "VIBESEC_API_ENFORCEMENT: new", "VIBESEC_API_ENFORCEMENT: all",
     )):
         warnings.append(f"workflow enforcement mode is not identifiable: {relative}")
 
@@ -166,6 +168,8 @@ def verify_installation(target_path: Path) -> InstallationState:
             errors.append("Standard installation has a missing or wrong profile baseline")
     if "dast-baseline" in profiles and "policy/dast-baseline.json" not in declared_paths:
         errors.append("DAST add-on has a missing DAST baseline")
+    if "api-security-baseline" in profiles and "policy/api-security-baseline.json" not in declared_paths:
+        errors.append("API Security add-on has a missing API baseline")
     file_results: list[dict[str, Any]] = []
     observed_paths: dict[str, str] = {}
     versions = {manifest.get("development_version") or manifest.get("source_version") for manifest in manifests}
@@ -198,6 +202,8 @@ def verify_installation(target_path: Path) -> InstallationState:
             if manifest["stage"] == "addon":
                 expected.update(config["support"])
                 expected.add(config["workflow_destination"])
+                if manifest["profile"] == "api-security-baseline":
+                    expected.add(".vibesec/api-security-baseline.json")
             if manifest["stage"] in {"all", "support"}:
                 expected.update(catalog["common"])
                 expected.update(config["support"])
@@ -215,6 +221,8 @@ def verify_installation(target_path: Path) -> InstallationState:
             errors.append(f"project capability manifest is missing or malformed: {exc}")
     if project_capabilities is not None and "dast-baseline" in profiles and not project_capabilities["capabilities"]["dast_target"]:
         errors.append("DAST is installed when dast_target=false")
+    if project_capabilities is not None and "api-security-baseline" in profiles and not project_capabilities["capabilities"]["api_security_target"]:
+        errors.append("API Security Baseline is installed when api_security_target=false")
     for manifest in manifests:
         if manifest["schema_version"] == 1:
             records = [{"path": item, "sha256": None, "mode": None} for item in manifest["installed_files"] if item != manifest_paths[0].relative_to(target).as_posix()]
@@ -261,10 +269,12 @@ def verify_installation(target_path: Path) -> InstallationState:
             })
             if relative.startswith(".github/workflows/"):
                 _workflow_checks(path, relative, errors, warnings, action_inventory)
-            if relative in {"policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json"}:
+            if relative in {"policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json", "policy/api-security-baseline.json"}:
                 try:
                     baseline = loads_strict(path.read_bytes())
-                    expected_profile = "dast-baseline" if relative == "policy/dast-baseline.json" else ("standard" if relative == "policy/standard-baseline.json" else "minimal")
+                    expected_profile = ("api-security-baseline" if relative == "policy/api-security-baseline.json" else
+                                        "dast-baseline" if relative == "policy/dast-baseline.json" else
+                                        "standard" if relative == "policy/standard-baseline.json" else "minimal")
                     if not isinstance(baseline, dict) or baseline.get("profile") != expected_profile or not isinstance(baseline.get("fingerprints"), list):
                         errors.append(f"wrong or malformed profile baseline: {relative}")
                 except (OSError, StrictJSONError):

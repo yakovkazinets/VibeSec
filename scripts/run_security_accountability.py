@@ -15,6 +15,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.detection import inventory  # noqa: E402
 from vibesec.dast import normalize_zap_report  # noqa: E402
+from vibesec.api_security import CHECKS, load_config as load_api_config, normalize_schemathesis_report, operation_index, validate_openapi_schema  # noqa: E402
 from vibesec.normalize import normalize_file  # noqa: E402
 from vibesec.policy import evaluate  # noqa: E402
 from vibesec.results import _validate_document  # noqa: E402
@@ -32,6 +33,7 @@ SCANNER_NORMALIZERS = {
     "standard.checkov-iac": ("checkov", "raw.json"),
     "standard.trivy-image": ("trivy-image", "raw.json"),
     "dast.zap-passive-baseline": ("zap-baseline", "raw.json"),
+    "api.response-schema-conformance": ("schemathesis", "raw.ndjson"),
 }
 PROHIBITED_OUTPUT = ("VIBESEC_" + "FAKE_SECRET_DO_NOT_USE_", "/home/runner/", "/Users/", "RUNNER_TOKEN", "registry credential")
 
@@ -70,6 +72,9 @@ def scanner_evidence(capability: dict[str, Any], expected: dict[str, Any]) -> di
         try:
             if tool == "zap-baseline":
                 findings, _ = normalize_zap_report(raw, port=8080, maximum_bytes=5_000_000, maximum_findings=1000)
+            elif tool == "schemathesis":
+                _, schema_payload, _ = validate_openapi_schema(ROOT / "tests/security-fixtures/api-security", "openapi.yaml", config=load_api_config(ROOT), port=8080, base_path="/")
+                findings, _ = normalize_schemathesis_report(raw, schema_source="openapi.yaml", operations=operation_index(schema_payload), maximum_bytes=10_485_760, maximum_findings=1000)
             else:
                 findings = [item.to_dict() for item in normalize_file(tool, raw)]
         except ValueError as exc:
@@ -87,7 +92,7 @@ def scanner_evidence(capability: dict[str, Any], expected: dict[str, Any]) -> di
         for finding in findings:
             if not required <= set(finding) or finding["tool"] != tool or finding["result_type"] != "finding":
                 raise AccountabilityError(f"{capability['id']} normalized fields or identity differ")
-            if (tool != "zap-baseline" and finding["file"].startswith("/")) or ".." in finding["file"].split("/"):
+            if (tool not in {"zap-baseline"} and finding["file"].startswith("/")) or ".." in finding["file"].split("/"):
                 raise AccountabilityError(f"{capability['id']} produced an unsafe normalized path")
         serialized = json.dumps(findings, sort_keys=True)
         if any(marker in serialized for marker in PROHIBITED_OUTPUT):
@@ -149,6 +154,22 @@ def internal_evidence(capability: dict[str, Any], expected: dict[str, Any]) -> d
             raise AccountabilityError(f"{identifier} positive DAST scenario is malformed")
         if bad.get("safe") is not False or bad.get("event") != "pull_request" or bad.get("active_scanning") is not True:
             raise AccountabilityError(f"{identifier} negative DAST scenario is malformed")
+    elif identifier.startswith("api."):
+        fixture = ROOT / "tests/security-fixtures/api-security"
+        if identifier == "api.openapi-schema-validation":
+            _, _, operations = validate_openapi_schema(fixture, "openapi.yaml", config=load_api_config(ROOT), port=8080, base_path="/")
+            if operations != 2:
+                raise AccountabilityError("API schema fixture operation count differs")
+        else:
+            _, schema_payload, _ = validate_openapi_schema(fixture, "openapi.yaml", config=load_api_config(ROOT), port=8080, base_path="/")
+            index = operation_index(schema_payload)
+            findings, _ = normalize_schemathesis_report(fixture / "positive/raw.ndjson", schema_source="openapi.yaml", operations=index, maximum_bytes=10_485_760, maximum_findings=1000)
+            clean, _ = normalize_schemathesis_report(fixture / "negative/raw.ndjson", schema_source="openapi.yaml", operations=index, maximum_bytes=10_485_760, maximum_findings=1000)
+            if [item["rule_id"] for item in findings] != ["response_schema_conformance"] or clean:
+                raise AccountabilityError(f"{identifier} API structured fixture distinction failed")
+            check = identifier.removeprefix("api.").replace("server-error-detection", "not_a_server_error").replace("status-code-conformance", "status_code_conformance").replace("content-type-conformance", "content_type_conformance").replace("response-schema-conformance", "response_schema_conformance").replace("negative-data-rejection", "negative_data_rejection").replace("positive-data-acceptance", "positive_data_acceptance")
+            if identifier in {"api.server-error-detection", "api.status-code-conformance", "api.content-type-conformance", "api.response-schema-conformance", "api.negative-data-rejection", "api.positive-data-acceptance"} and check not in CHECKS:
+                raise AccountabilityError(f"{identifier} reviewed check mapping is absent")
     else:
         raise AccountabilityError(f"no fixture handler exists for {identifier}")
     return {

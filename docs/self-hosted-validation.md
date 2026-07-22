@@ -39,3 +39,5 @@ The Standard VibeSec self-scan uses `scripts/run_vibesec_self_scan.py` and the r
 Per-file Checkov failures identify only the validated repository-relative invocation path. Scanner-reported paths, absolute checkout paths, source content, and raw output remain excluded from diagnostics.
 
 A passing self-scan demonstrates only that the pinned controls completed with expected evidence. It does not prove VibeSec is secure.
+
+`api-security-artifacts` is mandatory normal CI and is now included in `validate.needs`; it covers schema, command, normalization, policy, sanitized artifacts, failure paths, and trust boundaries with controlled data. `.github/workflows/api-security-integration.yml` is manual/scheduled and deliberately absent from `validate.needs`. VibeSec declares `api=false` and `api_security_target=false`, so its API state is exactly `not_applicable` and no API self-scan runs. The controlled fixture's `/defect` produces exactly `response_schema_conformance`; `/compliant` produces no finding. No public target, credential, stateful phase, or raw evidence upload is used.

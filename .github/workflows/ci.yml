@@ -153,8 +153,21 @@ jobs:
       - name: Validate DAST normalization and sanitized artifacts
         run: python3 -m unittest -v tests.test_dast_baseline tests.test_security_accountability
 
+  api-security-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted API validators without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Install pinned schema validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Validate API schema, normalization, policy, artifacts, and trust boundaries
+        run: python3 -m unittest -v tests.test_api_security_baseline tests.test_project_capabilities
+
   validate:
-    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts]
+    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -218,7 +231,7 @@ jobs:
       - name: Exercise local Opengrep rules
         run: python3 scripts/test_opengrep_rules.py .tools/bin/opengrep
       - name: Lint repository and starter workflows
-        run: .tools/bin/actionlint -no-color .github/workflows/ci.yml .github/workflows/dast-integration.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml templates/github-actions/dast-baseline.yml
+        run: .tools/bin/actionlint -no-color .github/workflows/ci.yml .github/workflows/dast-integration.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml .github/workflows/api-security-integration.yml templates/github-actions/dast-baseline.yml templates/github-actions/api-security-baseline.yml
       - name: Run minimal profile in observation mode
         id: security
         continue-on-error: true

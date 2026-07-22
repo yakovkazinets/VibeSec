@@ -73,3 +73,7 @@ The initializer makes no network calls. Workflow tool installation downloads pin
 Use `.vibesec/install-*.json` as a review checklist. Remove only files that are still VibeSec-owned, preserve any local policy evidence you need, and remove the workflow in a reviewed change. The initializer deliberately has no destructive uninstall or overwrite mode. Removing VibeSec also removes its coverage; it does not resolve findings.
 
 For problems, use [troubleshooting](troubleshooting.md). For upgrades, use [upgrading](upgrading.md).
+
+## Optional OpenAPI API testing
+
+Projects declaring `api=true`, `container_image=true`, and `api_security_target=true` may separately install [API Security Baseline](api-security-baseline.md). Supply a local OpenAPI 3.x path, the name of a GitHub variable containing an immutable non-root target image, its internal port/base path, and whether to keep the default GET/HEAD/OPTIONS-only mode. Preview first; `--write` is required. It runs only manually or on schedule, without credentials or public targets, and is not part of Minimal or Standard.

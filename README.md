@@ -2,6 +2,8 @@
 
 The [Passive DAST Baseline add-on](docs/dast-baseline.md) is deliberately outside the Minimal and Standard profiles. It is manual/scheduled, unauthenticated, passive-only, and limited to an explicitly configured immutable non-root image on an isolated internal Docker network. Review its [threat model](docs/dast-threat-model.md) before enabling it.
 
+The [API Security Baseline add-on](docs/api-security-baseline.md) is also separate and opt-in. It uses a local OpenAPI 3.x contract and an immutable non-root API image on trusted manual/scheduled events, defaults to GET/HEAD/OPTIONS, and never accepts credentials or public targets. Review its [threat model](docs/api-security-threat-model.md).
+
 VibeSec is an open-source application-security toolkit for vibe coders, solo developers, startups, and small teams. It combines a repository-aware coding-agent skill with a copyable GitHub Actions baseline.
 
 VibeSec cannot guarantee that an application is secure. Scanner coverage is incomplete, findings may be wrong, and a clean scan covers only the checks that completed successfully.
@@ -28,11 +30,12 @@ Review the code and configuration before using it, validate it against your own 
 - [Security/result model](docs/security-model.md) and [threat model](docs/threat-model.md)
 - [Security validation policy](docs/security-validation-policy.md), [capability matrix](docs/security-capability-matrix.md), and [self-hosted validation](docs/self-hosted-validation.md)
 - [GitHub Actions Node 24 runtime and immutable pin policy](docs/github-actions-runtime.md)
+- [OpenAPI API Security Baseline](docs/api-security-baseline.md)
 
 Supplied workflows target GitHub.com and require Actions Runner 2.327.1 or newer on self-hosted runners. Their reviewed JavaScript actions embed Node 24 and use full commit SHAs; Node 20 is end-of-life and unsupported, and no fallback is provided. VibeSec itself requires no npm or Node application runtime. Node 26 remains a future compatibility target rather than a requirement. See the runtime policy for the separate GHES limitation.
 
-Minimal uses Trivy filesystem, Gitleaks, and actionlint. Standard adds VibeSec-owned Opengrep rules, OSV-Scanner, Syft SBOMs, conditional isolated Checkov, explicit coverage reporting, and optional trusted-event scanning of an existing immutable image. Neither profile builds or executes application code, installs project dependencies, builds Dockerfiles, or applies infrastructure. A separate, opt-in DAST Baseline add-on runs only OWASP ZAP's passive baseline against an explicitly supplied immutable, non-root application image on a trusted event.
-<!-- claimed-scanners: actionlint,checkov,gitleaks,opengrep,osv-scanner,syft,trivy,zap-baseline -->
+Minimal uses Trivy filesystem, Gitleaks, and actionlint. Standard adds VibeSec-owned Opengrep rules, OSV-Scanner, Syft SBOMs, conditional isolated Checkov, explicit coverage reporting, and optional trusted-event scanning of an existing immutable image. Neither profile builds or executes application code, installs project dependencies, builds Dockerfiles, or applies infrastructure. Separate opt-in add-ons provide passive ZAP DAST and bounded Schemathesis OpenAPI contract testing against explicitly supplied immutable, non-root images.
+<!-- claimed-scanners: actionlint,checkov,gitleaks,opengrep,osv-scanner,schemathesis,syft,trivy,zap-baseline -->
 
 Preview adoption without changing the application repository:
 
@@ -41,7 +44,7 @@ python3 scripts/init_vibesec.py --profile minimal --target /path/to/application
 python3 scripts/init_vibesec.py --profile standard --target /path/to/application
 ```
 
-The initializer asks 14 project-capability questions, each displayed with `[Y/n]` and defaulting to Yes. Answer No when a capability does not apply. Non-interactive use requires `--capabilities-file <trusted-local-json>` or the explicit `--all-capabilities` option; EOF never supplies defaults. The resulting `.vibesec/project-capabilities.json` is authoritative for scanner applicability.
+The initializer asks 15 project-capability questions, each displayed with `[Y/n]` and defaulting to Yes. Answer No when a capability does not apply. Non-interactive use requires `--capabilities-file <trusted-local-json>` or the explicit `--all-capabilities` option; EOF never supplies defaults. The resulting `.vibesec/project-capabilities.json` is authoritative for scanner applicability.
 
 Add `--write` only after reviewing the machine-readable plan. Minimal is one stage. Standard deliberately requires support files to land on the default branch before `--stage workflow` is initialized in a second change, preserving the base-revision trusted-harness boundary. Existing-file conflicts are never overwritten.
 

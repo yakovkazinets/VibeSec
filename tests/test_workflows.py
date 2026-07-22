@@ -6,8 +6,9 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 CI = ROOT / ".github/workflows/ci.yml"
 DAST_INTEGRATION = ROOT / ".github/workflows/dast-integration.yml"
-STARTERS = [ROOT / "templates/github-actions/security-baseline.yml", ROOT / "templates/github-actions/security-standard.yml", ROOT / "templates/github-actions/dast-baseline.yml"]
-WORKFLOWS = [CI, DAST_INTEGRATION, *STARTERS]
+API_INTEGRATION = ROOT / ".github/workflows/api-security-integration.yml"
+STARTERS = [ROOT / "templates/github-actions/security-baseline.yml", ROOT / "templates/github-actions/security-standard.yml", ROOT / "templates/github-actions/dast-baseline.yml", ROOT / "templates/github-actions/api-security-baseline.yml"]
+WORKFLOWS = [CI, DAST_INTEGRATION, API_INTEGRATION, *STARTERS]
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -96,7 +97,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn('exit_file="$(mktemp "$SELF_SCAN_RESULTS/.scan-exit-code.XXXXXX")"', text)
         self.assertIn('mv "$exit_file" "$SELF_SCAN_RESULTS/scan-exit-code.txt"', text)
-        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts]", text)
+        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts]", text)
         self.assertNotIn("dast-accountability", text)
         validation = text.index("Validate Standard self-scan artifacts and exact states")
         preservation = text.index("Preserve Standard scan exit contract")
@@ -129,11 +130,25 @@ class WorkflowSecurityTests(unittest.TestCase):
     def test_required_validate_keeps_dast_artifacts_without_live_dast(self):
         text = CI.read_text(encoding="utf-8")
         needs = next(line for line in text.splitlines() if line.strip().startswith("needs: ["))
-        for job in ("self-scan-minimal", "self-scan-standard", "scanner-accountability", "security-artifacts", "dast-artifacts"):
+        for job in ("self-scan-minimal", "self-scan-standard", "scanner-accountability", "security-artifacts", "dast-artifacts", "api-security-artifacts"):
             self.assertIn(job, needs)
         self.assertNotIn("dast-accountability", needs)
         dast = text.split("  dast-artifacts:", 1)[1].split("\n  validate:", 1)[0]
         self.assertIn("tests.test_dast_baseline", dast)
+
+    def test_api_runtime_is_manual_scheduled_and_live_workflow_is_not_required(self):
+        starter = (ROOT / "templates/github-actions/api-security-baseline.yml").read_text(encoding="utf-8")
+        integration = API_INTEGRATION.read_text(encoding="utf-8")
+        for text in (starter, integration):
+            self.assertIn("workflow_dispatch:", text)
+            self.assertIn("schedule:", text)
+            self.assertNotIn("pull_request:", text)
+            self.assertNotIn("pull_request_target", text)
+            self.assertNotIn("push:", text)
+            self.assertNotIn("secrets.", text)
+        needs = next(line for line in CI.read_text(encoding="utf-8").splitlines() if line.strip().startswith("needs: ["))
+        self.assertIn("api-security-artifacts", needs)
+        self.assertNotIn("api-security-integration", needs)
 
     def test_ci_skips_security_upload_after_early_failure(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")

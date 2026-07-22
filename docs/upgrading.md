@@ -41,3 +41,5 @@ Preserve baselines, suppressions, user-modified policy and ignore files, and use
 ## Rollback
 
 Revert the reviewed upgrade commit or restore the backed-up version-compatible file set. Restore baseline and suppression files only from the same repository and profile. Re-run in `observe` and verify reports before restoring enforcement. Never use an automatic force/overwrite command; rollback must remain reviewable. Destructive upgrades are deferred because local policy intent and trust-boundary changes cannot be merged safely without human judgment.
+
+For API Security Baseline upgrades, preserve the explicit project capability answers, target configuration, `policy/api-security-baseline.json`, and `policy/api-security-suppressions.json`. Review the Schemathesis version/digest, exact CLI options, check-to-severity mapping, schema rules, request bounds, method opt-in, and isolation flags together. Never replace a local API policy or enable mutating methods automatically.

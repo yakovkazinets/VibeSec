@@ -1,0 +1,72 @@
+name: VibeSec API Security Baseline
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 5 * * 3"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vibesec-api-security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-security-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out trusted API security harness without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Install pinned schema validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Run isolated contract-driven API baseline
+        id: api
+        continue-on-error: true
+        env:
+          VIBESEC_API_IMAGE_REFERENCE: ${{ vars.VIBESEC_API_IMAGE_REFERENCE }}
+          VIBESEC_API_ENFORCEMENT: observe
+          VIBESEC_API_MIN_SEVERITY: high
+          VIBESEC_API_RESULTS: ${{ runner.temp }}/vibesec-api-security-results
+        run: |
+          mkdir -p "$VIBESEC_API_RESULTS"
+          set +e
+          python3 scripts/run_api_security_baseline.py "$VIBESEC_API_RESULTS" --repository .
+          scan_exit=$?
+          set -e
+          case "$scan_exit" in 0|1|2|3) ;; *) scan_exit=3 ;; esac
+          exit_file="$(mktemp "$VIBESEC_API_RESULTS/.scan-exit-code.XXXXXX")"
+          printf '%s\n' "$scan_exit" > "$exit_file"
+          mv "$exit_file" "$VIBESEC_API_RESULTS/scan-exit-code.txt"
+          echo "exit_code=$scan_exit" >> "$GITHUB_OUTPUT"
+      - name: Validate sanitized API security artifacts
+        if: always() && steps.api.outcome != 'skipped'
+        env:
+          VIBESEC_API_RESULTS: ${{ runner.temp }}/vibesec-api-security-results
+        run: |
+          state="ran"
+          case "${{ steps.api.outputs.exit_code }}" in 2|3) state="tool_error" ;; esac
+          if [[ -z "${{ vars.VIBESEC_API_IMAGE_REFERENCE }}" ]]; then state="not_configured"; fi
+          python3 scripts/validate_api_security_artifacts.py --results "$VIBESEC_API_RESULTS" --expect-state "$state"
+      - name: Upload sanitized API security artifacts
+        if: always() && steps.api.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1, Node 24, verified 2026-07-22
+        with:
+          name: vibesec-api-security-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/vibesec-api-security-results/normalized.json
+            ${{ runner.temp }}/vibesec-api-security-results/coverage.json
+            ${{ runner.temp }}/vibesec-api-security-results/report.md
+            ${{ runner.temp }}/vibesec-api-security-results/policy-result.json
+          if-no-files-found: error
+          retention-days: 14
+          include-hidden-files: false
+          archive: true
+      - name: Preserve API security exit contract
+        if: always() && steps.api.outcome != 'skipped'
+        env:
+          VIBESEC_API_RESULTS: ${{ runner.temp }}/vibesec-api-security-results
+        run: python3 scripts/preserve_scan_exit.py "$VIBESEC_API_RESULTS/scan-exit-code.txt"

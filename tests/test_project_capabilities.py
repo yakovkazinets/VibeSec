@@ -84,6 +84,12 @@ class ProjectCapabilityTests(unittest.TestCase):
         conflict["capabilities"]["authentication"] = True
         with self.assertRaisesRegex(CapabilityError, "authentication"):
             capability_bytes(conflict)
+        for dependency in ("api", "container_image"):
+            conflict = all_capabilities(False)
+            conflict["capabilities"].update({"api": True, "container_image": True, "api_security_target": True})
+            conflict["capabilities"][dependency] = False
+            with self.subTest(dependency=dependency), self.assertRaisesRegex(CapabilityError, dependency):
+                capability_bytes(conflict)
 
     def test_file_loader_rejects_bom_oversize_and_symlink(self):
         manifest = self.root / "manifest.json"
@@ -150,6 +156,14 @@ class ProjectCapabilityTests(unittest.TestCase):
         self.assertEqual(state["state"], "not_applicable")
         self.assertEqual(state["reason"], "project capability manifest declares no runnable web application target")
         self.assertTrue((ROOT / "scripts/test_dast_container.py").is_file())
+
+    def test_vibesec_manifest_is_exactly_not_applicable_for_api_security(self):
+        payload = load_capabilities_file(ROOT / ".vibesec/project-capabilities.json")
+        self.assertFalse(payload["capabilities"]["api"])
+        self.assertFalse(payload["capabilities"]["api_security_target"])
+        state = scanner_applicability(payload)["api-security-baseline"]
+        self.assertEqual(state["state"], "not_applicable")
+        self.assertEqual(state["reason"], "project capability manifest declares no runnable OpenAPI API target")
 
     def test_dast_addon_is_not_installed_when_explicitly_not_applicable(self):
         payload = all_capabilities(False)

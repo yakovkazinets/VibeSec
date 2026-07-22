@@ -11,6 +11,7 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import subprocess
 import sys
 from typing import Any
 
@@ -66,7 +67,7 @@ def _safe_inventory(root: Path) -> tuple[bool, bool, bool]:
 
 def _overlap(root: Path) -> list[str]:
     workflow_root = root / ".github/workflows"
-    markers = {"codeql", "semgrep", "snyk", "dependabot", "renovate", "trivy", "gitleaks", "checkov"}
+    markers = {"codeql", "semgrep", "snyk", "dependabot", "renovate", "trivy", "gitleaks", "checkov", "schemathesis", "dredd"}
     found: set[str] = set()
     if workflow_root.is_dir() and not workflow_root.is_symlink():
         for path in workflow_root.glob("*.y*ml"):
@@ -160,6 +161,20 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
             diagnostics.append(diagnostic("dast", "DAST_NOT_APPLICABLE", "not_applicable",
                                           "Project capability manifest declares no runnable web application target.",
                                           "No action unless the project later gains an eligible runtime target.", "docs/dast-baseline.md"))
+        api_enabled = project_capabilities["capabilities"]["api_security_target"]
+        api_installed = "api-security-baseline" in profiles
+        if api_installed and not api_enabled:
+            diagnostics.append(diagnostic("api_security", "API_SECURITY_INSTALLED_NOT_APPLICABLE", "error",
+                                          "API Security Baseline is installed while api_security_target=false.",
+                                          "Remove the add-on or explicitly review and enable the capability.", "docs/api-security-baseline.md"))
+        if api_enabled and not api_installed:
+            diagnostics.append(diagnostic("api_security", "API_SECURITY_SUPPORT_MISSING", "error",
+                                          "api_security_target=true but API Security Baseline is not installed.",
+                                          "Install the add-on after reviewing its active-request boundary.", "docs/api-security-baseline.md"))
+        if not api_enabled:
+            diagnostics.append(diagnostic("api_security", "API_SECURITY_NOT_APPLICABLE", "not_applicable",
+                                          "Project capability manifest declares no runnable OpenAPI API target.",
+                                          "No action unless the project later gains an eligible API target.", "docs/api-security-baseline.md"))
     if any("project-capabilities.json" in message for message in state.warnings):
         diagnostics.append(diagnostic("capabilities", "CAPABILITY_MANIFEST_CHANGED", "warning",
                                       "The project capability manifest changed after installation.",
@@ -183,6 +198,9 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
         "VIBESEC_NETWORK_MODE": {"online", "offline"},
         "VIBESEC_DAST_ENFORCEMENT": {"observe", "new", "all"},
         "VIBESEC_DAST_MIN_SEVERITY": {"low", "medium", "high", "critical"},
+        "VIBESEC_API_ENFORCEMENT": {"observe", "new", "all"},
+        "VIBESEC_API_MIN_SEVERITY": {"low", "medium", "high", "critical"},
+        "VIBESEC_API_SAFE_METHODS_ONLY": {"true", "false"},
     }
     for name, values in allowed.items():
         if name in os.environ and os.environ[name] not in values:
@@ -228,6 +246,83 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
         if shutil.which("docker") is None:
             diagnostics.append(diagnostic("dast", "DAST_DOCKER_UNAVAILABLE", "warning", "Docker is unavailable for the installed DAST Baseline add-on.",
                                           "Run the add-on only on a disposable trusted runner with Docker.", "docs/dast-baseline.md"))
+    if "api-security-baseline" in profiles:
+        api_image = ""
+        target_config = state.target / ".vibesec/api-security-baseline.json"
+        try:
+            payload = loads_strict(target_config.read_bytes())
+            required = {"schema_version", "schema_path", "image_variable_name", "container_port", "base_path",
+                        "safe_methods_only", "authentication", "custom_headers", "external_target_url"}
+            if not isinstance(payload, dict) or set(payload) != required or payload.get("schema_version") != 1:
+                raise ValueError("unsupported fields")
+            if payload.get("authentication") is not False or payload.get("custom_headers") is not False or payload.get("external_target_url") is not None:
+                diagnostics.append(diagnostic("api_security", "API_UNSUPPORTED_AUTH_OR_TARGET", "error",
+                                              "API configuration requests authentication, custom headers, or an external target.",
+                                              "Remove unsupported active-test configuration.", "docs/api-security-baseline.md"))
+            image_variable = payload.get("image_variable_name")
+            if isinstance(image_variable, str) and re.fullmatch(r"[A-Z][A-Z0-9_]{1,63}", image_variable):
+                api_image = os.getenv(image_variable, "")
+            if not api_image:
+                diagnostics.append(diagnostic("api_security", "API_IMAGE_NOT_CONFIGURED", "informational",
+                                              "The configured immutable API image variable is absent; value and variable name redacted.",
+                                              "Set the reviewed repository variable before a trusted manual or scheduled run.", "docs/api-security-baseline.md"))
+            elif not IMAGE.fullmatch(api_image):
+                diagnostics.append(diagnostic("api_security", "API_IMAGE_REFERENCE_INVALID", "error",
+                                              "API target image is mutable or malformed; value redacted.",
+                                              "Use an immutable registry/name@sha256 digest.", "docs/api-security-baseline.md"))
+            schema_value = payload.get("schema_path")
+            if not isinstance(schema_value, str) or not schema_value or schema_value.startswith(("http://", "https://", "file://", "/")) or ".." in Path(schema_value).parts:
+                diagnostics.append(diagnostic("api_security", "API_SCHEMA_PATH_INVALID", "error", "API schema path is remote or unsafe; value redacted.",
+                                              "Use a repository-relative local OpenAPI JSON or YAML file.", "docs/api-security-baseline.md"))
+            else:
+                schema_path = state.target / schema_value
+                if schema_path.is_symlink() or not schema_path.is_file():
+                    diagnostics.append(diagnostic("api_security", "API_SCHEMA_MISSING", "error", "Configured local OpenAPI schema is missing or unsafe.",
+                                                  "Restore the regular repository schema file.", "docs/api-security-baseline.md"))
+                else:
+                    try:
+                        from vibesec.api_security import load_config as load_api_config, validate_openapi_schema
+                        validate_openapi_schema(state.target, schema_value, config=load_api_config(ROOT),
+                                                port=payload.get("container_port"), base_path=payload.get("base_path"))
+                    except (ImportError, OSError, ValueError) as exc:
+                        diagnostics.append(diagnostic("api_security", "API_SCHEMA_INVALID", "error",
+                                                      "The configured OpenAPI schema violates a reviewed structural or trust-boundary rule; details redacted.",
+                                                      "Review local references, servers, unsupported constructs, and schema bounds.", "docs/api-security-baseline.md"))
+        except (OSError, StrictJSONError, ValueError):
+            diagnostics.append(diagnostic("api_security", "API_TARGET_CONFIG_INVALID", "error", "Installed API target configuration is missing or malformed.",
+                                          "Reinstall the add-on from a verified bundle without overwriting conflicts.", "docs/api-security-baseline.md"))
+        workflow = state.target / ".github/workflows/vibesec-api-security-baseline.yml"
+        if workflow.is_file() and not workflow.is_symlink():
+            text = workflow.read_text(encoding="utf-8", errors="replace").casefold()
+            unsafe = any(marker in text for marker in ("pull_request:", "pull_request_target:", "push:", "--network host", "--publish", "authorization", "raw.ndjson", "schemathesis.ndjson\n"))
+            if unsafe:
+                diagnostics.append(diagnostic("api_security", "API_WORKFLOW_TRUST_BOUNDARY_INVALID", "error",
+                                              "Installed API workflow contains an unsafe trigger, network option, authentication, or raw upload marker.",
+                                              "Restore the reviewed manual/scheduled sanitized workflow.", "docs/api-security-threat-model.md"))
+        docker = shutil.which("docker")
+        if docker is None:
+            diagnostics.append(diagnostic("api_security", "API_DOCKER_UNAVAILABLE", "warning", "Docker is unavailable for the installed API Security Baseline.",
+                                          "Run only on a disposable trusted runner with Docker.", "docs/api-security-baseline.md"))
+        elif api_image and IMAGE.fullmatch(api_image):
+            inspected = subprocess.run(
+                [docker, "image", "inspect", "--format", "{{json .Config.User}}", api_image],
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                text=True, timeout=30, check=False,
+            )
+            if inspected.returncode != 0:
+                diagnostics.append(diagnostic("api_security", "API_TARGET_USER_NOT_LOCALLY_VERIFIED", "informational",
+                                              "The immutable target image is not locally available, so its declared user was not inspected.",
+                                              "The runtime will pull and reject root or unspecified users before starting the target.", "docs/api-security-baseline.md"))
+            else:
+                try:
+                    declared_user = json.loads(inspected.stdout.strip())
+                except json.JSONDecodeError:
+                    declared_user = None
+                principal = declared_user.split(":", 1)[0].casefold() if isinstance(declared_user, str) else ""
+                if not declared_user or principal in {"root", "0"}:
+                    diagnostics.append(diagnostic("api_security", "API_TARGET_USER_UNSAFE", "error",
+                                                  "The locally available target image declares a root or unspecified user.",
+                                                  "Publish an immutable target image with an explicit non-root user.", "docs/api-security-baseline.md"))
     if os.getenv("GITHUB_ACTIONS", "").casefold() == "true" and os.getenv("GITHUB_EVENT_NAME", "") == "pull_request":
         diagnostics.append(diagnostic("fork", "FORK_RESTRICTIONS_ACTIVE", "not_applicable", "Pull-request image/private-registry scanning remains disabled and receives no secrets.",
                                       "Review coverage state; do not weaken the trust boundary.", "docs/security-model.md"))

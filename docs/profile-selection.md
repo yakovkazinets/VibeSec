@@ -30,3 +30,5 @@ Choose Minimal when the user wants a fast baseline, has little security experien
 Do not choose Standard merely because more tools sound safer. Inventory existing CodeQL/Semgrep/Snyk or equivalent SAST, Dependabot/Renovate/OSV or equivalent dependency analysis, IaC scanners, secret scanners, and SBOM generation first. Retain existing controls unless a reviewed comparison shows a concrete gap or independent data source worth its maintenance and false-positive cost.
 
 If the repository is unsupported or mostly generated/vendored content, neither profile can establish broad security. Standard provides clearer `not_applicable` and outside-coverage reporting, but that visibility is not itself new scanning coverage.
+
+API Security Baseline is not a third base profile. Consider it only when the manifest declares an API and container image, a reviewed local OpenAPI 3.x contract exists, and an immutable non-root disposable target can run on manual/scheduled events. It sends invalid inputs by design; keep safe-method mode unless mutation is explicitly authorized. It does not replace passive DAST, SAST, SCA, authentication testing, or design review.

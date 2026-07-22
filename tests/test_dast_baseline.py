@@ -399,7 +399,7 @@ class DastBaselineTests(unittest.TestCase):
         states = {item["self_repository_scan"] for item in matrix["capabilities"] if item["profile"] == "dast-baseline"}
         self.assertEqual(states, {"not_applicable"})
         catalog = json.loads((ROOT / "config/adoption-files.json").read_text(encoding="utf-8"))
-        self.assertEqual(set(catalog["addons"]), {"dast-baseline"})
+        self.assertEqual(set(catalog["addons"]), {"dast-baseline", "api-security-baseline"})
         self.assertTrue(all("run_dast_baseline.py" not in profile["support"] for profile in catalog["profiles"].values()))
 
     def test_untrusted_and_missing_configuration_never_invoke_docker(self):

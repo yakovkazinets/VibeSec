@@ -31,6 +31,36 @@ jobs:
         run: python3 -m unittest discover -s tests -v
       - name: Validate repository configuration
         run: python3 scripts/validate_repository.py
+      - name: Build and verify reproducible consumer bundle
+        run: |
+          bundle_dir="$(mktemp -d)"
+          trap 'rm -rf "${bundle_dir}"' EXIT
+          python3 scripts/build_consumer_bundle.py --output "${bundle_dir}/first.zip" --json > "${bundle_dir}/build-first.json"
+          python3 scripts/build_consumer_bundle.py --output "${bundle_dir}/second.zip" --json > "${bundle_dir}/build-second.json"
+          cmp "${bundle_dir}/first.zip" "${bundle_dir}/second.zip"
+          python3 scripts/verify_consumer_bundle.py "${bundle_dir}/first.zip" --json > "${bundle_dir}/verify.json"
+          mkdir "${bundle_dir}/minimal"
+          python3 scripts/init_vibesec.py --bundle "${bundle_dir}/first.zip" --profile minimal --target "${bundle_dir}/minimal" --write > "${bundle_dir}/init.json"
+          python3 scripts/verify_installation.py --target "${bundle_dir}/minimal" --json > "${bundle_dir}/installation.json"
+          python3 scripts/vibesec_doctor.py --target "${bundle_dir}/minimal" --json > "${bundle_dir}/doctor.json"
+          set +e
+          python3 scripts/plan_vibesec_upgrade.py --target "${bundle_dir}/minimal" --bundle "${bundle_dir}/first.zip" --json > "${bundle_dir}/upgrade.json"
+          upgrade_status=$?
+          set -e
+          test "${upgrade_status}" -eq 1
+          python3 -m json.tool "${bundle_dir}/build-first.json" >/dev/null
+          python3 -m json.tool "${bundle_dir}/verify.json" >/dev/null
+          python3 -m json.tool "${bundle_dir}/installation.json" >/dev/null
+          python3 -m json.tool "${bundle_dir}/doctor.json" >/dev/null
+          python3 -m json.tool "${bundle_dir}/upgrade.json" >/dev/null
+      - name: Validate source syntax and static data formats
+        run: |
+          syntax_cache="$(mktemp -d)"
+          trap 'rm -rf "${syntax_cache}"' EXIT
+          PYTHONPYCACHEPREFIX="${syntax_cache}" python3 -m compileall -q scripts tests
+          find . -type f -name '*.json' -not -path './.git/*' -print0 | xargs -0 -n1 python3 -m json.tool >/dev/null
+          python3 -c 'import pathlib,tomllib; [tomllib.loads(path.read_text(encoding="utf-8")) for path in pathlib.Path(".").rglob("*.toml")]'
+          find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
       - name: Validate local Opengrep rules
         run: python3 scripts/validate_opengrep_rules.py
       - name: Validate the bundled AppSec Guardian skill

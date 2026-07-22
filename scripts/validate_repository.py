@@ -10,6 +10,10 @@ import sys
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+from vibesec.bundle import validate_catalog  # noqa: E402
+from vibesec.strict_json import loads_strict  # noqa: E402
+from vibesec.version import read_version  # noqa: E402
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "cosign", "checkov"}
 EXPECTED_VIBESEC_VARIABLES = {
@@ -89,8 +93,11 @@ def validate_references() -> None:
         "scripts/test_opengrep_rules.py",
         "scripts/append_tool_errors.py", "scripts/policy_gate.py", "scripts/validate_skill.py",
         "scripts/init_vibesec.py", "scripts/preflight.py", "config/adoption-files.json",
+        "VERSION", "scripts/build_consumer_bundle.py", "scripts/verify_consumer_bundle.py",
+        "scripts/verify_installation.py", "scripts/vibesec_doctor.py", "scripts/plan_vibesec_upgrade.py",
         "config/environment-variables.json", "docs/quickstart.md", "docs/profile-selection.md",
-        "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md",
+        "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md", "docs/distribution.md",
+        "docs/installation-verification.md", "docs/doctor.md",
         "examples/reports/README.md",
         "skills/appsec-guardian/SKILL.md",
     )
@@ -103,9 +110,10 @@ def validate_references() -> None:
 
 
 def validate_adoption_metadata() -> None:
-    adoption = load_object(ROOT / "config/adoption-files.json")
-    if adoption.get("schema_version") != 1 or adoption.get("source_version") != "0.2.1-dev":
-        raise ValueError("adoption catalog must declare schema 1 and the unreleased v0.2.1 source version")
+    version = read_version(ROOT)
+    if version != "0.3.0-dev":
+        raise ValueError("VERSION must declare the reviewed unreleased 0.3.0-dev development version")
+    adoption = validate_catalog(loads_strict((ROOT / "config/adoption-files.json").read_bytes()))
     common = adoption.get("common")
     profiles = adoption.get("profiles")
     if not isinstance(common, list) or not isinstance(profiles, dict) or set(profiles) != {"minimal", "standard"}:
@@ -113,11 +121,18 @@ def validate_adoption_metadata() -> None:
     for profile, config in profiles.items():
         if not isinstance(config, dict) or not isinstance(config.get("support"), list):
             raise ValueError(f"adoption catalog profile {profile} is malformed")
-        for relative in [*common, *config["support"], config.get("workflow_source")]:
+        for relative in [*common, *adoption["bundle_additional"], *config["support"], config.get("workflow_source")]:
             if not isinstance(relative, str) or not relative or relative.startswith("/") or ".." in Path(relative).parts:
                 raise ValueError(f"adoption catalog contains unsafe path {relative!r}")
             if not (ROOT / relative).is_file():
                 raise ValueError(f"adoption catalog references missing file {relative}")
+    executable = set(adoption["executable_files"])
+    selected = set(common) | set(adoption["bundle_additional"])
+    for config in profiles.values():
+        selected.update(config["support"])
+        selected.add(config["workflow_source"])
+    if not executable <= selected:
+        raise ValueError("executable allowlist must be contained in the consumer file set")
     environment = load_object(ROOT / "config/environment-variables.json")
     variables = environment.get("variables")
     if environment.get("schema_version") != 1 or not isinstance(variables, list):
@@ -136,7 +151,7 @@ def main() -> int:
         validate_policy()
         validate_references()
         validate_adoption_metadata()
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 3
     print("repository configuration is valid")

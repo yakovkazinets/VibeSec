@@ -1,14 +1,25 @@
 # Upgrading VibeSec
 
-VibeSec has no destructive automatic upgrader. Back up policy files and local modifications, compare every installed path from `.vibesec/install-*.json` (or `config/adoption-files.json` for older installs), and review changes before replacement.
+VibeSec has no destructive automatic upgrader and no `--apply` mode. Create a working branch, back up policy files and local modifications, verify a newer local bundle, and generate a read-only plan:
+
+```shell
+python3 scripts/verify_consumer_bundle.py /path/to/new-vibesec-consumer.zip
+python3 scripts/plan_vibesec_upgrade.py --target /path/to/app --bundle /path/to/new-vibesec-consumer.zip
+```
 
 ## v0.1.0 Minimal to current Minimal
 
 Preserve `policy/baseline.json` and `policy/suppressions.yml`. Compare the workflow, pinned tools, normalization, result writer, policy gate, and `scripts/vibesec/` as a version-compatible set. Adopt the safer initializer manifest without overwriting existing files: preview against a clean temporary copy or compare files manually, then apply reviewed differences. Confirm the workflow still starts in the intended enforcement mode.
 
-## v0.2.0 Standard to v0.2.1
+## v0.2.0 Standard to unreleased development
 
-v0.2.1 consumer hardening does not add scanner categories or weaken v0.2.0 trust boundaries. Preserve `policy/standard-baseline.json` and suppressions. Review the initializer/catalog, diagnostics, documentation, and test changes alongside any workflow/support-file changes. Keep the base-revision harness, immutable pins, isolated results, no-secret fork behavior, and two-stage bootstrap intact.
+Post-v0.2.0 consumer hardening on `main` is unreleased development and does not add scanner categories or weaken v0.2.0 trust boundaries. Preserve `policy/standard-baseline.json` and suppressions. Review the initializer/catalog, diagnostics, documentation, and test changes alongside any workflow/support-file changes. Keep the base-revision harness, immutable pins, isolated results, no-secret fork behavior, and two-stage bootstrap intact.
+
+## Plan classifications
+
+The planner compares manifest expectations, current bytes, and proposed bundle bytes. It reports `unchanged`, `add`, `upstream_changed_local_unmodified`, `locally_modified_upstream_unchanged`, `both_modified`, `remove_candidate`, preservation-specific baseline/suppression states, `policy_review_required`, workflow/support mismatch, unknown legacy state, conflict, or unsafe path. `both_modified` always needs manual three-way review.
+
+Preserve baselines, suppressions, user-modified policy and ignore files, and user-modified workflows. Review scanner and action pin changes against upstream records. Compare network behavior, OSV metadata transmission, registry access, SBOM retention, and artifact privacy before adoption. The plan contains no replacement commands and does not write the target.
 
 ## Review procedure
 
@@ -16,9 +27,9 @@ v0.2.1 consumer hardening does not add scanner categories or weaken v0.2.0 trust
 2. Compare local files to the new release by path and content. Do not replace locally modified files blindly.
 3. Review changed policy defaults and scanner versions against upstream release notes and verified checksums/signatures.
 4. Keep workflows and support files from the same VibeSec version; a newer workflow with older scripts can fail closed or misreport coverage.
-5. Test in a branch with `observe`, run repository/skill/rule validation, lint workflows, and inspect JSON/Markdown artifacts before merging.
+5. Test reviewed changes in a branch with `observe`, run repository/skill/rule validation, lint workflows, and inspect JSON/Markdown artifacts before merging.
 6. Reconfirm network/privacy expectations, SBOM retention, fork behavior, and profile-specific baseline selection.
 
 ## Rollback
 
-Revert the reviewed upgrade commit or restore the backed-up version-compatible file set. Restore baseline and suppression files only from the same repository and profile. Re-run in `observe` and verify reports before restoring enforcement. Never use an automatic force/overwrite command; rollback must remain reviewable.
+Revert the reviewed upgrade commit or restore the backed-up version-compatible file set. Restore baseline and suppression files only from the same repository and profile. Re-run in `observe` and verify reports before restoring enforcement. Never use an automatic force/overwrite command; rollback must remain reviewable. Destructive upgrades are deferred because local policy intent and trust-boundary changes cannot be merged safely without human judgment.

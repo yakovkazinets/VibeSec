@@ -20,6 +20,7 @@ Review the code and configuration before using it, validate it against your own 
 - [Configuration reference](docs/configuration.md)
 - [Troubleshooting and preflight](docs/troubleshooting.md)
 - [Upgrading](docs/upgrading.md)
+- [Consumer distribution](docs/distribution.md), [installation verification](docs/installation-verification.md), and [doctor](docs/doctor.md)
 - [Sanitized sample reports](examples/reports/README.md)
 - [Security/result model](docs/security-model.md) and [threat model](docs/threat-model.md)
 
@@ -33,6 +34,8 @@ python3 scripts/init_vibesec.py --profile standard --target /path/to/application
 ```
 
 Add `--write` only after reviewing the machine-readable plan. Minimal is one stage. Standard deliberately requires support files to land on the default branch before `--stage workflow` is initialized in a second change, preserving the base-revision trusted-harness boundary. Existing-file conflicts are never overwritten.
+
+For offline distribution, build and verify a deterministic consumer ZIP, then pass it to the initializer with `--bundle`. Check installed support with `scripts/verify_installation.py`, diagnose it offline with `scripts/vibesec_doctor.py`, and compare it to a newer verified bundle with the read-only `scripts/plan_vibesec_upgrade.py`. Development bundles are unsigned; validity does not prove publisher identity or application security.
 
 Both profiles start in `observe`; findings are visible while tool/parser failures still fail closed. After review, populate only the matching profile baseline and move to `new`. Manual adopters can use `config/adoption-files.json` as the authoritative file list and copy the matching workflow byte-for-byte; preserve executable modes and never interchange baselines.
 

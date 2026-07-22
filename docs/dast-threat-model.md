@@ -10,6 +10,7 @@ The registry pull is the only intended external network activity. After pull and
 
 - Only scheduled or manually dispatched trusted events can start the target.
 - Both target and scanner references are digest-pinned; the target must declare a non-root user.
+- The packaged scan receives only the hardcoded `-z -silent` ZAP option, so it cannot update, install, or remove add-ons on the egress-disabled network; callers cannot extend this option.
 - The origin is exactly `http://target:<configured-port>` and normalized findings may contain only safe paths from that origin.
 - Raw JSON is size-, shape-, field-, count-, URL-, and control-character validated before policy processing.
 - Parser/configuration failure is exit `3`; runtime or cleanup failure is exit `2`; neither is a clean scan.

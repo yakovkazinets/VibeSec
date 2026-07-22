@@ -21,11 +21,11 @@ import time
 SCRIPT_ROOT = Path(__file__).resolve().parent
 ROOT = SCRIPT_ROOT.parent
 if __package__:
-    from .vibesec.dast import load_config, normalize_zap_report
+    from .vibesec.dast import load_config, normalize_zap_report, trusted_zap_baseline_arguments
     from .vibesec.strict_json import loads_strict
 else:
     sys.path.insert(0, str(SCRIPT_ROOT))
-    from vibesec.dast import load_config, normalize_zap_report  # type: ignore[no-redef]
+    from vibesec.dast import load_config, normalize_zap_report, trusted_zap_baseline_arguments  # type: ignore[no-redef]
     from vibesec.strict_json import loads_strict  # type: ignore[no-redef]
 
 
@@ -48,6 +48,13 @@ def classify_zap_failure(stderr: str) -> str:
         return "config_file_unavailable"
     if "report" in text and any(marker in text for marker in ("no such file", "cannot write", "can't write", "unable to write", "invalid path")):
         return "report_path_invalid"
+    update_markers = (
+        "add-on update failure", "add-on update failed", "unable to update add-ons",
+        "marketplace unavailable during startup", "add-on installation failure", "failed to install add-on",
+    )
+    connection_markers = ("connection failure", "connection refused", "timed out", "unknown host")
+    if any(marker in text for marker in update_markers) or ("-addonupdate" in text and any(marker in text for marker in connection_markers)):
+        return "addon_update_blocked"
     if any(marker in text for marker in ("failed to start zap", "zap startup", "zap daemon")):
         return "zap_startup_failed"
     if any(marker in text for marker in ("target unreachable", "failed to access url", "connection refused", "name or service not known")):
@@ -125,9 +132,7 @@ def main() -> int:
                             "--tmpfs", f"/home/zap:rw,noexec,nosuid,nodev,size={config['zap_tmpfs_megabytes']}m",
                             "--mount", f"type=bind,src={private},dst=/zap/wrk",
                             "--mount", f"type=bind,src={policy},dst=/zap/wrk/vibesec-zap-baseline.conf,readonly",
-                            zap, "zap-baseline.py", "-t", target_url, "-c", "vibesec-zap-baseline.conf",
-                            "-m", str(config["spider_duration_minutes"]), "-T", str(config["passive_scan_timeout_minutes"]),
-                            "-J", "zap-report.json", "-s", "-i", "--autooff"],
+                            zap, *trusted_zap_baseline_arguments(target_url=target_url, config=config)],
                            config["total_scan_timeout_minutes"] * 60 + 60)
                 if scan.returncode not in {0, 1, 2}:
                     raise RuntimeError(zap_failure_summary(case, scan, private / "zap-report.json"))

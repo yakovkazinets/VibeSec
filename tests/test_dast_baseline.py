@@ -7,8 +7,9 @@ import tempfile
 import unittest
 
 from scripts.vibesec.dast import (
-    DastError, load_config, normalize_zap_report, sanitize_url, trusted_event,
-    validate_base_path, validate_image_reference, validate_port,
+    DastError, ZAP_RUNTIME_ADDON_OPTIONS, load_config, normalize_zap_report, sanitize_url,
+    trusted_event, trusted_zap_baseline_arguments, validate_base_path,
+    validate_image_reference, validate_port,
 )
 from scripts.test_dast_container import classify_zap_failure, zap_failure_summary
 
@@ -41,6 +42,10 @@ if args[:1] == ["run"]:
   policy_mount="dst=/zap/wrk/vibesec-zap-baseline.conf,readonly"
   if config != "vibesec-zap-baseline.conf" or report != "zap-report.json" or not any(policy_mount in value for value in args):
    print("packaged scan file argument contract failed",file=sys.stderr); raise SystemExit(3)
+  if "-z" not in args or args.count("-z") != 1 or args[args.index("-z")+1] != "-silent":
+   print("add-on update failure: connection failure while applying -addonupdate",file=sys.stderr); raise SystemExit(3)
+  if any(value in args for value in ("-addonupdate","-addoninstall","-addoninstallall","-addonuninstall")):
+   print("runtime add-on option rejected",file=sys.stderr); raise SystemExit(3)
   if mode == "zap_fail": raise SystemExit(3)
   if mode != "missing_report":
    mount=next(value for value in args if value.startswith("type=bind,src=") and value.endswith(",dst=/zap/wrk"))
@@ -192,7 +197,49 @@ class DastBaselineTests(unittest.TestCase):
         self.assertFalse(private.exists(), "private raw-output directory survived cleanup")
         self.assertIn("-T", scanner)
         self.assertEqual(scanner[scanner.index("-T") + 1], "3")
+        self.assertEqual(scanner.count("-z"), 1)
+        self.assertEqual(scanner[scanner.index("-z") + 1], "-silent")
+        self.assertIn("-i", scanner)
+        self.assertIn("--autooff", scanner)
+        self.assertFalse(ZAP_RUNTIME_ADDON_OPTIONS.intersection(scanner))
+        scan_arguments = scanner[scanner.index("zap-baseline.py"):]
+        self.assertFalse(any("proxy" in value.casefold() for value in scan_arguments))
         self.assertNotIn("-a", scanner)
+
+    def test_shared_builder_is_closed_to_caller_options(self):
+        config = load_config(ROOT)
+        command = trusted_zap_baseline_arguments(target_url="http://target:8080/positive", config=config)
+        self.assertEqual(command, [
+            "zap-baseline.py", "-t", "http://target:8080/positive",
+            "-c", "vibesec-zap-baseline.conf", "-m", "1", "-T", "3",
+            "-J", "zap-report.json", "-s", "-i", "-z", "-silent", "--autooff",
+        ])
+        self.assertEqual(command.count("-z"), 1)
+        self.assertEqual(command[command.index("-z") + 1], "-silent")
+        self.assertEqual(command[command.index("-c") + 1], "vibesec-zap-baseline.conf")
+        self.assertEqual(command[command.index("-J") + 1], "zap-report.json")
+        self.assertTrue({"-i", "--autooff"} <= set(command))
+        self.assertFalse(ZAP_RUNTIME_ADDON_OPTIONS.intersection(command))
+        self.assertFalse(any("proxy" in value.casefold() for value in command))
+        with self.assertRaises(TypeError):
+            trusted_zap_baseline_arguments(
+                target_url="http://target:8080/positive", config=config, zap_options="-addonupdate"  # type: ignore[call-arg]
+            )
+        with self.assertRaises(DastError):
+            trusted_zap_baseline_arguments(target_url="https://example.invalid/", config=config)
+        target_shaped_options = trusted_zap_baseline_arguments(
+            target_url="http://target:8080/-z/-addonupdate", config=config,
+        )
+        self.assertEqual(target_shaped_options.count("-z"), 1)
+        self.assertFalse(ZAP_RUNTIME_ADDON_OPTIONS.intersection(target_shaped_options))
+        urls = [value for value in target_shaped_options if value.startswith(("http://", "https://"))]
+        self.assertEqual(urls, ["http://target:8080/-z/-addonupdate"])
+
+    def test_production_and_live_harness_share_the_command_builder(self):
+        for relative in ("scripts/run_dast_baseline.py", "scripts/test_dast_container.py"):
+            source = (ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn("trusted_zap_baseline_arguments(", source)
+            self.assertNotIn('"zap-baseline.py"', source)
 
     def test_live_harness_diagnostics_are_bounded_and_sanitized(self):
         marker = "MUST_NOT_APPEAR_IN_DIAGNOSTIC"
@@ -206,12 +253,16 @@ class DastBaselineTests(unittest.TestCase):
         )
         self.assertNotIn(marker, summary)
         self.assertEqual(classify_zap_failure("permission denied " + marker), "filesystem_unavailable")
+        self.assertEqual(
+            classify_zap_failure("connection failure while applying -addonupdate " + marker),
+            "addon_update_blocked",
+        )
+        self.assertEqual(classify_zap_failure("marketplace unavailable during startup"), "addon_update_blocked")
         self.assertEqual(classify_zap_failure(marker * 1000), "unknown_zap_exit")
 
     def test_live_harness_uses_packaged_scan_relative_file_contract(self):
         harness = (ROOT / "scripts/test_dast_container.py").read_text(encoding="utf-8")
-        self.assertIn('"-c", "vibesec-zap-baseline.conf"', harness)
-        self.assertIn('"-J", "zap-report.json"', harness)
+        self.assertIn("trusted_zap_baseline_arguments(", harness)
         self.assertIn('dst=/zap/wrk/vibesec-zap-baseline.conf,readonly', harness)
         self.assertIn('dst=/zap/wrk"', harness)
         self.assertNotIn('"-c", "/zap/', harness)
@@ -239,10 +290,35 @@ class DastBaselineTests(unittest.TestCase):
         self.assertIn("packaged scan file argument contract failed", absolute.stderr)
         relative = subprocess.run(
             [str(self.docker), "run", *mounts, "pinned-zap", "zap-baseline.py",
-             "-c", "vibesec-zap-baseline.conf", "-J", "zap-report.json"],
+             "-c", "vibesec-zap-baseline.conf", "-J", "zap-report.json", "-z", "-silent"],
             env=environment, text=True, capture_output=True, check=False,
         )
         self.assertEqual(relative.returncode, 2)
+        self.assertEqual((private / "zap-report.json").read_bytes(), (FIXTURE / "positive/raw.json").read_bytes())
+
+    def test_fake_packaged_scan_reproduces_no_update_before_and_after(self):
+        private = self.work / "private-update"
+        private.mkdir()
+        environment = os.environ.copy()
+        environment.update({
+            "FAKE_DOCKER_LOG": str(self.log),
+            "FAKE_ZAP_REPORT": str(FIXTURE / "positive/raw.json"),
+            "FAKE_ZAP_EXIT": "2",
+        })
+        base = [
+            str(self.docker), "run",
+            "--mount", f"type=bind,src={private},dst=/zap/wrk",
+            "--mount", f"type=bind,src={ROOT / 'config/zap-baseline.conf'},dst=/zap/wrk/vibesec-zap-baseline.conf,readonly",
+            "pinned-zap", "zap-baseline.py", "-c", "vibesec-zap-baseline.conf", "-J", "zap-report.json",
+        ]
+        legacy = subprocess.run(base, env=environment, text=True, capture_output=True, check=False)
+        self.assertEqual(legacy.returncode, 3)
+        self.assertEqual(classify_zap_failure(legacy.stderr), "addon_update_blocked")
+        self.assertFalse((private / "zap-report.json").exists())
+        corrected = subprocess.run(
+            [*base, "-z", "-silent"], env=environment, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(corrected.returncode, 2)
         self.assertEqual((private / "zap-report.json").read_bytes(), (FIXTURE / "positive/raw.json").read_bytes())
 
     def test_untrusted_and_missing_configuration_never_invoke_docker(self):

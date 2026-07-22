@@ -23,7 +23,8 @@ ROOT = SCRIPT_ROOT.parent
 sys.path.insert(0, str(SCRIPT_ROOT))
 from vibesec.dast import (  # noqa: E402
     DastError, image_digest, load_config, normalize_zap_report, tool_error,
-    trusted_event, validate_base_path, validate_image_reference, validate_port, write_artifacts,
+    trusted_event, trusted_zap_baseline_arguments, validate_base_path,
+    validate_image_reference, validate_port, write_artifacts,
 )
 from vibesec.strict_json import loads_strict  # noqa: E402
 
@@ -166,9 +167,7 @@ def main() -> int:
                        "--tmpfs", f"/home/zap:rw,noexec,nosuid,nodev,size={config['zap_tmpfs_megabytes']}m",
                        "--mount", f"type=bind,src={private},dst=/zap/wrk",
                        "--mount", f"type=bind,src={policy},dst=/zap/wrk/vibesec-zap-baseline.conf,readonly",
-                       zap, "zap-baseline.py", "-t", target_url, "-c", "vibesec-zap-baseline.conf",
-                       "-m", str(config["spider_duration_minutes"]), "-T", str(config["passive_scan_timeout_minutes"]),
-                       "-J", "zap-report.json", "-s", "-i", "--autooff"]
+                       zap, *trusted_zap_baseline_arguments(target_url=target_url, config=config)]
         zap_result = run(zap_command, timeout=config["total_scan_timeout_minutes"] * 60 + 60)
         if zap_result.returncode not in {0, 1, 2}:
             raise RuntimeError("ZAP baseline execution failed")

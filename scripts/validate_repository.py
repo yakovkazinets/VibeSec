@@ -12,6 +12,10 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.bundle import validate_catalog  # noqa: E402
+from vibesec.dast import (  # noqa: E402
+    ZAP_POLICY_FILENAME, ZAP_REPORT_FILENAME, ZAP_RUNTIME_ADDON_OPTIONS,
+    load_config, trusted_zap_baseline_arguments,
+)
 from vibesec.strict_json import loads_strict  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
 from validate_security_capabilities import validate_matrix  # noqa: E402
@@ -123,6 +127,30 @@ def validate_references() -> None:
         raise ValueError("requirements.txt must contain the reviewed PyYAML pin")
 
 
+def validate_dast_command_contract() -> None:
+    config = load_config(ROOT)
+    command = trusted_zap_baseline_arguments(target_url="http://target:8080/", config=config)
+    expected = [
+        "zap-baseline.py", "-t", "http://target:8080/", "-c", ZAP_POLICY_FILENAME,
+        "-m", str(config["spider_duration_minutes"]), "-T", str(config["passive_scan_timeout_minutes"]),
+        "-J", ZAP_REPORT_FILENAME, "-s", "-i", "-z", "-silent", "--autooff",
+    ]
+    if command != expected:
+        raise ValueError("DAST command must contain only the complete reviewed packaged-scan arguments")
+    if command.count("-z") != 1 or command[command.index("-z") + 1] != "-silent":
+        raise ValueError("DAST command must contain exactly the trusted -z -silent option")
+    if command[command.index("-c") + 1] != ZAP_POLICY_FILENAME or command[command.index("-J") + 1] != ZAP_REPORT_FILENAME:
+        raise ValueError("DAST packaged-scan files must remain relative to /zap/wrk")
+    if not {"-i", "--autooff"} <= set(command) or "-a" in command or "-j" in command:
+        raise ValueError("DAST command must remain a traditional-spider passive packaged scan")
+    if ZAP_RUNTIME_ADDON_OPTIONS.intersection(command):
+        raise ValueError("DAST command must not update, install, or remove ZAP add-ons at runtime")
+    for relative in ("scripts/run_dast_baseline.py", "scripts/test_dast_container.py"):
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        if "trusted_zap_baseline_arguments(" not in source or '"zap-baseline.py"' in source:
+            raise ValueError(f"{relative} must use only the shared trusted ZAP command builder")
+
+
 def validate_adoption_metadata() -> None:
     version = read_version(ROOT)
     if version != "0.3.0-dev":
@@ -172,6 +200,7 @@ def main() -> int:
         validate_tools()
         validate_policy()
         validate_references()
+        validate_dast_command_contract()
         validate_adoption_metadata()
         validate_matrix()
     except (OSError, ValueError) as exc:

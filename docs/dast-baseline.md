@@ -8,7 +8,7 @@ Only `workflow_dispatch` and `schedule` are trusted. Pull-request events produce
 
 The runner creates a unique Docker `--internal` network. The target and ZAP containers share only that network, with the target reachable as `http://target:<port><path>`. Both containers are read-only, drop all capabilities, use `no-new-privileges`, and have CPU, memory, PID, timeout, and tmpfs bounds. No source tree, credentials, Docker socket, or arbitrary command is mounted into the target. ZAP uses the traditional spider and passive scanner only; AJAX spidering, active scanning, authentication, and external egress are disabled.
 
-The reviewed ZAP policy allows only passive rule `10020` (missing anti-clickjacking header) to produce a normalized finding. ZAP exit `0`, `1`, or `2` means its baseline run completed and the raw JSON must still pass structural validation. Exit `3`, Docker/runtime failure, malformed or off-origin output, cleanup failure, and invalid trusted configuration remain distinct failures.
+The reviewed ZAP policy allows only passive rule `10020` (missing anti-clickjacking header) to produce a normalized finding. The runner hardcodes packaged-scan `-z -silent`: for this capability, silent mode prevents the pinned image from updating or installing add-ons at runtime and is unrelated to ZAP's scan attack modes. The target repository and workflow inputs cannot supply additional ZAP options. ZAP exit `0`, `1`, or `2` means its baseline run completed and the raw JSON must still pass structural validation. Exit `3`, Docker/runtime failure, malformed or off-origin output, cleanup failure, and invalid trusted configuration remain distinct failures.
 
 ## Results and policy
 

@@ -32,6 +32,10 @@ CONFIG_FIELDS = {
 RISK = {"0": "low", "Informational": "low", "1": "low", "Low": "low", "2": "medium", "Medium": "medium", "3": "high", "High": "high"}
 CONFIDENCE = {"0": "unknown", "False Positive": "unknown", "1": "possible", "Low": "possible", "2": "possible", "Medium": "possible", "3": "confirmed", "High": "confirmed", "4": "confirmed", "Confirmed": "confirmed"}
 TRUSTED_EVENTS = {"workflow_dispatch", "schedule"}
+ZAP_POLICY_FILENAME = "vibesec-zap-baseline.conf"
+ZAP_REPORT_FILENAME = "zap-report.json"
+ZAP_TRUSTED_OPTIONS = "-silent"
+ZAP_RUNTIME_ADDON_OPTIONS = frozenset({"-addonupdate", "-addoninstall", "-addoninstallall", "-addonuninstall"})
 
 
 class DastError(ValueError):
@@ -126,6 +130,28 @@ def trusted_event(value: str) -> bool:
     if value in {"pull_request", "pull_request_target"}:
         return False
     raise DastError(f"unsupported DAST event: {value or 'unset'}")
+
+
+def trusted_zap_baseline_arguments(*, target_url: str, config: dict[str, Any]) -> list[str]:
+    """Build the complete reviewed packaged-scan argv; callers cannot extend it."""
+    parsed = urlsplit(target_url)
+    if (parsed.scheme != "http" or parsed.hostname != "target" or parsed.username or parsed.password
+            or parsed.query or parsed.fragment or parsed.port is None):
+        raise DastError("ZAP target must use the exact isolated target origin")
+    validate_base_path(parsed.path or "/")
+    arguments = [
+        "zap-baseline.py", "-t", target_url,
+        "-c", ZAP_POLICY_FILENAME,
+        "-m", str(config["spider_duration_minutes"]),
+        "-T", str(config["passive_scan_timeout_minutes"]),
+        "-J", ZAP_REPORT_FILENAME,
+        "-s", "-i", "-z", ZAP_TRUSTED_OPTIONS, "--autooff",
+    ]
+    if arguments.count("-z") != 1 or arguments[arguments.index("-z") + 1] != ZAP_TRUSTED_OPTIONS:
+        raise DastError("trusted ZAP silent-mode contract is invalid")
+    if ZAP_RUNTIME_ADDON_OPTIONS.intersection(arguments):
+        raise DastError("trusted ZAP command attempts a runtime add-on change")
+    return arguments
 
 
 def sanitize_url(value: Any, *, port: int) -> str:

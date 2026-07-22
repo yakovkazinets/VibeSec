@@ -6,6 +6,9 @@ All notable changes will be documented here. The project follows semantic versio
 
 ### Added
 
+- Strict machine-readable security capability accountability matrix with generated human documentation.
+- Positive and negative fixtures for every current scanner family and internal coverage, policy, inventory, baseline, and trusted-harness capability.
+- Minimal and Standard repository self-scans, exact coverage assertions, sanitized artifact validation, and controlled scanner-failure evidence in CI.
 - Five-minute Quick Start, profile-selection guide, compatibility matrix, complete environment-variable reference, upgrade guide, and sanitized sample reports.
 - Dry-run-first consumer initializer with conflict refusal, atomic creation, staged Standard bootstrap, installation manifests, and read-only preflight diagnostics.
 - Deterministic consumer fixtures and copy-and-adopt tests for Minimal, Standard, forks, monorepositories, unsupported repositories, overlaps, conflicts, and symlink boundaries.
@@ -14,15 +17,20 @@ All notable changes will be documented here. The project follows semantic versio
 
 ### Changed
 
+- Security-sensitive contribution guidance now requires matrix, fixture, failure-path, artifact, privacy, and trust-boundary updates.
 - Restructured README and AppSec Guardian guidance around profile fit, installation state, overlap detection, privacy, and unsupported coverage.
 - Expanded installation manifests with source, version, expected hash, and expected mode metadata while retaining bounded legacy inspection.
 
 ### Fixed
 
+- Checkov 3.3.8 self-scans now use a trusted empty YAML mapping instead of the invalid empty `/dev/null` document, retain exact failure evidence in CI, and exercise the pinned isolated container against positive and negative fixtures.
+- Standard self-scans now use deterministic Actionlint JSON diagnostics, disable target-controlled Opengrep ignore files with supported pinned-version flags, and emit bounded safe component diagnostics on failure.
 - Consumer workflows and required support files are now validated as version-compatible installation sets rather than relying on broad manual directory copies.
 
 ### Security
 
+- Target-controlled capability expectations, scanner configuration, rules, scripts, policy, and schemas are regression-tested as non-authoritative scan data.
+- Fixture guards reject usable-looking credentials; normalized and uploaded evidence rejects raw fake markers and host paths.
 - Initializer rejects overwrite, traversal, symlink escape, Unicode/case collisions, partial writes, and self-installation without invoking Git, package managers, network access, or application code.
 - Preflight and troubleshooting preserve fork, base-harness, malformed-output, baseline-separation, and no-raw-upload boundaries from v0.2.0.
 - Bundle verification fails closed on archive bombs, ambiguous paths and JSON, special files, unexpected modes, and manifest/catalog mismatch before initialization can plan writes.

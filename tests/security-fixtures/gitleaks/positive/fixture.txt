@@ -1,0 +1,1 @@
+synthetic_test_value = VIBESEC_FAKE_SECRET_DO_NOT_USE_000000000000

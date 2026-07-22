@@ -1,0 +1,1 @@
+print("synthetic inventory fixture")

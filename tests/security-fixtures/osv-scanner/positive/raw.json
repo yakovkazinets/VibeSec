@@ -1,0 +1,1 @@
+{"results":[{"source":{"path":"tests/security-fixtures/osv-scanner/positive/requirements.txt"},"packages":[{"package":{"name":"vibesec-synthetic-package"},"vulnerabilities":[{"id":"OSV-VIBESEC-SYNTHETIC-1","summary":"Synthetic advisory for parser accountability","database_specific":{"severity":"HIGH"}}]}]}]}

@@ -2,12 +2,17 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
 import zipfile
 from datetime import date
 from unittest.mock import patch
+
+from scripts.run_standard_profile import CHECKOV_CONTAINER_CONFIG, checkov_command, run as run_scanner, run_checkov_files
+from scripts.test_checkov_container import scan as smoke_scan
+from scripts.vibesec.model import Finding
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,6 +26,7 @@ class StandardProfileIntegrationTests(unittest.TestCase):
         self.results = base / "results"
         self.target = base / "target"
         self.tools.mkdir()
+        (self.tools / "python3").symlink_to(sys.executable)
         (self.target / ".git").mkdir(parents=True)
         (self.target / ".github/workflows").mkdir(parents=True)
         (self.target / "main.py").write_text("print('fixture')\n", encoding="utf-8")
@@ -31,13 +37,18 @@ class StandardProfileIntegrationTests(unittest.TestCase):
         (self.target / ".gitleaks.toml").write_text("[[rules]]\nid='disable'\n", encoding="utf-8")
         (self.target / ".semgrepignore").write_text("**\n", encoding="utf-8")
         (self.target / ".syft.yaml").write_text("enrich: [all]\n", encoding="utf-8")
+        (self.target / ".checkov.yml").write_text(
+            "skip-check: [CKV_AWS_24]\nskip-framework: [terraform]\n", encoding="utf-8")
+        (self.target / ".checkov.yaml").write_text(
+            "bc-api-key: target-controlled-not-a-real-key\ndownload-external-modules: true\n", encoding="utf-8")
         expected = str(ROOT)
         self.write_tool("opengrep", r'''#!/usr/bin/env python3
 import json, os, sys
 expected = os.environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("--config") + 1] == expected + "/rules/opengrep"
-assert sys.argv[sys.argv.index("--semgrepignore-filename") + 1] == expected + "/config/opengrep-standard.ignore"
 assert "--no-git-ignore" in sys.argv
+assert "--legacy" in sys.argv and "--x-ignore-semgrepignore-files" in sys.argv
+assert "--semgrepignore-filename" not in sys.argv
 output = sys.argv[sys.argv.index("--json-output") + 1]
 mode = os.getenv("FAKE_OPENGREP_MODE", "pass")
 if mode == "fail": raise SystemExit(9)
@@ -54,6 +65,7 @@ assert sys.argv[1:3] == ["scan", "source"]
 mode = os.getenv("FAKE_OSV_MODE", "pass")
 if mode == "fail": raise SystemExit(8)
 output = sys.argv[sys.argv.index("--output-file") + 1]
+if mode == "malformed": open(output, "w").write("{"); raise SystemExit(0)
 payload = {"results":[]}
 if mode == "finding": payload = {"results":[{"source":{"path":"requirements.txt"},"packages":[{"package":{"name":"fixture"},"vulnerabilities":[{"id":"OSV-TEST","summary":"Synthetic advisory","database_specific":{"severity":"HIGH"}}]}]}]}
 json.dump(payload, open(output, "w"))
@@ -64,10 +76,12 @@ import json, os, sys
 expected = os.environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("--config") + 1] == expected + "/config/syft-standard.yaml"
 assert "dir:." in sys.argv and sys.argv[sys.argv.index("--base-path") + 1] == "."
-if os.getenv("FAKE_SYFT_MODE") == "fail": raise SystemExit(7)
+mode = os.getenv("FAKE_SYFT_MODE", "pass")
+if mode == "fail": raise SystemExit(7)
 for index, value in enumerate(sys.argv):
     if value == "--output":
         form, path = sys.argv[index + 1].split("=", 1)
+        if mode == "malformed": open(path, "w").write("{"); continue
         payload = ({"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"fixture"}]} if form == "cyclonedx-json" else {"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT","packages":[{"name":"fixture"}]})
         json.dump(payload, open(path, "w"))
 ''')
@@ -76,6 +90,9 @@ import json, os, sys
 expected = os.environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("--config") + 1] == expected + "/config/trivy-standard.yaml"
 output = sys.argv[sys.argv.index("--output") + 1]
+mode = os.getenv("FAKE_TRIVY_IMAGE_MODE" if "image" in sys.argv else "FAKE_TRIVY_MODE", "pass")
+if mode == "fail": raise SystemExit(7)
+if mode == "malformed": open(output, "w").write("{"); raise SystemExit(0)
 json.dump({"Results":[]}, open(output, "w"))
 ''')
         self.write_tool("gitleaks", r'''#!/usr/bin/env python3
@@ -84,21 +101,70 @@ expected = os.environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("--config") + 1] == expected + "/config/gitleaks-standard.toml"
 assert sys.argv[sys.argv.index("--gitleaks-ignore-path") + 1] == expected + "/config/gitleaks-standard-ignore.txt"
 output = sys.argv[sys.argv.index("--report-path") + 1]
+mode = os.getenv("FAKE_GITLEAKS_MODE", "pass")
+if mode == "fail": raise SystemExit(7)
+if mode == "malformed": open(output, "w").write("{"); raise SystemExit(0)
 json.dump([], open(output, "w"))
 ''')
         self.write_tool("actionlint", r'''#!/usr/bin/env python3
 import os, sys
 expected = os.environ["VIBESEC_EXPECTED_ROOT"]
+assert os.path.basename(os.environ["HOME"]) == ".scanner-home"
 assert sys.argv[sys.argv.index("-config-file") + 1] == expected + "/config/actionlint-standard.yaml"
+assert sys.argv[sys.argv.index("-format") + 1] == "{{json .}}"
 assert sys.argv[sys.argv.index("-shellcheck") + 1] == ""
 assert sys.argv[sys.argv.index("-pyflakes") + 1] == ""
+mode = os.getenv("FAKE_ACTIONLINT_MODE", "pass")
+if mode == "fail": raise SystemExit(7)
+if mode == "malformed": print("not actionlint output")
+else: print('[{"filepath":".github/workflows/test.yml","line":3,"column":1,"end_column":2,"kind":"syntax-check","message":"Synthetic workflow diagnostic","snippet":"MUST_NOT_SURVIVE"}]')
 ''')
         self.write_tool("docker", r'''#!/usr/bin/env python3
 import json, sys
+import os
+expected = os.environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("--network") + 1] == "none"
-assert sys.argv[sys.argv.index("--config-file") + 1] == "/dev/null"
-assert "--read-only" in sys.argv and "ALL" in sys.argv and "/workspace:ro" in " ".join(sys.argv)
-print(json.dumps({"results":{"failed_checks":[]}}))
+assert sys.argv[sys.argv.index("--config-file") + 1] == "/vibesec/checkov-standard.yaml"
+assert sys.argv[sys.argv.index("--workdir") + 1] == "/tmp"
+assert sys.argv[sys.argv.index("--download-external-modules") + 1] == "false"
+assert "--file" in sys.argv and "--directory" not in sys.argv
+joined = " ".join(sys.argv)
+assert "--read-only" in sys.argv and "ALL" in sys.argv and "/workspace:ro" in joined
+assert expected + "/config/checkov-standard.yaml:/vibesec/checkov-standard.yaml:ro" in joined
+assert "HOME=/tmp/vibesec-home" in sys.argv and "XDG_CACHE_HOME=/tmp/vibesec-cache" in sys.argv
+assert "/var/run/docker.sock" not in joined and "terraform" not in sys.argv and "GITHUB_ACTIONS" not in sys.argv
+requested = sys.argv[sys.argv.index("--file") + 1]
+assert requested.startswith("/workspace/")
+assert sys.argv.count("--file") == 1
+log = os.getenv("FAKE_CHECKOV_LOG")
+if log:
+    with open(log, "a", encoding="utf-8") as stream: stream.write(requested + "\n")
+mode = os.getenv("FAKE_CHECKOV_MODE", "pass")
+if mode == "fail": raise SystemExit(7)
+if mode == "fail-main" and requested == "/workspace/main.tf": raise SystemExit(7)
+if mode == "usage": raise SystemExit(2)
+if mode == "stale":
+    assert os.fstat(1).st_size == 0
+    raise SystemExit(7)
+if mode == "malformed": print("{"); raise SystemExit(0)
+failed = []
+if mode == "finding":
+    failed = [{"check_id":"CKV_TEST","check_name":"Synthetic IaC finding","file_path":requested,"file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "pinned-path":
+    failed = [{"check_id":"CKV_TEST","check_name":"Synthetic IaC finding","file_path":"/" + requested.rsplit("/", 1)[-1],"file_abs_path":requested,"file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "wrong-path":
+    failed = [{"check_id":"CKV_TEST","check_name":"Wrong path","file_path":"/wrong.tf","file_abs_path":requested,"file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "scanner-windows-path":
+    failed = [{"check_id":"CKV_TEST","check_name":"Windows path","file_path":"C:/repo/main.tf","file_abs_path":"C:/repo/main.tf","file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "scanner-traversal-path":
+    failed = [{"check_id":"CKV_TEST","check_name":"Traversal path","file_path":"../main.tf","file_abs_path":requested,"file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "same-basename" and requested in {"/workspace/one/main.tf", "/workspace/two/main.tf"}:
+    failed = [{"check_id":"CKV_TEST","check_name":"Same basename","file_path":"/main.tf","file_abs_path":requested,"file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "duplicate":
+    item = {"check_id":"CKV_TEST","check_name":"Duplicate","file_path":requested,"file_line_range":[1,1],"severity":"HIGH"}
+    failed = [item, dict(item)]
+print(json.dumps({"results":{"failed_checks":failed}}))
+if failed: raise SystemExit(1)
 ''')
 
     def write_tool(self, name: str, source: str) -> None:
@@ -112,9 +178,10 @@ print(json.dumps({"results":{"failed_checks":[]}}))
             if key not in {"GITHUB_ACTIONS", "GITHUB_EVENT_NAME"}
             and not key.startswith(("VIBESEC_", "FAKE_"))
         }
-        environment.update({"PATH": f"{self.tools}:{environment['PATH']}", "VIBESEC_EXPECTED_ROOT": str(ROOT), **overrides})
+        # A closed PATH proves missing-tool tests cannot reach host scanner binaries.
+        environment.update({"PATH": str(self.tools), "VIBESEC_EXPECTED_ROOT": str(ROOT), **overrides})
         return subprocess.run(
-            ["python3", "scripts/run_standard_profile.py", str(self.target), str(self.results), "--vibesec-root", str(ROOT), "--tool-dir", str(self.tools)],
+            [sys.executable, "scripts/run_standard_profile.py", str(self.target), str(self.results), "--vibesec-root", str(ROOT), "--tool-dir", str(self.tools)],
             cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
         )
 
@@ -140,12 +207,108 @@ print(json.dumps({"results":{"failed_checks":[]}}))
         self.assertIn("Standard profile coverage", (self.results / "report.md").read_text(encoding="utf-8"))
         self.assertTrue((self.results / "sbom.cyclonedx.json").is_file())
         self.assertTrue((self.results / "sbom.spdx.json").is_file())
+        policy = self.load_json("policy-result.json")
+        self.assertEqual(policy["exit_category"], "pass")
+        self.assertFalse(policy["security_guarantee"])
+        validated = subprocess.run(
+            ["python3", "scripts/validate_security_artifacts.py", "--profile", "standard", "--results", str(self.results),
+             "--expect-state", "opengrep=ran", "--expect-state", "osv-scanner=ran", "--expect-state", "syft=ran",
+             "--expect-state", "checkov=ran", "--expect-state", "trivy=ran", "--expect-state", "gitleaks=ran",
+             "--expect-state", "actionlint=ran", "--expect-state", "trivy-image=not_applicable"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(validated.returncode, 0, validated.stderr)
 
     def test_tool_execution_failure_returns_two(self):
         completed = self.run_profile(FAKE_OSV_MODE="fail")
         self.assertEqual(completed.returncode, 2, completed.stderr)
         results = self.load_json("normalized.json")["results"]
         self.assertTrue(any(item["tool"] == "osv-scanner" and item["result_type"] == "tool_error" for item in results))
+        self.assertEqual(self.load_json("policy-result.json")["exit_category"], "tool_error")
+
+    def test_every_scanner_nonzero_exit_is_a_non_clean_tool_error(self):
+        scenarios = {
+            "opengrep": {"FAKE_OPENGREP_MODE": "fail"},
+            "osv-scanner": {"FAKE_OSV_MODE": "fail"},
+            "syft": {"FAKE_SYFT_MODE": "fail"},
+            "checkov": {"FAKE_CHECKOV_MODE": "fail"},
+            "trivy": {"FAKE_TRIVY_MODE": "fail"},
+            "gitleaks": {"FAKE_GITLEAKS_MODE": "fail"},
+            "actionlint": {"FAKE_ACTIONLINT_MODE": "fail"},
+            "trivy-image": {
+                "FAKE_TRIVY_IMAGE_MODE": "fail",
+                "VIBESEC_IMAGE_REFERENCE": "registry.example/image@sha256:" + "d" * 64,
+            },
+        }
+        for tool, environment in scenarios.items():
+            with self.subTest(tool=tool):
+                completed = self.run_profile(**environment)
+                self.assertEqual(completed.returncode, 2, completed.stderr)
+                coverage = {item["tool"]: item["state"] for item in self.load_json("coverage.json")["tools"]}
+                self.assertEqual(coverage[tool], "tool_error")
+                policy = self.load_json("policy-result.json")
+                self.assertEqual(policy["exit_category"], "tool_error")
+                self.assertFalse(policy["clean"])
+
+    def test_every_scanner_malformed_output_is_invalid_not_clean(self):
+        scenarios = {
+            "opengrep": {"FAKE_OPENGREP_MODE": "malformed"},
+            "osv-scanner": {"FAKE_OSV_MODE": "malformed"},
+            "syft": {"FAKE_SYFT_MODE": "malformed"},
+            "checkov": {"FAKE_CHECKOV_MODE": "malformed"},
+            "trivy": {"FAKE_TRIVY_MODE": "malformed"},
+            "gitleaks": {"FAKE_GITLEAKS_MODE": "malformed"},
+            "actionlint": {"FAKE_ACTIONLINT_MODE": "malformed"},
+            "trivy-image": {
+                "FAKE_TRIVY_IMAGE_MODE": "malformed",
+                "VIBESEC_IMAGE_REFERENCE": "registry.example/image@sha256:" + "e" * 64,
+            },
+        }
+        for tool, environment in scenarios.items():
+            with self.subTest(tool=tool):
+                completed = self.run_profile(**environment)
+                self.assertEqual(completed.returncode, 3, completed.stderr)
+                coverage = {item["tool"]: item["state"] for item in self.load_json("coverage.json")["tools"]}
+                self.assertEqual(coverage[tool], "tool_error")
+                policy = self.load_json("policy-result.json")
+                self.assertEqual(policy["exit_category"], "invalid_input")
+                self.assertFalse(policy["clean"])
+
+    def test_every_scanner_missing_executable_is_a_non_clean_tool_error(self):
+        scenarios = {
+            "opengrep": ("opengrep", {}),
+            "osv-scanner": ("osv-scanner", {}),
+            "syft": ("syft", {}),
+            "checkov": ("docker", {}),
+            "trivy": ("trivy", {}),
+            "gitleaks": ("gitleaks", {}),
+            "actionlint": ("actionlint", {}),
+            "trivy-image": (
+                "trivy",
+                {"VIBESEC_IMAGE_REFERENCE": "registry.example/image@sha256:" + "f" * 64},
+            ),
+        }
+        for tool, (binary_name, environment) in scenarios.items():
+            binary = self.tools / binary_name
+            saved = binary.read_bytes()
+            binary.unlink()
+            try:
+                with self.subTest(tool=tool):
+                    completed = self.run_profile(**environment)
+                    self.assertEqual(completed.returncode, 2, completed.stderr)
+                    coverage = {item["tool"]: item["state"] for item in self.load_json("coverage.json")["tools"]}
+                    self.assertEqual(coverage[tool], "tool_error")
+                    self.assertFalse(self.load_json("policy-result.json")["clean"])
+            finally:
+                binary.write_bytes(saved)
+                binary.chmod(0o755)
+
+    def test_timeout_is_a_tool_error_for_every_scanner_identity(self):
+        with patch("scripts.run_standard_profile.subprocess.run", side_effect=subprocess.TimeoutExpired(["fixture"], 1)):
+            for tool in ("opengrep", "osv-scanner", "syft", "checkov", "trivy", "gitleaks", "actionlint", "trivy-image"):
+                with self.subTest(tool=tool):
+                    error = run_scanner(tool, ["fixture"], None, cwd=self.target, env={})
+                    self.assertEqual(error, f"{tool} timed out")
 
     def test_osv_finding_exit_is_not_misclassified_as_tool_failure(self):
         completed = self.run_profile(FAKE_OSV_MODE="finding", VIBESEC_ENFORCEMENT="all")
@@ -159,6 +322,176 @@ print(json.dumps({"results":{"failed_checks":[]}}))
         self.assertEqual(completed.returncode, 3, completed.stderr)
         self.assertIn("tool_error", json.dumps(self.load_json("normalized.json")))
         self.assertNotIn("Status: **pass**", (self.results / "report.md").read_text(encoding="utf-8"))
+
+    def test_pull_request_actionlint_json_is_sanitized_and_coverage_ran(self):
+        completed = self.run_profile(GITHUB_ACTIONS="true", GITHUB_EVENT_NAME="pull_request")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        coverage = {item["tool"]: item["state"] for item in self.load_json("coverage.json")["tools"]}
+        self.assertEqual(coverage["actionlint"], "ran")
+        self.assertEqual(coverage["opengrep"], "ran")
+        self.assertEqual(coverage["trivy-image"], "not_configured")
+        normalized = json.dumps(self.load_json("normalized.json"))
+        self.assertIn("Synthetic workflow diagnostic", normalized)
+        self.assertNotIn("MUST_NOT_SURVIVE", normalized)
+
+    def test_actionlint_malformed_output_has_bounded_safe_diagnostic(self):
+        completed = self.run_profile(FAKE_ACTIONLINT_MODE="malformed")
+        self.assertEqual(completed.returncode, 3)
+        self.assertIn("component=actionlint category=invalid_input", completed.stderr)
+        self.assertIn("artifact=raw/actionlint.txt", completed.stderr)
+        self.assertNotIn("not actionlint output", completed.stderr)
+        self.assertNotIn(str(self.target.parent), completed.stderr)
+
+    def test_checkov_command_preserves_container_and_configuration_isolation(self):
+        image = "bridgecrew/checkov@sha256:" + "a" * 64
+        argv = checkov_command(self.target, ROOT / "config/checkov-standard.yaml", image, "main.tf")
+        self.assertEqual(argv[argv.index("--network") + 1], "none")
+        self.assertEqual(argv[argv.index("--config-file") + 1], CHECKOV_CONTAINER_CONFIG)
+        self.assertEqual(argv[argv.index("--download-external-modules") + 1], "false")
+        self.assertIn(f"{self.target}:/workspace:ro", argv)
+        self.assertIn(f"{ROOT / 'config/checkov-standard.yaml'}:{CHECKOV_CONTAINER_CONFIG}:ro", argv)
+        self.assertEqual(argv[argv.index("--file") + 1], "/workspace/main.tf")
+        self.assertEqual(argv.count("--file"), 1)
+        self.assertNotIn("--directory", argv)
+        self.assertNotIn("/dev/null", argv)
+
+    def test_target_checkov_configuration_cannot_change_coverage(self):
+        completed = self.run_profile(GITHUB_ACTIONS="true", GITHUB_EVENT_NAME="pull_request")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        entry = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")
+        self.assertEqual(entry["state"], "ran")
+
+    def test_checkov_docker_unavailable_is_a_non_clean_tool_error(self):
+        docker = self.tools / "docker"
+        docker.unlink()
+        completed = self.run_profile()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("component=checkov category=tool_error reason=file=.github/workflows/test.yml Docker is unavailable", completed.stderr)
+        checkov = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")
+        self.assertEqual(checkov["state"], "tool_error")
+        self.assertEqual(checkov["reason"], "file=.github/workflows/test.yml Docker is unavailable")
+        self.assertFalse(self.load_json("policy-result.json")["clean"])
+
+    def test_checkov_scans_each_file_and_merges_deterministic_relative_findings(self):
+        invocation_log = self.target.parent / "checkov-invocations.txt"
+        completed = self.run_profile(FAKE_CHECKOV_MODE="pinned-path", FAKE_CHECKOV_LOG=str(invocation_log))
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(
+            invocation_log.read_text(encoding="utf-8").splitlines(),
+            ["/workspace/.github/workflows/test.yml", "/workspace/main.tf"],
+        )
+        findings = [
+            item for item in self.load_json("normalized.json")["results"]
+            if item["tool"] == "checkov" and item["result_type"] == "finding"
+        ]
+        self.assertEqual([item["file"] for item in findings], [".github/workflows/test.yml", "main.tf"])
+        self.assertEqual(len({item["fingerprint"] for item in findings}), 2)
+        expected = Finding.create(
+            tool="checkov", category="iac", rule_id="CKV_TEST", severity="high",
+            file="main.tf", line=1, description="Synthetic IaC finding", confidence="possible",
+        )
+        self.assertEqual(findings[1]["fingerprint"], expected.fingerprint)
+        self.assertNotIn(str(self.target), json.dumps(findings))
+        self.assertNotIn("/workspace/", json.dumps(findings))
+        self.assertNotIn(str(Path.home()), json.dumps(findings))
+        self.assertNotIn(tempfile.gettempdir(), json.dumps(findings))
+        raw = self.load_json("raw/checkov.json")
+        self.assertEqual(len(raw["results"]["failed_checks"]), 2)
+        self.assertEqual(
+            [item["file_path"] for item in raw["results"]["failed_checks"]],
+            [".github/workflows/test.yml", "main.tf"],
+        )
+
+    def test_checkov_rejects_wrong_scanner_path_as_invalid_input(self):
+        completed = self.run_profile(FAKE_CHECKOV_MODE="wrong-path")
+        self.assertEqual(completed.returncode, 3, completed.stderr)
+        self.assertIn("component=checkov category=invalid_input", completed.stderr)
+        self.assertIn("reason=file=.github/workflows/test.yml checkov output failed structural validation", completed.stderr)
+        self.assertNotIn(str(self.target), completed.stderr)
+        self.assertNotIn(tempfile.gettempdir(), completed.stderr)
+        self.assertFalse((self.results / "raw/checkov.json").exists())
+        self.assertEqual(self.load_json("policy-result.json")["exit_category"], "invalid_input")
+        checkov = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")
+        self.assertEqual(
+            checkov["reason"],
+            "file=.github/workflows/test.yml checkov output failed structural validation",
+        )
+
+    def test_checkov_rejects_noncanonical_scanner_paths_as_invalid_input(self):
+        for mode in ("scanner-windows-path", "scanner-traversal-path"):
+            with self.subTest(mode=mode):
+                completed = self.run_profile(FAKE_CHECKOV_MODE=mode)
+                self.assertEqual(completed.returncode, 3, completed.stderr)
+                self.assertIn("component=checkov category=invalid_input", completed.stderr)
+                self.assertFalse((self.results / "raw/checkov.json").exists())
+
+    def test_checkov_rejects_windows_and_traversal_invocation_paths_before_execution(self):
+        for value in ("C:/repo/main.tf", "../main.tf", "one/../main.tf", "one\\main.tf"):
+            with self.subTest(value=value), patch("scripts.run_standard_profile.subprocess.run") as invoked:
+                findings, error, invalid = run_checkov_files(
+                    self.target, ROOT / "config/checkov-standard.yaml",
+                    "bridgecrew/checkov@sha256:" + "a" * 64, [value],
+                    self.results / "raw/checkov.json", cwd=self.target, env={},
+                )
+                self.assertEqual(findings, [])
+                self.assertEqual(error, "checkov invocation path failed validation")
+                self.assertTrue(invalid)
+                invoked.assert_not_called()
+
+    def test_checkov_same_basenames_keep_distinct_paths_and_fingerprints(self):
+        for directory in ("one", "two"):
+            path = self.target / directory
+            path.mkdir()
+            (path / "main.tf").write_text('resource "test" "fixture" {}\n', encoding="utf-8")
+        completed = self.run_profile(FAKE_CHECKOV_MODE="same-basename")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        findings = [
+            item for item in self.load_json("normalized.json")["results"]
+            if item["tool"] == "checkov" and item["result_type"] == "finding"
+        ]
+        self.assertEqual([item["file"] for item in findings], ["one/main.tf", "two/main.tf"])
+        self.assertEqual(len({item["fingerprint"] for item in findings}), 2)
+
+    def test_duplicate_checkov_findings_deduplicate_deterministically(self):
+        completed = self.run_profile(FAKE_CHECKOV_MODE="duplicate")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        findings = [
+            item for item in self.load_json("normalized.json")["results"]
+            if item["tool"] == "checkov" and item["result_type"] == "finding"
+        ]
+        self.assertEqual([item["file"] for item in findings], [".github/workflows/test.yml", "main.tf"])
+        self.assertEqual(len({item["fingerprint"] for item in findings}), 2)
+
+    def test_one_failed_checkov_file_discards_the_partial_capability(self):
+        completed = self.run_profile(FAKE_CHECKOV_MODE="fail-main")
+        self.assertEqual(completed.returncode, 2, completed.stderr)
+        self.assertFalse((self.results / "raw/checkov.json").exists())
+        checkov_results = [item for item in self.load_json("normalized.json")["results"] if item["tool"] == "checkov"]
+        self.assertEqual([item["result_type"] for item in checkov_results], ["tool_error"])
+        coverage = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")
+        self.assertEqual(coverage["state"], "tool_error")
+
+    def test_checkov_cli_exit_two_is_a_non_clean_tool_error(self):
+        completed = self.run_profile(FAKE_CHECKOV_MODE="usage")
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("Checkov CLI or image execution exited with status 2", completed.stderr)
+        self.assertEqual(next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")["state"], "tool_error")
+        self.assertFalse(self.load_json("policy-result.json")["clean"])
+
+    def test_checkov_stale_raw_output_is_removed_before_failed_execution(self):
+        raw = self.results / "raw"
+        raw.mkdir(parents=True)
+        stale = raw / "checkov.json"
+        stale.write_text("stale-sensitive-content", encoding="utf-8")
+        completed = self.run_profile(FAKE_CHECKOV_MODE="stale")
+        self.assertEqual(completed.returncode, 2)
+        self.assertFalse(stale.exists())
+        self.assertNotIn("stale-sensitive-content", json.dumps(self.load_json("normalized.json")))
+
+    def test_checkov_negative_smoke_does_not_treat_missing_json_as_clean(self):
+        completed = subprocess.CompletedProcess(["docker"], 0)
+        with patch("scripts.test_checkov_container.subprocess.run", return_value=completed):
+            self.assertEqual(smoke_scan("negative", 0), (False, []))
 
     def test_security_finding_returns_one_in_enforce_all_mode(self):
         completed = self.run_profile(FAKE_OPENGREP_MODE="finding", VIBESEC_ENFORCEMENT="all")

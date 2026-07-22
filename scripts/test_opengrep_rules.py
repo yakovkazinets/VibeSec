@@ -41,8 +41,8 @@ def main() -> int:
             base = Path(temporary)
             positive = base / "positive"
             negative = base / "negative"
-            shutil.copytree(ROOT / "tests/fixtures/opengrep/positive", positive, ignore=shutil.ignore_patterns("__pycache__"))
-            shutil.copytree(ROOT / "tests/fixtures/opengrep/negative", negative, ignore=shutil.ignore_patterns("__pycache__"))
+            shutil.copytree(ROOT / "tests/security-fixtures/opengrep/positive", positive, ignore=shutil.ignore_patterns("__pycache__", "raw.json"))
+            shutil.copytree(ROOT / "tests/security-fixtures/opengrep/negative", negative, ignore=shutil.ignore_patterns("__pycache__", "raw.json"))
             (base / "cache").mkdir()
             (base / "config").mkdir()
             environment = {key: value for key, value in os.environ.items() if not key.startswith(("OPENGREP_", "SEMGREP_"))}

@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.bundle import validate_catalog  # noqa: E402
 from vibesec.strict_json import loads_strict  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
+from validate_security_capabilities import validate_matrix  # noqa: E402
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "cosign", "checkov"}
 EXPECTED_VIBESEC_VARIABLES = {
@@ -90,14 +91,18 @@ def validate_references() -> None:
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
         "scripts/install_standard_tools.sh", "scripts/run_standard_profile.py", "scripts/detect_repository.py",
         "scripts/validate_sbom.py", "scripts/validate_opengrep_rules.py",
-        "scripts/test_opengrep_rules.py",
+        "scripts/test_opengrep_rules.py", "scripts/test_checkov_container.py",
+        "scripts/preserve_scan_exit.py", "scripts/run_vibesec_self_scan.py", "scripts/vibesec/self_scan.py",
         "scripts/append_tool_errors.py", "scripts/policy_gate.py", "scripts/validate_skill.py",
         "scripts/init_vibesec.py", "scripts/preflight.py", "config/adoption-files.json",
         "VERSION", "scripts/build_consumer_bundle.py", "scripts/verify_consumer_bundle.py",
         "scripts/verify_installation.py", "scripts/vibesec_doctor.py", "scripts/plan_vibesec_upgrade.py",
+        "scripts/validate_security_capabilities.py", "scripts/run_security_accountability.py",
+        "scripts/validate_security_artifacts.py", "config/security-capabilities.json", "config/self-scan-scope.json",
         "config/environment-variables.json", "docs/quickstart.md", "docs/profile-selection.md",
         "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md", "docs/distribution.md",
         "docs/installation-verification.md", "docs/doctor.md",
+        "docs/security-validation-policy.md", "docs/security-capability-matrix.md", "docs/self-hosted-validation.md",
         "examples/reports/README.md",
         "skills/appsec-guardian/SKILL.md",
     )
@@ -151,6 +156,7 @@ def main() -> int:
         validate_policy()
         validate_references()
         validate_adoption_metadata()
+        validate_matrix()
     except (OSError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 3

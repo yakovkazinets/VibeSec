@@ -1,0 +1,1 @@
+{"results":{"failed_checks":[{"check_id":"CKV_VIBESEC_SYNTHETIC_1","check_name":"Synthetic public configuration","file_path":"tests/security-fixtures/checkov-iac/positive/main.tf","file_line_range":[1,3],"severity":"HIGH"}]}}

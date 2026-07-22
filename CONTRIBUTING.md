@@ -18,4 +18,10 @@ Open or reference an issue for changes that alter policy, scanner selection, res
 
 Scanner findings are untrusted input. Fixtures must be harmless, unmistakably fake, and must never contain usable credentials or offensive payloads. A suppression contribution must include a fingerprint, reason, owner, and expiration date. Never weaken an existing control silently.
 
+## Security capability accountability
+
+Any change to a scanner, rule, profile, normalization, policy behavior, coverage state, artifact generation, scanner configuration, or trusted-event behavior must update `config/security-capabilities.json`, positive and negative fixtures, exact expected metadata, CI enforcement, documentation, controlled tool-error regressions, and applicable trust-boundary tests. Run `python3 scripts/validate_security_capabilities.py` and the complete suite. A capability is not complete because integration code exists.
+
+A scanner version bump must record the old and new version, checksum/signature or image-digest verification, fixture-result changes, normalized-schema changes, runtime changes, network/privacy changes, new false positives, removed findings, and a documented review conclusion. Review expected count or severity changes; never weaken them merely to make CI pass. See [security validation policy](docs/security-validation-policy.md).
+
 Contributions are licensed under Apache-2.0. Participation is governed by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).

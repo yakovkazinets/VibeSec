@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "excluded_fixture_roots": [
+    {
+      "path": "examples/reports",
+      "capability_ids": ["standard.coverage-report", "standard.syft-sbom"],
+      "test_modules": ["tests.test_adoption_docs"],
+      "ci_enforcement": ["security-artifacts"]
+    },
+    {
+      "path": "tests/consumer-fixtures",
+      "capability_ids": ["standard.repository-inventory", "standard.trusted-harness"],
+      "test_modules": ["tests.test_consumer_adoption"],
+      "ci_enforcement": ["security-artifacts"]
+    },
+    {
+      "path": "tests/security-fixtures",
+      "capability_ids": ["standard.checkov-iac", "standard.trusted-harness"],
+      "test_modules": ["tests.test_security_accountability"],
+      "ci_enforcement": ["scanner-accountability", "security-artifacts"]
+    }
+  ]
+}

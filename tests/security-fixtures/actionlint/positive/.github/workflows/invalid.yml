@@ -1,0 +1,8 @@
+name: Synthetic invalid workflow
+on: push
+permissions:
+  contents: read
+jobs:
+  invalid:
+    runs-on: ${{ definitely_invalid_context.value }}
+    steps: []

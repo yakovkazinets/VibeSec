@@ -23,8 +23,10 @@ Review the code and configuration before using it, validate it against your own 
 - [Consumer distribution](docs/distribution.md), [installation verification](docs/installation-verification.md), and [doctor](docs/doctor.md)
 - [Sanitized sample reports](examples/reports/README.md)
 - [Security/result model](docs/security-model.md) and [threat model](docs/threat-model.md)
+- [Security validation policy](docs/security-validation-policy.md), [capability matrix](docs/security-capability-matrix.md), and [self-hosted validation](docs/self-hosted-validation.md)
 
 Minimal uses Trivy filesystem, Gitleaks, and actionlint. Standard adds VibeSec-owned Opengrep rules, OSV-Scanner, Syft SBOMs, conditional isolated Checkov, explicit coverage reporting, and optional trusted-event scanning of an existing immutable image. Neither profile builds or executes application code, installs project dependencies, builds Dockerfiles, applies infrastructure, or performs DAST/fuzzing/runtime analysis.
+<!-- claimed-scanners: actionlint,checkov,gitleaks,opengrep,osv-scanner,syft,trivy -->
 
 Preview adoption without changing the application repository:
 
@@ -52,6 +54,8 @@ VIBESEC_ENFORCEMENT=observe python3 scripts/run_standard_profile.py . results
 ```
 
 Read [the architecture](docs/architecture.md), [tool selection](docs/tool-selection.md), [threat model](docs/threat-model.md), and [contribution guide](CONTRIBUTING.md) before changing security-sensitive behavior.
+
+Every advertised capability must have maintained positive and negative fixtures, controlled failure evidence, artifact validation, and mandatory CI enforcement. Fixture guidance and self-scan expectations are documented in [self-hosted validation](docs/self-hosted-validation.md).
 
 Imported skills can be structurally checked with `python3 scripts/validate_skill.py path/to/skill` after installing `requirements.txt`. See [imported skill validation](docs/skill-validation.md). Validation does not execute or grant authority to imported instructions.
 

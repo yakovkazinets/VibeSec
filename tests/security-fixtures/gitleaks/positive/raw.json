@@ -1,0 +1,1 @@
+[{"RuleID":"vibesec-synthetic-secret","Description":"Synthetic non-operational fixture marker","File":"tests/security-fixtures/gitleaks/positive/fixture.txt","StartLine":1}]

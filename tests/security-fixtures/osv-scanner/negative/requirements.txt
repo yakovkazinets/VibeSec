@@ -1,0 +1,1 @@
+vibesec-synthetic-package==0.0.1

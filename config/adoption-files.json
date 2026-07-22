@@ -13,6 +13,7 @@
     "scripts/verify_installation.py",
     "scripts/vibesec/__init__.py",
     "scripts/vibesec/bundle.py",
+    "scripts/vibesec/coverage.py",
     "scripts/vibesec/exit_codes.py",
     "scripts/vibesec/installation.py",
     "scripts/vibesec/manifest.py",
@@ -57,6 +58,7 @@
     "scripts/preflight.py",
     "scripts/run_minimal_profile.sh",
     "scripts/run_standard_profile.py",
+    "scripts/write_minimal_artifacts.py",
     "scripts/verify_consumer_bundle.py",
     "scripts/verify_installation.py",
     "scripts/vibesec_doctor.py"
@@ -68,6 +70,7 @@
         "scripts/append_tool_errors.py",
         "scripts/normalize_results.py",
         "scripts/run_minimal_profile.sh",
+        "scripts/write_minimal_artifacts.py",
         "scripts/vibesec/results.py"
       ],
       "workflow_source": "templates/github-actions/security-baseline.yml",
@@ -76,6 +79,7 @@
     "standard": {
       "support": [
         "config/actionlint-standard.yaml",
+        "config/checkov-standard.yaml",
         "config/gitleaks-standard-ignore.txt",
         "config/gitleaks-standard.toml",
         "config/opengrep-standard.ignore",
@@ -88,7 +92,6 @@
         "rules/opengrep/python.yml",
         "scripts/install_standard_tools.sh",
         "scripts/run_standard_profile.py",
-        "scripts/vibesec/coverage.py",
         "scripts/vibesec/detection.py",
         "scripts/vibesec/osv_database.py",
         "scripts/vibesec/sbom.py"

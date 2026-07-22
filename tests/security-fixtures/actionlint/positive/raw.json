@@ -1,0 +1,1 @@
+[{"filepath":"tests/security-fixtures/actionlint/positive/.github/workflows/invalid.yml","line":7,"column":14,"end_column":40,"kind":"expression","message":"undefined variable definitely_invalid_context","snippet":"MUST_NOT_SURVIVE"}]

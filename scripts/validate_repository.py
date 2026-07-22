@@ -107,7 +107,7 @@ def validate_references() -> None:
         "scripts/verify_installation.py", "scripts/vibesec_doctor.py", "scripts/plan_vibesec_upgrade.py",
         "scripts/validate_security_capabilities.py", "scripts/run_security_accountability.py",
         "scripts/validate_security_artifacts.py", "config/security-capabilities.json", "config/self-scan-scope.json",
-        "scripts/run_dast_baseline.py", "scripts/validate_dast_artifacts.py", "scripts/vibesec/dast.py",
+        "scripts/run_dast_baseline.py", "scripts/test_dast_container.py", "scripts/validate_dast_artifacts.py", "scripts/vibesec/dast.py",
         "config/environment-variables.json", "docs/quickstart.md", "docs/profile-selection.md",
         "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md", "docs/distribution.md",
         "docs/installation-verification.md", "docs/doctor.md", "docs/dast-baseline.md", "docs/dast-threat-model.md",

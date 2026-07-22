@@ -103,6 +103,14 @@ class WorkflowSecurityTests(unittest.TestCase):
         self.assertIn("pip install --disable-pip-version-check --requirement requirements.txt", text)
         self.assertIn("python3 scripts/validate_skill.py skills/appsec-guardian", text)
 
+    def test_ci_runs_live_controlled_dast_fixture(self):
+        text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("python3 scripts/test_dast_container.py", text)
+        harness = (ROOT / "scripts/test_dast_container.py").read_text(encoding="utf-8")
+        self.assertIn('"--internal"', harness)
+        self.assertIn('"--user", "65532:65532"', harness)
+        self.assertNotIn("docker build", harness)
+
     def test_ci_skips_security_upload_after_early_failure(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn("if: always() && steps.security.outcome != 'skipped'", text)

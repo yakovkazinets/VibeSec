@@ -1,1 +1,1 @@
-# Intentionally empty of ignore patterns. Target-controlled ignore files are not authoritative.
+# Compatibility placeholder. Standard uses --x-ignore-semgrepignore-files so target-controlled ignore files are never authoritative.

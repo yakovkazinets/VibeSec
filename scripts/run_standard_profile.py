@@ -24,6 +24,8 @@ from vibesec.sbom import sanitize_repository_paths, validate_cyclonedx, validate
 
 IMAGE_DIGEST = re.compile(r"^[A-Za-z0-9._/-]+@sha256:[0-9a-f]{64}$")
 TRUSTED_GITHUB_EVENTS = {"push", "schedule", "workflow_dispatch"}
+ACTIONLINT_JSON_FORMAT = "{{json .}}"
+DIAGNOSTIC_DOCS = "docs/self-hosted-validation.md"
 KNOWN_OUTPUTS = (
     "normalized.json", "coverage.json", "inventory.json", "report.md", "policy-result.json",
     "sbom.cyclonedx.json", "sbom.spdx.json",
@@ -52,6 +54,18 @@ def atomic_json(path: Path, payload: Any) -> None:
 
 def command(binary: Path | str, *arguments: str | Path) -> list[str]:
     return [str(binary), *map(str, arguments)]
+
+
+def diagnostic(component: str, category: str, reason: str, artifact: str | None = None) -> None:
+    """Emit one bounded diagnostic containing only harness-controlled text."""
+    fields = [
+        f"component={component}", f"category={category}",
+        f"reason={' '.join(reason.split())[:240]}",
+    ]
+    if artifact:
+        fields.append(f"artifact={artifact}")
+    fields.append(f"docs={DIAGNOSTIC_DOCS}")
+    print(" ".join(fields), file=sys.stderr)
 
 
 def run(scanner: str, argv: list[str], raw_path: Path | None, *, cwd: Path,
@@ -156,7 +170,10 @@ def main() -> int:
     input_failure = False
     environment = {key: value for key, value in os.environ.items() if not key.startswith(
         ("SYFT_", "OPENGREP_", "SEMGREP_", "OSV_SCANNER_", "GITLEAKS_", "TRIVY_", "CHECKOV_"))}
+    scanner_home = results / ".scanner-home"
+    scanner_home.mkdir(exist_ok=True)
     environment.update({
+        "HOME": str(scanner_home),
         "SYFT_CHECK_FOR_APP_UPDATE": "false", "SYFT_ENRICH": "",
         "SYFT_JAVA_USE_NETWORK": "false", "SYFT_JAVASCRIPT_SEARCH_REMOTE_LICENSES": "false",
         "SYFT_PYTHON_SEARCH_REMOTE_LICENSES": "false", "OPENGREP_ENABLE_VERSION_CHECK": "0",
@@ -183,15 +200,17 @@ def main() -> int:
         output_rel = output.relative_to(results).as_posix()
         error = run(tool, argv, output, cwd=root, env=environment, stdout_output=stdout)
         if error:
+            diagnostic(tool, "tool_error", error, output_rel)
             normalized.append(tool_error(tool, error))
             record(tool, scope, "tool_error", error, artifacts, [], network)
             return
         try:
             if normalizer:
                 normalized.extend(item.to_dict() for item in normalize_file(normalizer, output))
-        except ValueError as exc:
+        except ValueError:
             input_failure = True
-            message = f"{tool} output failed structural validation: {exc}"
+            message = f"{tool} output failed structural validation"
+            diagnostic(tool, "invalid_input", message, output_rel)
             normalized.append(tool_error(tool, message))
             record(tool, scope, "tool_error", message, artifacts, [output_rel], network)
             return
@@ -201,8 +220,8 @@ def main() -> int:
     opengrep_output = raw / "opengrep.json"
     if source_files:
         execute("opengrep", "supported first-party source", command(
-            tools / "opengrep", "scan", "--config", vibesec_root / "rules/opengrep",
-            "--semgrepignore-filename", vibesec_root / "config/opengrep-standard.ignore",
+            tools / "opengrep", "scan", "--legacy", "--config", vibesec_root / "rules/opengrep",
+            "--x-ignore-semgrepignore-files",
             "--no-git-ignore", "--json-output", opengrep_output, "--disable-version-check", "."),
             opengrep_output, artifacts=source_files, normalizer="opengrep")
     else:
@@ -234,6 +253,7 @@ def main() -> int:
     spdx = results / "sbom.spdx.json"
     sbom_formats: list[str] = []
     if manifests:
+        sbom_input_failure = False
         error = run("syft", command(
             tools / "syft", "dir:.", "--config", vibesec_root / "config/syft-standard.yaml",
             "--base-path", ".", "--output", f"cyclonedx-json={cyclonedx}",
@@ -245,10 +265,12 @@ def main() -> int:
                 cdx_payload = validate_cyclonedx(cyclonedx)
                 spdx_payload = validate_spdx(spdx)
                 sbom_formats = [f"CycloneDX {cdx_payload['specVersion']}", str(spdx_payload["spdxVersion"])]
-            except ValueError as exc:
+            except ValueError:
                 input_failure = True
-                error = f"Syft SBOM failed structural validation: {exc}"
+                sbom_input_failure = True
+                error = "Syft SBOM failed structural validation"
         if error:
+            diagnostic("syft", "invalid_input" if sbom_input_failure else "tool_error", error, "sbom.cyclonedx.json,sbom.spdx.json")
             cyclonedx.unlink(missing_ok=True)
             spdx.unlink(missing_ok=True)
             normalized.append(tool_error("syft", error))
@@ -291,7 +313,8 @@ def main() -> int:
     workflows = repo_inventory["workflows"]
     if workflows:
         execute("actionlint", "GitHub Actions", command(
-            tools / "actionlint", "-no-color", "-config-file", vibesec_root / "config/actionlint-standard.yaml",
+            tools / "actionlint", "-no-color", "-format", ACTIONLINT_JSON_FORMAT,
+            "-config-file", vibesec_root / "config/actionlint-standard.yaml",
             "-shellcheck", "", "-pyflakes", "", *workflows), actionlint_output,
             artifacts=workflows, normalizer="actionlint", stdout=True)
     else:
@@ -331,7 +354,7 @@ def main() -> int:
     try:
         coverage_payload = validate_coverage(coverage_payload)
     except ValueError as exc:
-        print(f"invalid coverage output: {exc}", file=sys.stderr)
+        diagnostic("coverage", "invalid_input", f"coverage output failed validation: {exc}", "coverage.json")
         return 3
     atomic_json(results / "normalized.json", normalized_payload)
     atomic_json(results / "coverage.json", coverage_payload)
@@ -343,7 +366,7 @@ def main() -> int:
     try:
         completed = subprocess.run(policy, cwd=root, stdin=subprocess.DEVNULL, check=False)
     except OSError as exc:
-        print(f"policy evaluation could not run: {exc}", file=sys.stderr)
+        diagnostic("policy", "invalid_input", f"policy evaluation could not run: {type(exc).__name__}", "policy-result.json")
         return 3
     if (results / "report.md").is_file():
         with (results / "report.md").open("a", encoding="utf-8", newline="\n") as stream:

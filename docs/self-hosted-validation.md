@@ -22,6 +22,8 @@ If a positive finding disappears, identify the capability ID, confirm the pinned
 
 Tool failures must remain `tool_error`, preserve mandatory diagnostic artifacts, remove stale output, and block a clean claim. A scanner-version update follows the procedure in the [security validation policy](security-validation-policy.md) and contribution guide. New capabilities require matrix data, both fixtures, expected metadata, failure and trust tests, artifact validation, limitations, and a mandatory CI reference.
 
+The Standard harness emits one bounded diagnostic line for execution or structural failures: component, failure category, a harness-controlled reason, a repository-relative artifact pointer, and this document. It never echoes raw scanner output, snippets, environment values, credentials, or absolute runner paths.
+
 The stable CI jobs are `self-scan-minimal`, `self-scan-standard`, `scanner-accountability`, and `security-artifacts`. The existing required `validate` job depends on all four, so a ruleset that already requires `validate` remains merge-blocking without an immediate ruleset migration. Projects may additionally require the individual names for clearer branch-protection reporting.
 
 A passing self-scan demonstrates only that the pinned controls completed with expected evidence. It does not prove VibeSec is secure.

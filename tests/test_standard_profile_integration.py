@@ -38,8 +38,9 @@ class StandardProfileIntegrationTests(unittest.TestCase):
 import json, os, sys
 expected = os.environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("--config") + 1] == expected + "/rules/opengrep"
-assert sys.argv[sys.argv.index("--semgrepignore-filename") + 1] == expected + "/config/opengrep-standard.ignore"
 assert "--no-git-ignore" in sys.argv
+assert "--legacy" in sys.argv and "--x-ignore-semgrepignore-files" in sys.argv
+assert "--semgrepignore-filename" not in sys.argv
 output = sys.argv[sys.argv.index("--json-output") + 1]
 mode = os.getenv("FAKE_OPENGREP_MODE", "pass")
 if mode == "fail": raise SystemExit(9)
@@ -100,12 +101,15 @@ json.dump([], open(output, "w"))
         self.write_tool("actionlint", r'''#!/usr/bin/env python3
 import os, sys
 expected = os.environ["VIBESEC_EXPECTED_ROOT"]
+assert os.path.basename(os.environ["HOME"]) == ".scanner-home"
 assert sys.argv[sys.argv.index("-config-file") + 1] == expected + "/config/actionlint-standard.yaml"
+assert sys.argv[sys.argv.index("-format") + 1] == "{{json .}}"
 assert sys.argv[sys.argv.index("-shellcheck") + 1] == ""
 assert sys.argv[sys.argv.index("-pyflakes") + 1] == ""
 mode = os.getenv("FAKE_ACTIONLINT_MODE", "pass")
 if mode == "fail": raise SystemExit(7)
 if mode == "malformed": print("not actionlint output")
+else: print('[{"filepath":".github/workflows/test.yml","line":3,"column":1,"end_column":2,"kind":"syntax-check","message":"Synthetic workflow diagnostic","snippet":"MUST_NOT_SURVIVE"}]')
 ''')
         self.write_tool("docker", r'''#!/usr/bin/env python3
 import json, sys
@@ -273,6 +277,25 @@ print(json.dumps({"results":{"failed_checks":[]}}))
         self.assertEqual(completed.returncode, 3, completed.stderr)
         self.assertIn("tool_error", json.dumps(self.load_json("normalized.json")))
         self.assertNotIn("Status: **pass**", (self.results / "report.md").read_text(encoding="utf-8"))
+
+    def test_pull_request_actionlint_json_is_sanitized_and_coverage_ran(self):
+        completed = self.run_profile(GITHUB_ACTIONS="true", GITHUB_EVENT_NAME="pull_request")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        coverage = {item["tool"]: item["state"] for item in self.load_json("coverage.json")["tools"]}
+        self.assertEqual(coverage["actionlint"], "ran")
+        self.assertEqual(coverage["opengrep"], "ran")
+        self.assertEqual(coverage["trivy-image"], "not_configured")
+        normalized = json.dumps(self.load_json("normalized.json"))
+        self.assertIn("Synthetic workflow diagnostic", normalized)
+        self.assertNotIn("MUST_NOT_SURVIVE", normalized)
+
+    def test_actionlint_malformed_output_has_bounded_safe_diagnostic(self):
+        completed = self.run_profile(FAKE_ACTIONLINT_MODE="malformed")
+        self.assertEqual(completed.returncode, 3)
+        self.assertIn("component=actionlint category=invalid_input", completed.stderr)
+        self.assertIn("artifact=raw/actionlint.txt", completed.stderr)
+        self.assertNotIn("not actionlint output", completed.stderr)
+        self.assertNotIn(str(self.target.parent), completed.stderr)
 
     def test_security_finding_returns_one_in_enforce_all_mode(self):
         completed = self.run_profile(FAKE_OPENGREP_MODE="finding", VIBESEC_ENFORCEMENT="all")

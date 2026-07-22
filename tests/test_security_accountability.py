@@ -59,7 +59,7 @@ class SecurityAccountabilityTests(unittest.TestCase):
                 for label, content in (
                     ("malformed", b"not-json\n" if tool != "actionlint" else b"not actionlint output\n"),
                     ("truncated", b"{" if tool != "actionlint" else b"file.yml:1"),
-                    ("wrong-schema", b"{}\n" if tool != "actionlint" else b"[]\n"),
+                    ("wrong-schema", b"{}\n"),
                 ):
                     path = root / f"{tool}-{label}"
                     path.write_bytes(content)
@@ -70,6 +70,17 @@ class SecurityAccountabilityTests(unittest.TestCase):
                     stream.truncate(25 * 1024 * 1024 + 1)
                 with self.subTest(tool=tool, label="oversized"), self.assertRaises(ValueError):
                     normalize_file(tool, oversized)
+
+    def test_actionlint_plain_text_and_json_forms_are_supported_without_snippets(self):
+        fixture = ROOT / "tests/security-fixtures/actionlint"
+        text_results = normalize_file("actionlint", fixture / "positive/raw.txt")
+        json_results = normalize_file("actionlint", fixture / "positive/raw.json")
+        self.assertEqual([item.rule_id for item in text_results], ["expression"])
+        self.assertEqual([item.rule_id for item in json_results], ["expression"])
+        self.assertNotIn("MUST_NOT_SURVIVE", json.dumps([item.to_dict() for item in json_results]))
+        self.assertEqual(normalize_file("actionlint", fixture / "negative/raw.json"), [])
+        with self.assertRaises(ValueError):
+            normalize_file("actionlint", fixture / "malformed.json")
 
     def test_trusted_harness_shadow_files_are_data_not_executable_authority(self):
         fixture = ROOT / "tests/security-fixtures/trusted-harness/negative"

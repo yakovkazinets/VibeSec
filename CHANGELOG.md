@@ -23,6 +23,7 @@ All notable changes will be documented here. The project follows semantic versio
 
 ### Fixed
 
+- Standard self-scans now use deterministic Actionlint JSON diagnostics, disable target-controlled Opengrep ignore files with supported pinned-version flags, and emit bounded safe component diagnostics on failure.
 - Consumer workflows and required support files are now validated as version-compatible installation sets rather than relying on broad manual directory copies.
 
 ### Security

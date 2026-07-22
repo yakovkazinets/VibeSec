@@ -241,10 +241,34 @@ def normalize_actionlint(path: Path) -> list[Finding]:
     try:
         if path.stat().st_size > MAX_INPUT_BYTES:
             raise ValueError(f"scanner output exceeds {MAX_INPUT_BYTES} bytes")
-        lines = path.read_text(encoding="utf-8").splitlines()
+        text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
         raise ValueError(f"malformed actionlint output: {exc}") from exc
     findings: list[Finding] = []
+    stripped = text.strip()
+    if stripped.startswith("["):
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"malformed actionlint JSON output: {exc.msg}") from exc
+        if not isinstance(payload, list) or len(payload) > MAX_ITEMS:
+            raise ValueError("malformed actionlint JSON output: expected a bounded array")
+        for item in payload:
+            if not isinstance(item, dict):
+                raise ValueError("malformed actionlint JSON output: entries must be objects")
+            filepath = _path(item.get("filepath"), field="filepath")
+            if not filepath:
+                raise ValueError("malformed actionlint JSON output: filepath is required")
+            findings.append(Finding.create(
+                tool="actionlint", category="ci",
+                rule_id=_text(item.get("kind") or "workflow-lint", field="kind"),
+                severity="medium", file=filepath,
+                line=_line(item.get("line")),
+                description=_text(item.get("message"), field="message", required=True),
+                confidence="confirmed",
+            ))
+        return findings
+    lines = text.splitlines()
     if len(lines) > MAX_ITEMS:
         raise ValueError("malformed actionlint output: too many lines")
     for line in lines:

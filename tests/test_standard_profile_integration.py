@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from scripts.run_standard_profile import CHECKOV_CONTAINER_CONFIG, checkov_command, run as run_scanner, run_checkov_files
 from scripts.test_checkov_container import scan as smoke_scan
+from scripts.vibesec.capabilities import all_capabilities, capability_bytes
 from scripts.vibesec.model import Finding
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -218,6 +219,22 @@ if failed: raise SystemExit(1)
             cwd=ROOT, text=True, capture_output=True, check=False,
         )
         self.assertEqual(validated.returncode, 0, validated.stderr)
+
+    def test_explicit_capability_no_overrides_detection_without_disabling_secrets(self):
+        manifest = self.target / ".vibesec/project-capabilities.json"
+        manifest.parent.mkdir(exist_ok=True)
+        manifest.write_bytes(capability_bytes(all_capabilities(False)))
+        completed = self.run_profile()
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        states = {entry["tool"]: entry["state"] for entry in self.load_json("coverage.json")["tools"]}
+        self.assertEqual(states["checkov"], "not_applicable")
+        self.assertEqual(states["actionlint"], "not_applicable")
+        self.assertEqual(states["trivy-image"], "not_applicable")
+        self.assertEqual(states["gitleaks"], "ran")
+        reasons = {entry["tool"]: entry["reason"] for entry in self.load_json("coverage.json")["tools"]}
+        self.assertIn("infrastructure_as_code=false", reasons["checkov"])
+        self.assertIn("github_actions=false", reasons["actionlint"])
+        self.assertIn("container_image=false", reasons["trivy-image"])
 
     def test_tool_execution_failure_returns_two(self):
         completed = self.run_profile(FAKE_OSV_MODE="fail")

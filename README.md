@@ -20,6 +20,7 @@ Review the code and configuration before using it, validate it against your own 
 - [Minimal versus Standard](docs/profile-selection.md)
 - [Compatibility matrix](docs/compatibility.md)
 - [Configuration reference](docs/configuration.md)
+- [Project capability questionnaire](docs/project-capabilities.md)
 - [Troubleshooting and preflight](docs/troubleshooting.md)
 - [Upgrading](docs/upgrading.md)
 - [Consumer distribution](docs/distribution.md), [installation verification](docs/installation-verification.md), and [doctor](docs/doctor.md)
@@ -36,6 +37,8 @@ Preview adoption without changing the application repository:
 python3 scripts/init_vibesec.py --profile minimal --target /path/to/application
 python3 scripts/init_vibesec.py --profile standard --target /path/to/application
 ```
+
+The initializer asks 14 project-capability questions, each displayed with `[Y/n]` and defaulting to Yes. Answer No when a capability does not apply. Non-interactive use requires `--capabilities-file <trusted-local-json>` or the explicit `--all-capabilities` option; EOF never supplies defaults. The resulting `.vibesec/project-capabilities.json` is authoritative for scanner applicability.
 
 Add `--write` only after reviewing the machine-readable plan. Minimal is one stage. Standard deliberately requires support files to land on the default branch before `--stage workflow` is initialized in a second change, preserving the base-revision trusted-harness boundary. Existing-file conflicts are never overwritten.
 

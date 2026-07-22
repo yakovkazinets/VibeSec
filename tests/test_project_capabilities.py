@@ -148,6 +148,66 @@ class ProjectCapabilityTests(unittest.TestCase):
         self.assertFalse(payload["capabilities"]["dast_target"])
         state = scanner_applicability(payload)["dast-baseline"]
         self.assertEqual(state["state"], "not_applicable")
+        self.assertEqual(state["reason"], "project capability manifest declares no runnable web application target")
+        self.assertTrue((ROOT / "scripts/test_dast_container.py").is_file())
+
+    def test_dast_addon_is_not_installed_when_explicitly_not_applicable(self):
+        payload = all_capabilities(False)
+        payload["capabilities"]["secrets_configuration"] = True
+        answers = self.root / "answers.json"
+        answers.write_bytes(capability_bytes(payload))
+        target = self.root / "consumer"
+        target.mkdir()
+        base = subprocess.run(
+            ["python3", "scripts/init_vibesec.py", "--profile", "minimal", "--target", str(target),
+             "--capabilities-file", str(answers), "--write"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(base.returncode, 0, base.stderr)
+        addon = subprocess.run(
+            ["python3", "scripts/init_vibesec.py", "--addon", "dast-baseline", "--target", str(target), "--write"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        result = json.loads(addon.stdout)
+        self.assertEqual(addon.returncode, 0, addon.stderr)
+        self.assertIn("dast-baseline = not_applicable", result["skipped"][0])
+        self.assertFalse((target / ".github/workflows/vibesec-dast-baseline.yml").exists())
+        self.assertFalse((target / ".vibesec/install-addon-dast-baseline.json").exists())
+
+        doctor = subprocess.run(
+            ["python3", "scripts/vibesec_doctor.py", "--target", str(target), "--json"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        diagnosis = json.loads(doctor.stdout)
+        codes = {item["code"] for item in diagnosis["result"]["diagnostics"]}
+        self.assertIn("DAST_NOT_APPLICABLE", codes)
+        self.assertNotIn("DAST_SUPPORT_MISSING", codes)
+
+    def test_doctor_detects_missing_dast_support_and_manifest_drift(self):
+        target = self.root / "consumer"
+        target.mkdir()
+        installed = subprocess.run(
+            ["python3", "scripts/init_vibesec.py", "--profile", "minimal", "--target", str(target),
+             "--all-capabilities", "--write"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        doctor = subprocess.run(
+            ["python3", "scripts/vibesec_doctor.py", "--target", str(target), "--json"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        diagnosis = json.loads(doctor.stdout)
+        self.assertIn("DAST_SUPPORT_MISSING", {item["code"] for item in diagnosis["result"]["diagnostics"]})
+        manifest = target / ".vibesec/project-capabilities.json"
+        changed = all_capabilities(False)
+        changed["capabilities"]["secrets_configuration"] = True
+        manifest.write_bytes(capability_bytes(changed))
+        doctor = subprocess.run(
+            ["python3", "scripts/vibesec_doctor.py", "--target", str(target), "--json"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        diagnosis = json.loads(doctor.stdout)
+        self.assertIn("CAPABILITY_MANIFEST_CHANGED", {item["code"] for item in diagnosis["result"]["diagnostics"]})
 
 
 if __name__ == "__main__":

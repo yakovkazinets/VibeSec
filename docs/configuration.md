@@ -1,5 +1,7 @@
 # Configuration reference
 
+Project scope is declared separately in `.vibesec/project-capabilities.json`; see [project capabilities](project-capabilities.md). Exact Boolean answers are authoritative over detection. Validate edits with `python3 scripts/validate_project_capabilities.py`. A declared absent scope becomes `not_applicable`, while an applicable but unavailable optional input is `not_configured`; neither means clean.
+
 `config/environment-variables.json` is the machine-readable source for this page. Unsupported values and malformed configuration fail closed; they are not clean results. Environment values must come from reviewed workflow configuration, not untrusted pull-request text.
 
 | Variable | Profile | Type/default | Accepted values | Security and privacy effect | Failure and example |

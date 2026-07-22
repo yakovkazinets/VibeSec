@@ -56,7 +56,7 @@ class ExpectedSelfScanStateTests(unittest.TestCase):
 
     def test_helper_uses_current_trusted_product_view_for_supported_events(self):
         expected = {
-            "pull_request": "TRIVY_IMAGE_STATE=not_configured\n",
+            "pull_request": "TRIVY_IMAGE_STATE=not_applicable\n",
             "push": "TRIVY_IMAGE_STATE=not_applicable\n",
         }
         for event, output in expected.items():

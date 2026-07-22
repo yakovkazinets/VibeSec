@@ -1,6 +1,6 @@
 # Passive DAST Baseline add-on
 
-The DAST Baseline is a separate, opt-in add-on for an existing VibeSec Minimal or Standard installation. It accepts one explicitly configured immutable application image, starts it as its declared non-root user, and runs the pinned OWASP ZAP Automation Framework in a passive-only mode. The add-on does not build a Dockerfile, install dependencies, run setup commands, accept authentication material, publish a host port, or scan an external URL. VibeSec itself is not a web application target, so its DAST self-scan state is `not_applicable`.
+The DAST Baseline is a separate, opt-in, `conditionally_enforced` add-on for an existing VibeSec Minimal or Standard installation. Installation requires authoritative `web_application=true` and `dast_target=true` capability answers. `dast_target=false` leaves the add-on uninstalled and reports `not_applicable`; it is not a clean result. The add-on accepts one explicitly configured immutable application image, starts it as its declared non-root user, and runs the pinned OWASP ZAP Automation Framework in a passive-only mode. The add-on does not build a Dockerfile, install dependencies, run setup commands, accept authentication material, publish a host port, or scan an external URL. VibeSec itself declares both capabilities false, so `dast-baseline = not_applicable`, reason `project capability manifest declares no runnable web application target`.
 
 Only `workflow_dispatch` and `schedule` are trusted. Pull-request events produce `not_configured` without starting the target; unknown events fail closed. The copyable workflow intentionally exposes only `workflow_dispatch`. Configure repository variables `VIBESEC_DAST_IMAGE_REFERENCE`, and optionally `VIBESEC_DAST_CONTAINER_PORT` and `VIBESEC_DAST_BASE_PATH`. The image must use `registry/name@sha256:<64 lowercase hex>` and declare a non-root user in image metadata.
 
@@ -20,7 +20,7 @@ DAST uses independent `policy/dast-baseline.json` and `policy/dast-suppressions.
 
 ## Install and operate
 
-Install Minimal or Standard first, then run:
+Install Minimal or Standard first. If the project later gains an eligible target, update and validate `.vibesec/project-capabilities.json`, setting both `web_application` and `dast_target` true, then run:
 
 ```sh
 python3 scripts/init_vibesec.py --addon dast-baseline --target /path/to/repository --write

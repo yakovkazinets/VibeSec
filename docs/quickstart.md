@@ -4,6 +4,8 @@ Passive DAST is not part of either profile. After a valid base installation, mai
 
 VibeSec is a scanning baseline, not proof that an application is secure. Use a reviewed VibeSec checkout matching the version you intend to adopt. The initializer itself uses no network, installs nothing, executes no application code, and defaults to a preview.
 
+The initializer first asks the [project capability questionnaire](project-capabilities.md). Every question shows `[Y/n]`: Enter is Yes, and you should explicitly answer No for absent scopes. Its dry-run JSON includes the exact manifest and writes nothing. For automation, supply reviewed answers with `--capabilities-file`; do not pipe EOF and assume defaults.
+
 ## Choose a profile
 
 Choose **Minimal** for the fastest first baseline: Trivy filesystem, Gitleaks, and actionlint. Choose **Standard** when you need local-rule source analysis, deeper dependency routing, SBOMs, or IaC coverage and can maintain the larger toolchain. Read [profile selection](profile-selection.md) before adding Standard to a repository that already has scanners.
@@ -17,7 +19,7 @@ python3 scripts/init_vibesec.py --profile minimal --target /path/to/application
 python3 scripts/init_vibesec.py --profile minimal --target /path/to/application --write
 ```
 
-The first command is a dry run. Review `would_create`, `conflict`, and `warning`; the second creates exactly the catalogued files, including `.github/workflows/vibesec-minimal.yml`, required scripts/configuration/policy, `policy/baseline.json`, and `.vibesec/install-minimal-all.json`. Commit and review those files in the application repository.
+The first command is a dry run. Review `project_capabilities`, `would_create`, `conflict`, and `warning`; the second creates exactly the catalogued files, including `.vibesec/project-capabilities.json`, `.github/workflows/vibesec-minimal.yml`, required scripts/configuration/policy, `policy/baseline.json`, and `.vibesec/install-minimal-all.json`. Commit and review those files in the application repository.
 
 ## Standard: required two-stage bootstrap
 
@@ -52,7 +54,7 @@ Both starters begin with `VIBESEC_ENFORCEMENT: observe`. Findings are reported b
 Coverage terms are exact:
 
 - `ran`: the component completed in its configured scope; this is not a security guarantee.
-- `not_applicable`: deterministic evidence did not identify supported artifacts for that component.
+- `not_applicable`: the authoritative capability declaration or deterministic evidence excludes that component.
 - `not_configured`: optional coverage was absent or prohibited, such as image scanning on a pull request.
 - `tool_error`: execution or parsing failed; coverage is unavailable and the run must not be treated as clean.
 

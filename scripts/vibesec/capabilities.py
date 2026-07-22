@@ -122,8 +122,11 @@ def scanner_applicability(payload: Any) -> dict[str, dict[str, str]]:
         "trivy-image": capabilities["container_image"],
         "dast-baseline": capabilities["dast_target"] and capabilities["web_application"],
     }
-    return {
+    result = {
         name: ({"state": "applicable", "reason": "project capability manifest enables this scanner scope"}
                if enabled else {"state": "not_applicable", "reason": "project capability manifest excludes this scanner scope"})
         for name, enabled in mapping.items()
     }
+    if not mapping["dast-baseline"]:
+        result["dast-baseline"]["reason"] = "project capability manifest declares no runnable web application target"
+    return result

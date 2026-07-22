@@ -4,6 +4,8 @@ The Passive DAST Baseline is an independent add-on, not a profile-selection crit
 
 More scanners are not automatically better. Choose the smallest profile that adds useful, maintainable coverage beyond controls already present.
 
+Profile selection and project capabilities are separate decisions. Complete the `[Y/n]` questionnaire first. Explicit No answers prevent inapplicable scanners from running even when filename heuristics suggest otherwise; detection can narrow but never override the manifest. Secrets scanning remains broadly applicable. See [project capabilities](project-capabilities.md).
+
 | Decision area | Minimal | Standard |
 |---|---|---|
 | Scanners | Trivy filesystem, Gitleaks, actionlint | Opengrep local rules, OSV-Scanner, Syft, conditional Checkov, Trivy secrets/configuration and optional image, Gitleaks, actionlint |

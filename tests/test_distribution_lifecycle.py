@@ -215,6 +215,32 @@ class DistributionLifecycleTests(unittest.TestCase):
         self.assertIn("policy/baseline.json", payload["result"]["files_to_preserve"])
         self.assertEqual(before, after)
 
+    def test_upgrade_preserves_explicit_no_answers(self):
+        target = self.target("capability-upgrade")
+        answers = self.root / "answers.json"
+        payload = {
+            "schema_version": 1,
+            "capabilities": {
+                "web_application": False, "api": False, "container_image": False,
+                "kubernetes": False, "infrastructure_as_code": True, "github_actions": True,
+                "javascript_typescript": False, "python": True, "java": False,
+                "public_runtime": False, "authentication": False, "database": False,
+                "secrets_configuration": True, "dast_target": False,
+            },
+        }
+        answers.write_text(json.dumps(payload), encoding="utf-8")
+        command = ["python3", "scripts/init_vibesec.py", "--profile", "minimal", "--target", str(target),
+                   "--bundle", str(self.bundle), "--capabilities-file", str(answers), "--write"]
+        installed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        before = (target / ".vibesec/project-capabilities.json").read_bytes()
+        completed, plan = self.command_json("scripts/plan_vibesec_upgrade.py", "--target", target, "--bundle", self.bundle)
+        self.assertIn(completed.returncode, {0, 1})
+        self.assertIn(".vibesec/project-capabilities.json", plan["result"]["files_to_preserve"])
+        record = next(item for item in plan["result"]["files"] if item["path"] == ".vibesec/project-capabilities.json")
+        self.assertEqual(record["classification"], "capability_preserve")
+        self.assertEqual((target / ".vibesec/project-capabilities.json").read_bytes(), before)
+
     def test_upgrade_invalid_bundle_is_code_two_and_target_unchanged(self):
         target = self.target(); self.init(target)
         bad = self.root / "bad.zip"; bad.write_bytes(b"bad")

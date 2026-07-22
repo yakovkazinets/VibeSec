@@ -10,6 +10,7 @@
     "scripts/install_tools.sh",
     "scripts/policy_gate.py",
     "scripts/preflight.py",
+    "scripts/validate_project_capabilities.py",
     "scripts/verify_installation.py",
     "scripts/vibesec/__init__.py",
     "scripts/vibesec/bundle.py",
@@ -40,6 +41,7 @@
     "docs/dast-threat-model.md",
     "docs/installation-verification.md",
     "docs/profile-selection.md",
+    "docs/project-capabilities.md",
     "docs/quickstart.md",
     "docs/security-model.md",
     "docs/threat-model.md",
@@ -66,6 +68,7 @@
     "scripts/write_minimal_artifacts.py",
     "scripts/verify_consumer_bundle.py",
     "scripts/verify_installation.py",
+    "scripts/validate_project_capabilities.py",
     "scripts/vibesec_doctor.py"
   ],
   "profiles": {

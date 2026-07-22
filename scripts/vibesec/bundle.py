@@ -38,6 +38,7 @@ REQUIRED_CONSUMER_PATHS = {
     "scripts/vibesec/capabilities.py",
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
     "scripts/plan_vibesec_upgrade.py", "scripts/vibesec/bundle.py",
+    "scripts/validate_project_capabilities.py",
     "templates/github-actions/security-baseline.yml", "templates/github-actions/security-standard.yml",
     "templates/github-actions/dast-baseline.yml", "scripts/run_dast_baseline.py",
     "config/zap-passive-plan-schema.json", "scripts/vibesec/zap_automation.py",
@@ -47,6 +48,7 @@ REQUIRED_EXECUTABLES = {
     "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py", "scripts/run_dast_baseline.py", "scripts/validate_dast_artifacts.py",
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
     "scripts/plan_vibesec_upgrade.py",
+    "scripts/validate_project_capabilities.py",
 }
 
 

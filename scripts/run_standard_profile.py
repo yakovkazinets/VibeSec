@@ -16,6 +16,7 @@ from typing import Any
 SCRIPT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_ROOT))
 from vibesec.coverage import markdown as coverage_markdown, validate_coverage  # noqa: E402
+from vibesec.capabilities import CapabilityError, all_capabilities, load_capabilities_file  # noqa: E402
 from vibesec.detection import (  # noqa: E402
     IMAGE_DIGEST, DetectionError, ImageStateError, derive_image_expectation, inventory,
 )
@@ -314,6 +315,7 @@ def main() -> int:
     parser.add_argument("--minimum-severity", choices=("low", "medium", "high", "critical"), default=os.getenv("VIBESEC_MIN_SEVERITY", "high"))
     parser.add_argument("--enforcement", choices=("observe", "new", "all"), default=os.getenv("VIBESEC_ENFORCEMENT", "observe"))
     parser.add_argument("--image-reference", default=os.getenv("VIBESEC_IMAGE_REFERENCE", ""))
+    parser.add_argument("--capabilities-file", type=Path, help="strict project capability manifest")
     args = parser.parse_args()
     root = args.root.resolve()
     results = args.results.resolve()
@@ -322,6 +324,15 @@ def main() -> int:
     if not root.is_dir() or not vibesec_root.is_dir() or (args.image_reference and not IMAGE_DIGEST.fullmatch(args.image_reference)):
         print("invalid repository, trusted harness, or image reference; images require an immutable sha256 digest", file=sys.stderr)
         return 3
+    capability_path = args.capabilities_file or (root / ".vibesec/project-capabilities.json")
+    try:
+        project_capabilities = (load_capabilities_file(capability_path)
+                                if capability_path.exists() or capability_path.is_symlink()
+                                else all_capabilities())
+    except CapabilityError as exc:
+        print(f"invalid project capability manifest: {exc}", file=sys.stderr)
+        return 3
+    declared = project_capabilities["capabilities"]
     try:
         tool_manifest = json.loads((vibesec_root / "config/tools.json").read_text(encoding="utf-8"))
         if not isinstance(tool_manifest, dict):
@@ -485,7 +496,10 @@ def main() -> int:
 
     iac_files = sorted({path for values in repo_inventory["iac"].values() for path in values} | set(repo_inventory["dockerfiles"]) | set(repo_inventory["workflows"]))
     checkov_output = raw / "checkov.json"
-    if iac_files:
+    if not declared["infrastructure_as_code"]:
+        record("checkov", "detected infrastructure as code", "not_applicable",
+               "project capability manifest declares infrastructure_as_code=false", [], [], "none")
+    elif iac_files:
         image = f'{checkov_manifest["image"]}@{checkov_manifest["digest"]}'
         checkov_findings, checkov_error, checkov_input_failure = run_checkov_files(
             root, checkov_config, image, iac_files, checkov_output,
@@ -522,7 +536,10 @@ def main() -> int:
 
     actionlint_output = raw / "actionlint.txt"
     workflows = repo_inventory["workflows"]
-    if workflows:
+    if not declared["github_actions"]:
+        record("actionlint", "GitHub Actions", "not_applicable",
+               "project capability manifest declares github_actions=false", [], [], "none")
+    elif workflows:
         execute("actionlint", "GitHub Actions", command(
             tools / "actionlint", "-no-color", "-format", ACTIONLINT_JSON_FORMAT,
             "-config-file", vibesec_root / "config/actionlint-standard.yaml",
@@ -533,17 +550,23 @@ def main() -> int:
 
     github_event = os.getenv("GITHUB_EVENT_NAME", "")
     github_actions = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
-    try:
-        image_expectation = derive_image_expectation(
-            github_actions=github_actions,
-            github_event=github_event,
-            image_reference=args.image_reference,
-            has_dockerfile=bool(repo_inventory["dockerfiles"]),
-        )
-    except ImageStateError as exc:
-        print(f"invalid image coverage configuration: {exc}", file=sys.stderr)
-        return 3
-    if image_expectation.state != "ran":
+    if not declared["container_image"]:
+        image_expectation = None
+    else:
+        try:
+            image_expectation = derive_image_expectation(
+                github_actions=github_actions,
+                github_event=github_event,
+                image_reference=args.image_reference,
+                has_dockerfile=bool(repo_inventory["dockerfiles"]),
+            )
+        except ImageStateError as exc:
+            print(f"invalid image coverage configuration: {exc}", file=sys.stderr)
+            return 3
+    if image_expectation is None:
+        record("trivy-image", "prebuilt container image", "not_applicable",
+               "project capability manifest declares container_image=false", [], [], "none")
+    elif image_expectation.state != "ran":
         record("trivy-image", "prebuilt container image", image_expectation.state,
                image_expectation.reason, repo_inventory["dockerfiles"], [], "none")
     else:

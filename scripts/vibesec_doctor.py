@@ -16,6 +16,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED, WARNINGS  # noqa: E402
+from vibesec.capabilities import CapabilityError, load_capabilities_file, scanner_applicability  # noqa: E402
 from vibesec.installation import InstallationError, verify_installation  # noqa: E402
 from vibesec.output import emit, envelope, safe_text  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
@@ -77,6 +78,14 @@ def _overlap(root: Path) -> list[str]:
 def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[dict[str, str]], dict[str, Any]]:
     state = verify_installation(target)
     diagnostics: list[dict[str, str]] = []
+    project_capabilities = None
+    applicability: dict[str, dict[str, str]] = {}
+    try:
+        project_capabilities = load_capabilities_file(state.target / ".vibesec/project-capabilities.json")
+        applicability = scanner_applicability(project_capabilities)
+    except CapabilityError as exc:
+        diagnostics.append(diagnostic("capabilities", "CAPABILITY_MANIFEST_INVALID", "error", str(exc),
+                                      "Create or repair the strict project capability manifest.", "docs/configuration.md"))
     severity = "informational" if state.status == "valid" else "warning"
     diagnostics.append(diagnostic("installation", f"INSTALLATION_{state.status.upper()}", severity,
                                   f"Installation verification status is {state.status}.",
@@ -109,6 +118,25 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
         diagnostics.append(diagnostic("profile", "PROFILE_MISMATCH", "error", "Requested profile differs from installed manifests.",
                                       "Select the installed profile or repair the manifest conflict.", "docs/installation-verification.md"))
     stages = {manifest["stage"] for manifest in state.manifests}
+    if project_capabilities is not None:
+        dast_enabled = project_capabilities["capabilities"]["dast_target"]
+        dast_installed = "dast-baseline" in profiles
+        if dast_installed and not dast_enabled:
+            diagnostics.append(diagnostic("dast", "DAST_INSTALLED_NOT_APPLICABLE", "error",
+                                          "DAST is installed while dast_target=false.",
+                                          "Remove the add-on or explicitly review and enable the capability.", "docs/dast-baseline.md"))
+        if dast_enabled and not dast_installed:
+            diagnostics.append(diagnostic("dast", "DAST_SUPPORT_MISSING", "error",
+                                          "dast_target=true but DAST support is not installed.",
+                                          "Install the DAST add-on after reviewing its trust boundary.", "docs/dast-baseline.md"))
+        if not dast_enabled:
+            diagnostics.append(diagnostic("dast", "DAST_NOT_APPLICABLE", "not_applicable",
+                                          "Project capability manifest declares no runnable web application target.",
+                                          "No action unless the project later gains an eligible runtime target.", "docs/dast-baseline.md"))
+    if any("project-capabilities.json" in message for message in state.warnings):
+        diagnostics.append(diagnostic("capabilities", "CAPABILITY_MANIFEST_CHANGED", "warning",
+                                      "The project capability manifest changed after installation.",
+                                      "Validate the answers and review scanner applicability before accepting the change.", "docs/installation-verification.md"))
     if profile == "standard" and "support" in stages and "workflow" not in stages:
         diagnostics.append(diagnostic("profile", "STANDARD_WORKFLOW_PENDING", "warning", "Standard support is installed without the workflow stage.",
                                       "After support is reviewed on the default branch, initialize the workflow stage.", "docs/quickstart.md"))
@@ -199,7 +227,8 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
         status = "warning"
     else:
         status = "healthy"
-    return status, diagnostics, {"profile": profile, "stage": sorted({manifest["stage"] for manifest in state.manifests}), "installation_status": state.status}
+    return status, diagnostics, {"profile": profile, "stage": sorted({manifest["stage"] for manifest in state.manifests}),
+                                 "installation_status": state.status, "scanner_applicability": applicability}
 
 
 def main() -> int:

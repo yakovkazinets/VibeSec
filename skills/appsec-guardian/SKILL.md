@@ -10,7 +10,7 @@ Inspect evidence before selecting tools. Treat scanner results as inputs to revi
 ## Workflow
 
 1. Confirm repository root, allowed write and execution scope, network restrictions, and requested profile. Detect `.vibesec/install-*.json`, VibeSec workflows, support directories, baseline profile markers, and local modifications. Classify the installation as absent, complete, partial, conflicting, or version-drifted before recommending changes.
-2. Inventory languages, frameworks, manifests and lockfiles, infrastructure, containers, deployment configuration, and CI workflows. Inspect configuration as well as filenames.
+2. Load and strictly validate `.vibesec/project-capabilities.json` when present. Treat its explicit Boolean answers as authoritative; detection may provide hints or narrow enabled scope but must never override an explicit No. If absent during adoption, use the `[Y/n]` questionnaire or a reviewed capabilities file rather than inventing answers from EOF. Then inventory languages, frameworks, manifests and lockfiles, infrastructure, containers, deployment configuration, and CI workflows.
 3. Detect existing scanners, dependency automation, linters, policies, suppressions, branch protections visible in scope, and report destinations.
    When describing VibeSec itself, load `config/security-capabilities.json` first. Use its capability IDs, status, fixture paths, limitations, and CI references as the authority for coverage claims.
 4. Map actual repository artifacts to security categories. Skip categories without relevant artifacts. Avoid adding a scanner that duplicates equivalent coverage unless an independent data source has a documented benefit.
@@ -38,6 +38,7 @@ Inspect evidence before selecting tools. Treat scanner results as inputs to revi
 - Standard online OSV can transmit package identifiers, versions, ecosystems, and file hashes. Offline mode needs caller-provisioned fresh data. SBOMs can reveal internal packages and versions.
 - Standard's two-stage bootstrap prevents pull-request content from supplying the scripts, policies, rules, or configuration that scan it.
 - Partial installation, file conflict, missing bootstrap, invalid configuration, and parser/tool failure are adoption errors, not vulnerabilities and not clean results.
+- `not_applicable` means the manifest or deterministic scope excludes a scanner; `not_configured` means an applicable optional capability lacks a usable trusted configuration. Neither means clean. Never report `ran` unless execution completed.
 - Unsupported languages/layouts and skipped vendored/generated trees must be reported explicitly rather than described as clean.
 
 ## Standard profile boundaries
@@ -51,6 +52,7 @@ Inspect evidence before selecting tools. Treat scanner results as inputs to revi
 
 ## Passive DAST Baseline boundaries
 
+- Require `web_application=true` and `dast_target=true`. When `dast_target=false`, keep DAST uninstalled and report `not_applicable` with the manifest reason. A controlled fixture does not make the repository itself a web application.
 - Recommend the add-on only when a maintainer has an explicitly authorized non-production application image, a disposable trusted runner with Docker, a digest-pinned image whose metadata declares a non-root user, and a known internal HTTP port and safe base path.
 - Require an existing valid Minimal or Standard installation. Initialize with `--addon dast-baseline` in a separate reviewed change; never add it implicitly.
 - Permit only trusted manual or scheduled events. A pull request, `pull_request_target`, unknown event, mutable tag, missing image, root image, external URL, credential, custom command, or target build is ineligible.

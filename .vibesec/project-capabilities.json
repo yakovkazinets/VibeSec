@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "capabilities": {
+    "web_application": false,
+    "api": false,
+    "container_image": false,
+    "kubernetes": false,
+    "infrastructure_as_code": true,
+    "github_actions": true,
+    "javascript_typescript": false,
+    "python": true,
+    "java": false,
+    "public_runtime": false,
+    "authentication": false,
+    "database": false,
+    "secrets_configuration": true,
+    "dast_target": false
+  }
+}

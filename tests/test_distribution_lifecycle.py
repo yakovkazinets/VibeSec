@@ -33,6 +33,8 @@ class DistributionLifecycleTests(unittest.TestCase):
 
     def init(self, target, profile="minimal", stage=None, bundle=True, write=True):
         command = ["python3", "scripts/init_vibesec.py", "--profile", profile, "--target", str(target)]
+        if stage != "workflow":
+            command.append("--all-capabilities")
         if bundle:
             command += ["--bundle", str(self.bundle)]
         if stage:

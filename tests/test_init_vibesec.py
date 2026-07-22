@@ -28,6 +28,8 @@ class InitVibeSecTests(unittest.TestCase):
 
     def run_init(self, profile="minimal", *, target=None, stage=None, write=False):
         command = ["python3", str(SCRIPT), "--profile", profile, "--target", str(target or self.target)]
+        if stage != "workflow":
+            command.append("--all-capabilities")
         if stage:
             command += ["--stage", stage]
         if write:

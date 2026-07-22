@@ -35,6 +35,7 @@ REQUIRED_CONSUMER_PATHS = {
     "VERSION", "config/adoption-files.json", "config/tools.json",
     "policy/baseline.json", "policy/standard-baseline.json", "policy/suppressions.yml",
     "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py",
+    "scripts/vibesec/capabilities.py",
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
     "scripts/plan_vibesec_upgrade.py", "scripts/vibesec/bundle.py",
     "templates/github-actions/security-baseline.yml", "templates/github-actions/security-standard.yml",

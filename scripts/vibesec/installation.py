@@ -12,6 +12,7 @@ import unicodedata
 from typing import Any
 
 from .bundle import BundleError, validate_catalog
+from .capabilities import MANIFEST_PATH as CAPABILITY_MANIFEST_PATH, CapabilityError, load_capabilities_file
 from .manifest import ManifestError, parse_installation_manifest
 from .paths import UnsafePath, collision_key, safe_posix_path
 from .strict_json import StrictJSONError, loads_strict
@@ -194,11 +195,20 @@ def verify_installation(target_path: Path) -> InstallationState:
             if manifest["stage"] in {"all", "support"}:
                 expected.update(catalog["common"])
                 expected.update(config["support"])
+                expected.add(CAPABILITY_MANIFEST_PATH)
             if manifest["stage"] in {"all", "workflow"}:
                 expected.add(config["workflow_destination"])
             declared = {item["path"] for item in manifest["installed_files"]}
             if declared != expected:
                 errors.append(f"{manifest['profile']} {manifest['stage']} manifest does not declare its exact support set")
+    project_capabilities = None
+    if any(manifest["schema_version"] == 2 for manifest in manifests):
+        try:
+            project_capabilities = load_capabilities_file(_safe_target_file(target, CAPABILITY_MANIFEST_PATH))
+        except (CapabilityError, InstallationError) as exc:
+            errors.append(f"project capability manifest is missing or malformed: {exc}")
+    if project_capabilities is not None and "dast-baseline" in profiles and not project_capabilities["capabilities"]["dast_target"]:
+        errors.append("DAST is installed when dast_target=false")
     for manifest in manifests:
         if manifest["schema_version"] == 1:
             records = [{"path": item, "sha256": None, "mode": None} for item in manifest["installed_files"] if item != manifest_paths[0].relative_to(target).as_posix()]

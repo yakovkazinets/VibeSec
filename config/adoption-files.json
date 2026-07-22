@@ -13,6 +13,7 @@
     "scripts/verify_installation.py",
     "scripts/vibesec/__init__.py",
     "scripts/vibesec/bundle.py",
+    "scripts/vibesec/capabilities.py",
     "scripts/vibesec/coverage.py",
     "scripts/vibesec/exit_codes.py",
     "scripts/vibesec/installation.py",

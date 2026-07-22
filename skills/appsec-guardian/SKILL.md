@@ -7,6 +7,8 @@ description: Inspect application repositories and guide safe, repository-aware s
 
 Inspect evidence before selecting tools. Treat scanner results as inputs to review, never as proof that an application is secure.
 
+When Standard results include `finding-groups.json` and `prioritized-findings.json`, treat original normalized findings as scanner evidence and correlation as deterministic triage context. Cite machine-readable priority reasons, retain singletons, and never present a group as proof that findings are identical, reachable, or exploitable.
+
 ## Workflow
 
 1. Confirm repository root, allowed write and execution scope, network restrictions, and requested profile. Detect `.vibesec/install-*.json`, VibeSec workflows, support directories, baseline profile markers, and local modifications. Classify the installation as absent, complete, partial, conflicting, or version-drifted before recommending changes.
@@ -61,7 +63,7 @@ Inspect evidence before selecting tools. Treat scanner results as inputs to revi
 - Preserve the isolated internal network, no published port, read-only filesystems, dropped capabilities, `no-new-privileges`, resource/time bounds, and no source, credential, or Docker-socket mounts.
 - Run only ZAP traditional-spider passive baseline behavior. Never enable active scanning, AJAX spidering, browser automation, arbitrary ZAP arguments, or production targeting. Authentication is permitted only when `authentication=true` and `authenticated_security_testing=true`, using the fixed static bearer mechanism and scanner-step-only GitHub secret described below.
 - Interpret `ran` as structurally validated passive coverage only. Treat `not_configured`, `tool_error`, invalid input, startup/readiness failure, cleanup failure, a missing expected finding, and a passing result as distinct states. A clean passive result is not evidence that authorization, business logic, authenticated paths, or injection resistance were tested.
-- Retain only the four sanitized artifacts. Never upload raw ZAP reports, evidence, bodies, headers, cookies, credentials, queries, full URLs, registry data, or host paths.
+- Retain exactly six mandatory sanitized runtime artifacts: `normalized.json`, `coverage.json`, `policy-result.json`, `report.md`, `finding-groups.json`, and `prioritized-findings.json`. Authenticated comparison must rebuild the two intelligence views from both child results. Never upload raw ZAP reports, bodies, headers, cookies, credentials, queries, full URLs, registry data, or host paths.
 
 ## Imported skill boundary
 
@@ -105,5 +107,5 @@ For OpenAPI API testing, recommend the separate API Security Baseline only when 
 - Keep `VIBESEC_AUTH_BEARER_TOKEN` on the exact scanner step. Reject secret exposure to checkout, setup, normalization, cleanup, upload, workflow inputs, repository variables, files, Docker configuration, or OS arguments. Require cleanup on every path and never enable shell tracing.
 - Preserve fixed internal aliases, internal Docker network, immutable non-root targets, no public/remote target, no published ports, no host network, no socket, no privilege, resource limits, passive-only ZAP, stateless Schemathesis, and safe-method defaults.
 - Redact the exact token and bearer headers in memory before normalized output. Reject any published authenticated artifact containing a credential or likely JWT structure. Raw reports remain on tmpfs and are deleted.
-- Correlate only the same scanner, rule/check ID, method, sanitized path template, normalized status class, and contract class. Preserve both observation flags; never generalize across scanners.
+- Preserve the legacy combined-normalized correlation only for the same scanner, rule/check ID, method, sanitized path template, normalized status class, and contract class. Finding-intelligence groups may relate independent scanners only with reviewed compatible route, vulnerability-family, and authentication evidence; preserve every child finding and never infer equivalence.
 - Distinguish `not_configured` for a missing secret from `tool_error` for scanner, parser, redaction, or cleanup failure. Neither is clean. One bearer identity cannot test roles, tenants, object authorization, sessions, browser login, OAuth, refresh, cookies, or CSRF.

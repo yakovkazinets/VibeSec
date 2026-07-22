@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vibesec.dev/schema/finding-groups-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "model", "fingerprint_compatibility", "findings", "groups"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "model": {"const": "vibesec-finding-groups"},
+    "fingerprint_compatibility": {"type": "string"},
+    "findings": {"type": "array", "maxItems": 5000, "items": {"type": "object"}},
+    "groups": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": {
+        "type": "object",
+        "required": ["correlation_key", "correlation_key_version", "correlation_rules", "correlation_classification", "member_count", "member_references", "contributing_scanners", "decision_provenance"]
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+PRIORITY_RANK = {"informational": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
 
 
 class ConfigurationError(ValueError):
@@ -76,3 +77,36 @@ def evaluate(
         "violations": violations,
         "status": "tool_error" if tool_errors else ("policy_violation" if violations else "pass"),
     }
+
+
+def evaluate_priority(groups: list[dict[str, Any]], controls: Any) -> list[dict[str, Any]]:
+    """Evaluate optional group controls without changing legacy finding policy."""
+    if controls is None:
+        return []
+    if not isinstance(controls, dict) or set(controls) != {
+            "enabled", "minimum_priority", "minimum_independent_scanners", "require_confirmed_runtime"}:
+        raise ConfigurationError("finding_intelligence policy controls are malformed")
+    if type(controls["enabled"]) is not bool or type(controls["require_confirmed_runtime"]) is not bool:
+        raise ConfigurationError("finding_intelligence Boolean controls are malformed")
+    minimum = controls["minimum_priority"]
+    scanner_minimum = controls["minimum_independent_scanners"]
+    if minimum not in PRIORITY_RANK:
+        raise ConfigurationError("finding_intelligence minimum_priority is invalid")
+    if scanner_minimum is not None and (type(scanner_minimum) is not int or not 1 <= scanner_minimum <= 16):
+        raise ConfigurationError("finding_intelligence minimum_independent_scanners is invalid")
+    if not controls["enabled"]:
+        return []
+    violations: list[dict[str, Any]] = []
+    for group in groups:
+        if (not isinstance(group, dict) or group.get("priority") not in PRIORITY_RANK
+                or type(group.get("independent_scanner_count")) is not int
+                or type(group.get("confirmed_runtime")) is not bool):
+            raise ConfigurationError("prioritized finding group is malformed")
+        if PRIORITY_RANK[group["priority"]] < PRIORITY_RANK[minimum]:
+            continue
+        if scanner_minimum is not None and group["independent_scanner_count"] < scanner_minimum:
+            continue
+        if controls["require_confirmed_runtime"] and not group["confirmed_runtime"]:
+            continue
+        violations.append(group)
+    return violations

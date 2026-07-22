@@ -125,7 +125,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn('exit_file="$(mktemp "$SELF_SCAN_RESULTS/.scan-exit-code.XXXXXX")"', text)
         self.assertIn('mv "$exit_file" "$SELF_SCAN_RESULTS/scan-exit-code.txt"', text)
-        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]", text)
+        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]", text)
         self.assertNotIn("dast-accountability", text)
         validation = text.index("Validate Standard self-scan artifacts and exact states")
         preservation = text.index("Preserve Standard scan exit contract")
@@ -135,6 +135,13 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn("pip install --disable-pip-version-check --requirement requirements.txt", text)
         self.assertIn("python3 scripts/validate_skill.py skills/appsec-guardian", text)
+
+    def test_bundle_validation_requires_expected_unsigned_release_warning(self):
+        text = CI.read_text(encoding="utf-8")
+        self.assertIn("doctor_status=$?", text)
+        self.assertIn('test "${doctor_status}" -eq 1', text)
+        self.assertIn('payload["status"] == "warning"', text)
+        self.assertIn('"RELEASE_METADATA_MISSING" in', text)
 
     def test_live_controlled_dast_fixture_is_separate_from_required_ci(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
@@ -162,6 +169,7 @@ class WorkflowSecurityTests(unittest.TestCase):
             self.assertIn(job, needs)
         self.assertIn("authenticated-security-artifacts", needs)
         self.assertIn("supply-chain-artifacts", needs)
+        self.assertIn("finding-intelligence-artifacts", needs)
         self.assertNotIn("dast-accountability", needs)
         dast = text.split("  dast-artifacts:", 1)[1].split("\n  validate:", 1)[0]
         self.assertIn("tests.test_dast_baseline", dast)

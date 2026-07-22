@@ -1,5 +1,11 @@
 {
   "default_minimum_severity": "high",
   "enforcement": "observe",
-  "severity_order": ["low", "medium", "high", "critical"]
+  "severity_order": ["low", "medium", "high", "critical"],
+  "finding_intelligence": {
+    "enabled": false,
+    "minimum_priority": "high",
+    "minimum_independent_scanners": null,
+    "require_confirmed_runtime": false
+  }
 }

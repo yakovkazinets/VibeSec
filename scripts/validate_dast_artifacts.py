@@ -11,10 +11,11 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.dast import DastError, DIGEST, sanitize_url  # noqa: E402
 from vibesec.authenticated import validate_publishable_bytes  # noqa: E402
+from vibesec.finding_intelligence import FindingIntelligenceError, validate_documents  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
 
-REQUIRED = {"normalized.json", "coverage.json", "report.md", "policy-result.json"}
-PROHIBITED = ("zap-report.json", "?", "cookie", "request body", "response body", "evidence", "registry.example", "/home/runner", "/Users/")
+REQUIRED = {"normalized.json", "coverage.json", "report.md", "policy-result.json", "finding-groups.json", "prioritized-findings.json"}
+PROHIBITED = ("zap-report.json", "?", "cookie", "request body", "response body", "registry.example", "/home/runner", "/Users/")
 
 
 def validate(results: Path, expected_state: str) -> None:
@@ -26,6 +27,10 @@ def validate(results: Path, expected_state: str) -> None:
     normalized = loads_strict((results / "normalized.json").read_bytes())
     coverage = loads_strict((results / "coverage.json").read_bytes())
     policy = loads_strict((results / "policy-result.json").read_bytes())
+    validate_documents(
+        loads_strict((results / "finding-groups.json").read_bytes()),
+        loads_strict((results / "prioritized-findings.json").read_bytes()),
+    )
     if not isinstance(normalized, dict) or normalized.get("profile") != "dast-baseline" or not isinstance(normalized.get("results"), list):
         raise DastError("normalized DAST artifact is malformed")
     if not isinstance(coverage, dict) or coverage.get("profile") != "dast-baseline" or coverage.get("state") != expected_state:
@@ -66,7 +71,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         validate(args.results, args.expect_state)
-    except (DastError, OSError, StrictJSONError, UnicodeError) as exc:
+    except (DastError, FindingIntelligenceError, OSError, StrictJSONError, UnicodeError) as exc:
         print(f"DAST artifact validation failed: {exc}", file=sys.stderr)
         return 3
     return 0

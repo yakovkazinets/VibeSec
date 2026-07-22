@@ -2,6 +2,8 @@
 
 The optional container-executing passive add-on has a dedicated [DAST threat model](dast-threat-model.md). Its target image and HTTP responses are untrusted. It permits application code execution only on a disposable trusted runner, never on a pull request, and does not weaken the repository-scanning trust boundaries described here.
 
+Finding correlation is untrusted derived metadata. Malformed, unknown-scanner, and oversized inputs fail closed; ambiguous evidence remains an explicit singleton and never suppresses an original finding. A generic CWE is insufficient correlation evidence. Priority is deterministic and explainable, makes no exploitability claim without reviewed evidence, and performs no online lookup. See [finding intelligence](finding-intelligence.md).
+
 ## Assets and trust boundaries
 
 Assets include repository source, workflow tokens, scanner reports, policy decisions, dependency metadata, and maintainer trust. Boundaries exist between pull-request content and trusted branch configuration, GitHub-hosted runners and upstream releases, scanners and normalization logic, and reports and human reviewers.

@@ -64,6 +64,8 @@ jobs:
             ${{ runner.temp }}/vibesec-dast-results/coverage.json
             ${{ runner.temp }}/vibesec-dast-results/report.md
             ${{ runner.temp }}/vibesec-dast-results/policy-result.json
+            ${{ runner.temp }}/vibesec-dast-results/finding-groups.json
+            ${{ runner.temp }}/vibesec-dast-results/prioritized-findings.json
           if-no-files-found: error
           retention-days: 14
           include-hidden-files: false

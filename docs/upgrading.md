@@ -2,6 +2,8 @@
 
 The planner classifies `.vibesec/project-capabilities.json` as `capability_preserve`. Existing answers, especially No, are never reset to Yes. If a future schema adds questions, interactive upgrades default those new questions to Yes, but non-interactive upgrades must supply explicit reviewed answers. No upgrade command silently infers answers from repository detection.
 
+Finding-intelligence schemas and generators are additive consumer files. Existing scanner fingerprints, baselines, and suppressions remain valid. `policy/severity-thresholds.yml` is preservation-sensitive, so optional group controls require review instead of silent replacement.
+
 The planner also classifies `.vibesec/authenticated-security-testing.json` as `capability_preserve`. Preserve only the validated GitHub secret name and fixed bearer metadata. A token value, hash, prefix, decoded claim, alternate header, or alternate scheme is never upgrade state. Review regenerated workflows so the exact static secret reference remains confined to the scanner step.
 
 Upgrade planning treats `policy/dast-baseline.json` and `policy/dast-suppressions.json` as preservation-sensitive and never applies a plan. Review add-on workflow, image pins, isolation bounds, baseline, and suppressions manually with the version-compatible support set.

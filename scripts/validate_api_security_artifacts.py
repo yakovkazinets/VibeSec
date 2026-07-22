@@ -11,9 +11,10 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.api_security import ApiSecurityError, CHECKS, IMAGE, sanitize_path_template  # noqa: E402
 from vibesec.authenticated import validate_publishable_bytes  # noqa: E402
+from vibesec.finding_intelligence import FindingIntelligenceError, validate_documents  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
 
-REQUIRED = {"normalized.json", "coverage.json", "report.md", "policy-result.json"}
+REQUIRED = {"normalized.json", "coverage.json", "report.md", "policy-result.json", "finding-groups.json", "prioritized-findings.json"}
 PROHIBITED = ("schemathesis.ndjson", "request_body", "response_body", "request_headers", "response_headers", "cookies", "curl ",
               "authorization", "/home/runner", "/users/", "container-id", "registry.example")
 
@@ -27,6 +28,10 @@ def validate(results: Path, expected_state: str) -> None:
     normalized = loads_strict((results / "normalized.json").read_bytes())
     coverage = loads_strict((results / "coverage.json").read_bytes())
     policy = loads_strict((results / "policy-result.json").read_bytes())
+    validate_documents(
+        loads_strict((results / "finding-groups.json").read_bytes()),
+        loads_strict((results / "prioritized-findings.json").read_bytes()),
+    )
     if not isinstance(normalized, dict) or normalized.get("profile") != "api-security-baseline" or not isinstance(normalized.get("results"), list):
         raise ApiSecurityError("normalized API artifact is malformed")
     authenticated = coverage.get("authentication_mode") == "bearer"
@@ -63,7 +68,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         validate(args.results, args.expect_state)
-    except (ApiSecurityError, OSError, StrictJSONError, UnicodeError) as exc:
+    except (ApiSecurityError, FindingIntelligenceError, OSError, StrictJSONError, UnicodeError) as exc:
         print(f"API artifact validation failed: {exc}", file=sys.stderr)
         return 3
     return 0

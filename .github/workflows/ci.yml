@@ -124,6 +124,19 @@ jobs:
           scripts/install_standard_tools.sh . .tools/bin
           python3 scripts/test_opengrep_rules.py .tools/bin/opengrep
 
+  finding-intelligence-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted finding-intelligence validators without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Install pinned validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Validate correlation, false-correlation prevention, priority, schemas, and failure paths
+        run: python3 -m unittest -v tests.test_finding_intelligence tests.test_policy tests.test_report
+
   security-artifacts:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -197,7 +210,7 @@ jobs:
         run: python3 scripts/validate_supply_chain_posture.py
 
   validate:
-    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]
+    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -227,17 +240,20 @@ jobs:
           python3 scripts/init_vibesec.py --bundle "${bundle_dir}/first.zip" --profile minimal \
             --target "${bundle_dir}/minimal" --capabilities-file .vibesec/project-capabilities.json --write > "${bundle_dir}/init.json"
           python3 scripts/verify_installation.py --target "${bundle_dir}/minimal" --json > "${bundle_dir}/installation.json"
-          python3 scripts/vibesec_doctor.py --target "${bundle_dir}/minimal" --json > "${bundle_dir}/doctor.json"
           set +e
+          python3 scripts/vibesec_doctor.py --target "${bundle_dir}/minimal" --json > "${bundle_dir}/doctor.json"
+          doctor_status=$?
           python3 scripts/plan_vibesec_upgrade.py --target "${bundle_dir}/minimal" --bundle "${bundle_dir}/first.zip" --json > "${bundle_dir}/upgrade.json"
           upgrade_status=$?
           set -e
+          test "${doctor_status}" -eq 1
           test "${upgrade_status}" -eq 1
           python3 -m json.tool "${bundle_dir}/build-first.json" >/dev/null
           python3 -m json.tool "${bundle_dir}/verify.json" >/dev/null
           python3 -m json.tool "${bundle_dir}/installation.json" >/dev/null
           python3 -m json.tool "${bundle_dir}/doctor.json" >/dev/null
           python3 -m json.tool "${bundle_dir}/upgrade.json" >/dev/null
+          python3 -c 'import json,sys; payload=json.load(open(sys.argv[1], encoding="utf-8")); assert payload["status"] == "warning"; assert "RELEASE_METADATA_MISSING" in {item["code"] for item in payload["result"]["diagnostics"]}' "${bundle_dir}/doctor.json"
       - name: Validate source syntax and static data formats
         run: |
           syntax_cache="$(mktemp -d)"

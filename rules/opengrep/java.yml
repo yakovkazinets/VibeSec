@@ -7,8 +7,123 @@ rules:
       category: command-injection
       confidence: medium
       cwe: CWE-78
+      framework: language-generic
+      language: java
       owasp: A03:2021-Injection
       remediation: Use ProcessBuilder with a fixed argument list and validated values.
+      false_positive_notes: A fixed command string may be safe but Runtime.exec remains difficult to review.
       license: Apache-2.0
       provenance: original-vibesec
     pattern: Runtime.getRuntime().exec(...)
+  - id: vibesec.java.spring-request-command
+    languages: [java]
+    message: Do not construct a process from a request parameter.
+    severity: ERROR
+    metadata:
+      category: command-injection
+      confidence: high
+      cwe: CWE-78
+      framework: spring
+      language: java
+      owasp: A03:2021-Injection
+      remediation: Execute a fixed program with validated individual arguments.
+      false_positive_notes: A request value mapped to a fixed server-side command may be safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: new ProcessBuilder($REQUEST.getParameter(...)).start()
+  - id: vibesec.java.spring-request-redirect
+    languages: [java]
+    message: Do not construct a Spring redirect from a request parameter.
+    severity: ERROR
+    metadata:
+      category: open-redirect
+      confidence: high
+      cwe: CWE-601
+      framework: spring
+      language: java
+      owasp: A01:2021-Broken-Access-Control
+      remediation: Select redirects from a fixed allowlist of application routes.
+      false_positive_notes: A separately validated local path may be safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: return "redirect:" + $REQUEST.getParameter(...);
+  - id: vibesec.java.spring-request-file-path
+    languages: [java]
+    message: Do not construct a filesystem path directly from a request parameter.
+    severity: ERROR
+    metadata:
+      category: path-traversal
+      confidence: high
+      cwe: CWE-22
+      framework: spring
+      language: java
+      owasp: A01:2021-Broken-Access-Control
+      remediation: Resolve an opaque identifier beneath a fixed root and verify containment.
+      false_positive_notes: Prior canonicalization and containment validation may make the path safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: new File($REQUEST.getParameter(...))
+  - id: vibesec.java.spring-object-input-stream
+    languages: [java]
+    message: Avoid native Java object deserialization for untrusted data.
+    severity: ERROR
+    metadata:
+      category: insecure-deserialization
+      confidence: medium
+      cwe: CWE-502
+      framework: spring
+      language: java
+      owasp: A08:2021-Software-and-Data-Integrity-Failures
+      remediation: Use a constrained serialization format with strict schema validation.
+      false_positive_notes: A stream from a fully trusted internal source may be safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: new ObjectInputStream(...)
+  - id: vibesec.java.spring-permissive-cors
+    languages: [java]
+    message: Avoid wildcard origins on a Spring request handler.
+    severity: WARNING
+    metadata:
+      category: permissive-cors
+      confidence: high
+      cwe: CWE-942
+      framework: spring
+      language: java
+      owasp: A05:2021-Security-Misconfiguration
+      remediation: Configure a reviewed explicit origin allowlist.
+      false_positive_notes: A public unauthenticated endpoint may intentionally permit all origins.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: '@CrossOrigin(origins = "*")'
+  - id: vibesec.java.spring-native-query-concatenation
+    languages: [java]
+    message: Do not concatenate values into a native SQL query.
+    severity: ERROR
+    metadata:
+      category: sql-injection
+      confidence: high
+      cwe: CWE-89
+      framework: spring
+      language: java
+      owasp: A03:2021-Injection
+      remediation: Use a parameterized query and bind each value separately.
+      false_positive_notes: A value chosen solely from a fixed server-side mapping may be safe.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: $ENTITY_MANAGER.createNativeQuery($SQL + $VALUE)
+  - id: vibesec.java.spring-actuator-permit-all
+    languages: [java]
+    message: Do not grant unauthenticated access to every actuator endpoint.
+    severity: ERROR
+    metadata:
+      category: actuator-exposure
+      confidence: high
+      cwe: CWE-284
+      framework: spring
+      language: java
+      owasp: A01:2021-Broken-Access-Control
+      remediation: Restrict actuator routes to required health endpoints and strong administrative authorization.
+      false_positive_notes: A separately isolated management network may reduce exposure but still requires review.
+      license: Apache-2.0
+      provenance: original-vibesec
+    pattern: $AUTH.requestMatchers("/actuator/**").permitAll()

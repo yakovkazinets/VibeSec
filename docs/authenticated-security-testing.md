@@ -1,5 +1,7 @@
 # Authenticated security testing
 
+Paired authenticated and unauthenticated runs also publish `finding-groups.json` and `prioritized-findings.json`. These preserve both original child findings before the backward-compatible combined `normalized.json` correlation. Route grouping requires the same sanitized method, path template, reviewed vulnerability family, and authentication context; ambiguous relationships remain separate.
+
 Authenticated security testing is an opt-in extension of Passive DAST Baseline and OpenAPI API Security Baseline. It supports exactly one model: a static GitHub Actions secret sent as `Authorization: Bearer <secret>`. Browser login, forms, cookies, OAuth, refresh tokens, session scraping, CSRF automation, usernames, passwords, and role or multi-user comparisons are out of scope.
 
 Set `authentication=true`, `authenticated_security_testing=true`, and at least one of `dast_target=true` or `api_security_target=true` in the project capability manifest. During initial installation provide only the GitHub secret name with `--auth-secret-name NAME`; never provide its value. VibeSec stores `.vibesec/authenticated-security-testing.json` with `secret_name`, `header_name: Authorization`, and `scheme: Bearer`. The generated DAST or API workflow contains one exact static `${{ secrets.NAME }}` reference on its scanner step.
@@ -15,4 +17,3 @@ Each authenticated invocation performs an unauthenticated and authenticated run 
 Coverage is `ran`, `not_applicable`, `not_configured`, or `tool_error`. Missing capability, missing secret name, missing secret value, scanner failure, and parser failure are never reported as a clean authenticated scan. Evidence records only `authentication_mode`, `authentication_applied`, and `secret_source`; VibeSec never hashes, prefixes, measures, decodes, or parses the token or JWT claims.
 
 Authenticated workflows run only on `workflow_dispatch` and `schedule` against explicitly configured immutable non-root images on a private internal Docker network. They cannot scan a public, production, staging, remote, or host-published target. A single static bearer identity cannot assess role-based authorization, tenant isolation, object-level authorization, token lifecycle, or business logic.
-

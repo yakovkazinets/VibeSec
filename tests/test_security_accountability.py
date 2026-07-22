@@ -3,8 +3,10 @@ from pathlib import Path
 import re
 import tempfile
 import unittest
+import yaml
 
 from scripts.run_security_accountability import run
+from scripts.validate_opengrep_rules import validate as validate_opengrep_rules
 from scripts.validate_security_capabilities import render_matrix, validate_evidence, validate_matrix
 from scripts.vibesec.normalize import normalize_file
 
@@ -22,7 +24,7 @@ LIVE_SECRET_PATTERNS = (
 class SecurityAccountabilityTests(unittest.TestCase):
     def test_matrix_fixtures_tools_and_rendered_document_are_consistent(self):
         matrix = validate_matrix()
-        self.assertEqual(len(matrix["capabilities"]), 44)
+        self.assertEqual(len(matrix["capabilities"]), 45)
         rendered = render_matrix(matrix)
         self.assertEqual((ROOT / "docs/security-capability-matrix.md").read_text(encoding="utf-8"), rendered)
         self.assertEqual(
@@ -38,6 +40,34 @@ class SecurityAccountabilityTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             validate_evidence(path, matrix)
         self.assertTrue(all(item["positive"]["fixture_ran"] and item["negative"]["fixture_ran"] for item in payload["capabilities"]))
+
+    def test_opengrep_capability_expected_and_normalized_ids_exactly_match_rule_pack(self):
+        rule_ids = sorted(validate_opengrep_rules(ROOT / "rules/opengrep"))
+        matrix = validate_matrix()
+        capability = next(item for item in matrix["capabilities"] if item["id"] == "standard.opengrep-sast")
+        expected = json.loads((ROOT / capability["expected_metadata"]).read_text(encoding="utf-8"))
+        raw = json.loads((ROOT / capability["positive_fixture"] / "raw.json").read_text(encoding="utf-8"))
+        normalized = [item.to_dict() for item in normalize_file("opengrep", ROOT / capability["positive_fixture"] / "raw.json")]
+        self.assertEqual(len(rule_ids), 32)
+        self.assertEqual(capability["expected_finding_ids"], rule_ids)
+        self.assertEqual(expected["positive"]["expected_finding_ids"], rule_ids)
+        self.assertEqual(sorted(item["check_id"] for item in raw["results"]), rule_ids)
+        self.assertEqual(sorted(item["rule_id"] for item in normalized), rule_ids)
+        self.assertEqual(expected["positive"]["expected_count"], len(rule_ids))
+
+        rules = {}
+        for path in sorted((ROOT / "rules/opengrep").glob("*.yml")):
+            for rule in yaml.safe_load(path.read_text(encoding="utf-8"))["rules"]:
+                rules[rule["id"]] = rule
+        for item in normalized:
+            rule = rules[item["rule_id"]]
+            metadata = rule["metadata"]
+            self.assertEqual(item["severity"], "medium" if rule["severity"] == "WARNING" else "high")
+            self.assertEqual(item["confidence"], {"high": "confirmed", "medium": "possible", "low": "unknown"}[metadata["confidence"]])
+            self.assertEqual(item["cwe"], metadata["cwe"])
+            self.assertEqual(item["vulnerability_family"], metadata["category"])
+            self.assertEqual(item["sink_category"], metadata["category"])
+            self.assertEqual(item["framework"], metadata["framework"])
 
     def test_fixture_tree_contains_no_live_service_credential_format(self):
         root = ROOT / "tests/security-fixtures"

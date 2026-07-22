@@ -89,6 +89,14 @@ def validate_policy() -> None:
         raise ValueError("policy threshold is invalid")
     if thresholds.get("enforcement") not in ("observe", "new", "all"):
         raise ValueError("policy enforcement mode is invalid")
+    intelligence = thresholds.get("finding_intelligence")
+    if (not isinstance(intelligence, dict) or set(intelligence) != {
+            "enabled", "minimum_priority", "minimum_independent_scanners", "require_confirmed_runtime"}
+            or type(intelligence["enabled"]) is not bool
+            or intelligence["minimum_priority"] not in {"informational", "low", "medium", "high", "critical"}
+            or intelligence["minimum_independent_scanners"] is not None
+            or type(intelligence["require_confirmed_runtime"]) is not bool):
+        raise ValueError("default finding intelligence policy controls must be present and disabled")
     suppressions = load_object(ROOT / "policy/suppressions.yml")
     if not isinstance(suppressions.get("suppressions"), list):
         raise ValueError("policy/suppressions.yml must contain a suppressions array")
@@ -134,6 +142,8 @@ def validate_references() -> None:
         "scripts/run_api_security_baseline.py", "scripts/validate_api_security_artifacts.py",
         "scripts/vibesec/api_security.py", "scripts/vibesec/schemathesis_runtime.py",
         "scripts/vibesec/authenticated.py", "tests/test_authenticated_security_testing.py",
+        "scripts/generate_finding_intelligence.py", "scripts/vibesec/finding_intelligence.py",
+        "config/finding-groups-schema.json", "config/prioritized-findings-schema.json",
         "config/api-security-result-schema.json",
         "config/github-actions.json", "scripts/vibesec/github_actions.py",
         "config/zap-passive-plan-schema.json",
@@ -146,6 +156,7 @@ def validate_references() -> None:
         "docs/software-supply-chain-assurance.md", "docs/release-signing.md", "docs/provenance.md", "docs/release-threat-model.md",
         "scripts/install_release_tools.sh", "scripts/prepare_release_artifacts.py", "scripts/sign_release_artifacts.py", "scripts/verify_release_artifacts.py", "scripts/validate_supply_chain_posture.py",
         "scripts/vibesec/supply_chain.py", "config/release-manifest-schema.json", "config/provenance-schema.json", "config/supply-chain-policy.json",
+        "docs/finding-intelligence.md", "docs/framework-sast-coverage.md",
         "docs/security-validation-policy.md", "docs/security-capability-matrix.md", "docs/self-hosted-validation.md",
         "examples/reports/README.md",
         "skills/appsec-guardian/SKILL.md",
@@ -275,7 +286,7 @@ def validate_github_actions_documentation() -> None:
     if any(marker not in runtime for marker in markers):
         raise ValueError("GitHub Actions runtime documentation is incomplete")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]"
+    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]"
     if expected not in ci or ci.count("\n  validate:\n") != 1:
         raise ValueError("validate must remain the single required aggregate CI job")
 

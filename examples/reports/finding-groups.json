@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "model": "vibesec-finding-groups",
+  "fingerprint_compatibility": "scanner fingerprints remain version 1 and unchanged",
+  "findings": [],
+  "groups": []
+}

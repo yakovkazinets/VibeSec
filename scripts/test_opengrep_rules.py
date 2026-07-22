@@ -11,11 +11,10 @@ import subprocess
 import sys
 import tempfile
 
+from validate_opengrep_rules import validate
+
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED = {
-    "vibesec.javascript.dangerous-eval", "vibesec.python.subprocess-shell-true",
-    "vibesec.java.runtime-exec", "vibesec.go.shell-command",
-}
+EXPECTED = set(validate(ROOT / "rules/opengrep"))
 
 
 def scan(binary: Path, source: Path, output: Path, environment: dict[str, str]) -> list[dict]:

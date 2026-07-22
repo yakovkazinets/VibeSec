@@ -29,6 +29,7 @@ PRESERVATION_SENSITIVE = {
     "policy/dast-suppressions.json", "policy/api-security-baseline.json",
     "policy/api-security-suppressions.json", ".vibesec/api-security-baseline.json", "policy/suppressions.yml",
     AUTH_CONFIG_PATH,
+    "policy/severity-thresholds.yml",
 }
 
 

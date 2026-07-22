@@ -32,12 +32,13 @@ Review the code and configuration before using it, validate it against your own 
 - [Sanitized sample reports](examples/reports/README.md)
 - [Security/result model](docs/security-model.md) and [threat model](docs/threat-model.md)
 - [Security validation policy](docs/security-validation-policy.md), [capability matrix](docs/security-capability-matrix.md), and [self-hosted validation](docs/self-hosted-validation.md)
+- [Finding intelligence](docs/finding-intelligence.md) and [framework SAST coverage](docs/framework-sast-coverage.md)
 - [GitHub Actions Node 24 runtime and immutable pin policy](docs/github-actions-runtime.md)
 - [OpenAPI API Security Baseline](docs/api-security-baseline.md)
 
 Supplied workflows target GitHub.com and require Actions Runner 2.327.1 or newer on self-hosted runners. Their reviewed JavaScript actions embed Node 24 and use full commit SHAs; Node 20 is end-of-life and unsupported, and no fallback is provided. VibeSec itself requires no npm or Node application runtime. Node 26 remains a future compatibility target rather than a requirement. See the runtime policy for the separate GHES limitation.
 
-Minimal uses Trivy filesystem, Gitleaks, and actionlint. Standard adds VibeSec-owned Opengrep rules, OSV-Scanner, Syft SBOMs, conditional isolated Checkov, explicit coverage reporting, and optional trusted-event scanning of an existing immutable image. Neither profile builds or executes application code, installs project dependencies, builds Dockerfiles, or applies infrastructure. Separate opt-in add-ons provide passive ZAP DAST and bounded Schemathesis OpenAPI contract testing against explicitly supplied immutable, non-root images.
+Minimal uses Trivy filesystem, Gitleaks, and actionlint. Standard adds framework-aware VibeSec-owned Opengrep rules, OSV-Scanner, Syft SBOMs, conditional isolated Checkov, deterministic finding correlation and explainable priority, explicit coverage reporting, and optional trusted-event scanning of an existing immutable image. Original findings and baseline fingerprints remain authoritative. Neither profile builds or executes application code, installs project dependencies, builds Dockerfiles, or applies infrastructure. Separate opt-in add-ons provide passive ZAP DAST and bounded Schemathesis OpenAPI contract testing against explicitly supplied immutable, non-root images.
 <!-- claimed-scanners: actionlint,checkov,gitleaks,opengrep,osv-scanner,schemathesis,syft,trivy,zap-baseline -->
 
 Preview adoption without changing the application repository:

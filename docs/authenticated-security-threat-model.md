@@ -1,5 +1,7 @@
 # Authenticated security testing threat model
 
+Finding intelligence consumes only sanitized child `normalized.json` documents. It never receives the bearer value or raw scanner report, preserves both source records, and fails the comparison if grouping input is malformed. Correlation is triage evidence, not proof of authorization correctness.
+
 ## Assets and trust boundaries
 
 The bearer value is the primary asset. The trusted inputs are the reviewed capability manifest, generated secret-name-only configuration, pinned VibeSec runner, fixed scanner command builders, immutable scanner images, and a manual or scheduled workflow revision. Application images, application responses, OpenAPI content, and scanner raw output are untrusted data. GitHub Actions supplies the bearer value only to the exact scanner step.

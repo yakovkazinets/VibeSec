@@ -191,10 +191,26 @@ class ApiSecurityBaselineTests(unittest.TestCase):
         normalized = json.loads((results / "normalized.json").read_text())
         self.assertEqual([item["rule_id"] for item in normalized["results"]], ["response_schema_conformance"])
         self.assertFalse(any(path.name.endswith(".ndjson") for path in results.iterdir()))
+        self.assertEqual(
+            {path.name for path in results.iterdir()},
+            {"normalized.json", "coverage.json", "policy-result.json", "report.md",
+             "finding-groups.json", "prioritized-findings.json"},
+        )
+        self.assertEqual(len(json.loads((results / "finding-groups.json").read_text())["groups"]), 1)
         self.assertEqual(subprocess.run([sys.executable, "scripts/validate_api_security_artifacts.py", "--results", str(results), "--expect-state", "ran"], cwd=ROOT).returncode, 0)
+        groups_bytes = (results / "finding-groups.json").read_bytes()
+        (results / "finding-groups.json").unlink()
+        missing_intelligence = subprocess.run(
+            [sys.executable, "scripts/validate_api_security_artifacts.py", "--results", str(results), "--expect-state", "ran"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(missing_intelligence.returncode, 3)
+        (results / "finding-groups.json").write_bytes(groups_bytes)
         negative, clean_results = self.run_profile("negative")
         self.assertEqual(negative.returncode, 0, negative.stderr)
         self.assertEqual(json.loads((clean_results / "normalized.json").read_text())["results"], [])
+        self.assertEqual(json.loads((clean_results / "finding-groups.json").read_text())["groups"], [])
+        self.assertEqual(json.loads((clean_results / "prioritized-findings.json").read_text())["groups"], [])
 
     def test_tool_and_parser_failures_are_not_clean_and_exit_contract_is_preserved(self):
         for mode, expected in (("pull_fail", 2), ("missing_report", 2), ("root", 3), ("cleanup_fail", 2)):
@@ -203,6 +219,7 @@ class ApiSecurityBaselineTests(unittest.TestCase):
             policy = json.loads((results / "policy-result.json").read_text())
             self.assertFalse(policy["clean"])
             self.assertEqual(policy["exit_code"], expected)
+            self.assertEqual(json.loads((results / "finding-groups.json").read_text())["groups"], [])
 
     def test_runtime_commands_enforce_internal_alias_and_no_host_ports(self):
         completed, _ = self.run_profile()
@@ -226,6 +243,7 @@ class ApiSecurityBaselineTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0)
         self.assertEqual(json.loads((results / "coverage.json").read_text())["state"], "not_applicable")
         self.assertFalse(json.loads((results / "policy-result.json").read_text())["clean"])
+        self.assertEqual(json.loads((results / "finding-groups.json").read_text())["groups"], [])
         self.assertFalse(self.log.exists())
 
 

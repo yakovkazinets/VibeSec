@@ -103,7 +103,7 @@ class GitHubActionsInventoryTests(unittest.TestCase):
 
     def test_artifact_contract_and_checkout_credential_contract_are_preserved(self):
         expected_fetch_depths = {
-            ".github/workflows/ci.yml": [0, 0, None, None, None, None, None, None, 0],
+            ".github/workflows/ci.yml": [0, 0, None, None, None, None, None, None, None, 0],
             ".github/workflows/api-security-integration.yml": [None],
             ".github/workflows/dast-integration.yml": [None],
             ".github/workflows/authenticated-api-integration.yml": [None],
@@ -123,18 +123,24 @@ class GitHubActionsInventoryTests(unittest.TestCase):
                 "${{ runner.temp }}/vibesec-api-security-results/coverage.json",
                 "${{ runner.temp }}/vibesec-api-security-results/report.md",
                 "${{ runner.temp }}/vibesec-api-security-results/policy-result.json",
+                "${{ runner.temp }}/vibesec-api-security-results/finding-groups.json",
+                "${{ runner.temp }}/vibesec-api-security-results/prioritized-findings.json",
             ]],
             "templates/github-actions/dast-baseline.yml": [[
                 "${{ runner.temp }}/vibesec-dast-results/normalized.json",
                 "${{ runner.temp }}/vibesec-dast-results/coverage.json",
                 "${{ runner.temp }}/vibesec-dast-results/report.md",
                 "${{ runner.temp }}/vibesec-dast-results/policy-result.json",
+                "${{ runner.temp }}/vibesec-dast-results/finding-groups.json",
+                "${{ runner.temp }}/vibesec-dast-results/prioritized-findings.json",
             ]],
             "templates/github-actions/security-baseline.yml": [["results/normalized.json", "results/report.md"]],
             "templates/github-actions/security-standard.yml": [[
                 "${{ runner.temp }}/vibesec-results/normalized.json",
                 "${{ runner.temp }}/vibesec-results/coverage.json",
                 "${{ runner.temp }}/vibesec-results/inventory.json",
+                "${{ runner.temp }}/vibesec-results/finding-groups.json",
+                "${{ runner.temp }}/vibesec-results/prioritized-findings.json",
                 "${{ runner.temp }}/vibesec-results/report.md",
             ], [
                 "${{ runner.temp }}/vibesec-results/sbom.cyclonedx.json",
@@ -196,6 +202,7 @@ class GitHubActionsInventoryTests(unittest.TestCase):
         self.assertIn("validate", ci["jobs"])
         self.assertEqual(ci["jobs"]["validate"]["needs"], [
             "self-scan-minimal", "self-scan-standard", "scanner-accountability",
+            "finding-intelligence-artifacts",
             "security-artifacts", "dast-artifacts",
             "api-security-artifacts",
             "authenticated-security-artifacts",

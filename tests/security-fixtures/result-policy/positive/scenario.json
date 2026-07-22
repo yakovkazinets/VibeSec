@@ -1,0 +1,1 @@
+{"schema_version":1,"results":[{"tool":"synthetic","category":"policy","rule_id":"VIBESEC-POLICY-SYNTHETIC","severity":"high","file":"fixture.txt","line":1,"description":"Synthetic policy finding","confidence":"confirmed","fingerprint":"1f8d7d9d9eb30bcefb9db816bdad24f9f2cecaee1dd199a0ca1561ec64501c7c","result_type":"finding"}]}

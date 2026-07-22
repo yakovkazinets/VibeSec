@@ -1,0 +1,1 @@
+{"Results":[{"Target":"vibesec-synthetic-image@sha256:0000000000000000000000000000000000000000000000000000000000000000","Class":"os-pkgs","Vulnerabilities":[{"VulnerabilityID":"CVE-VIBESEC-SYNTHETIC-1","Severity":"HIGH","Title":"Synthetic image advisory"}]}]}

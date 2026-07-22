@@ -1,0 +1,1 @@
+tests/security-fixtures/actionlint/positive/.github/workflows/invalid.yml:7:14: undefined variable "definitely_invalid_context" [expression]

@@ -1,0 +1,1 @@
+{"Results":[{"Target":"tests/security-fixtures/trivy-filesystem/positive/Dockerfile","Class":"config","Misconfigurations":[{"ID":"VIBESEC-TRIVY-SYNTHETIC-CONFIG","Severity":"HIGH","Title":"Synthetic root-user configuration","CauseMetadata":{"Resource":"tests/security-fixtures/trivy-filesystem/positive/Dockerfile","StartLine":2}}]}]}

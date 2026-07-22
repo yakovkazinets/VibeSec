@@ -1,0 +1,25 @@
+# Security capability matrix
+
+This document is generated from `config/security-capabilities.json`. Run `python3 scripts/validate_security_capabilities.py --write-matrix` after an approved matrix change.
+
+A capability is not complete merely because integration code exists. See [security validation policy](security-validation-policy.md).
+
+| Capability | Profile | Component/tool | Status | Fixtures | Self-scan | Expected state | Artifacts | Network/trust | Limitations | CI enforcement |
+|---|---|---|---|---|---|---|---|---|---|---|
+| minimal.trivy-filesystem | minimal | trivy | enforced | positive + negative (tests/security-fixtures/trivy-filesystem/expected.json) | ran | ran | normalized.json, report.md | scanner_database_updates_then_local_scan | docs/security-model.md | self-scan-minimal, scanner-accountability, tests/test_security_accountability.py |
+| minimal.gitleaks | minimal | gitleaks | enforced | positive + negative (tests/security-fixtures/gitleaks/expected.json) | ran | ran | normalized.json, report.md | none_after_install | docs/security-model.md | self-scan-minimal, scanner-accountability, tests/test_security_accountability.py |
+| minimal.actionlint | minimal | actionlint | enforced | positive + negative (tests/security-fixtures/actionlint/expected.json) | ran | ran | normalized.json, report.md | none_after_install | docs/security-model.md | self-scan-minimal, scanner-accountability, tests/test_security_accountability.py |
+| minimal.result-policy | minimal | normalization-policy-baseline-suppression | enforced | positive + negative (tests/security-fixtures/result-policy/expected.json) | ran | ran | normalized.json, report.md, policy-result.json | none | docs/security-model.md | scanner-accountability, security-artifacts, tests/test_policy.py, tests/test_results.py |
+| standard.opengrep-sast | standard | opengrep | enforced | positive + negative (tests/security-fixtures/opengrep/expected.json) | ran | ran | normalized.json, coverage.json, report.md | none_after_install | docs/tool-selection.md | self-scan-standard, scanner-accountability, scripts/test_opengrep_rules.py |
+| standard.osv-dependencies | standard | osv-scanner | enforced | positive + negative (tests/security-fixtures/osv-scanner/expected.json) | ran | ran | normalized.json, coverage.json, report.md | advisory_queries_or_explicit_local_database | docs/security-model.md | self-scan-standard, scanner-accountability, tests/test_osv_database.py |
+| standard.syft-sbom | standard | syft | enforced | positive + negative (tests/security-fixtures/syft-sbom/expected.json) | ran | ran | sbom.cyclonedx.json, sbom.spdx.json, coverage.json | none_after_install | docs/security-model.md | self-scan-standard, scanner-accountability, security-artifacts |
+| standard.checkov-iac | standard | checkov | enforced | positive + negative (tests/security-fixtures/checkov-iac/expected.json) | ran | ran | normalized.json, coverage.json, report.md | container_pull_then_network_disabled_scan | docs/tool-selection.md | self-scan-standard, scanner-accountability, tests/test_standard_profile_integration.py |
+| standard.trivy-image | standard | trivy | conditionally_enforced | positive + negative (tests/security-fixtures/trivy-image/expected.json) | not_configured | not_configured | coverage.json | scanner_managed_only_when_explicitly_enabled; trusted events only | docs/security-model.md | scanner-accountability, tests/test_standard_profile_integration.py, tests/test_workflows.py |
+| standard.repository-inventory | standard | repository-detection | enforced | positive + negative (tests/security-fixtures/repository-inventory/expected.json) | ran | ran | inventory.json, coverage.json | none | docs/compatibility.md | self-scan-standard, scanner-accountability, tests/test_detection_coverage_sbom.py |
+| standard.coverage-report | standard | coverage-model | enforced | positive + negative (tests/security-fixtures/coverage-report/expected.json) | ran | ran | coverage.json, report.md | none | docs/security-model.md | self-scan-standard, security-artifacts, tests/test_detection_coverage_sbom.py |
+| standard.trusted-harness | standard | base-revision-harness | enforced | positive + negative (tests/security-fixtures/trusted-harness/expected.json) | ran | ran | normalized.json, coverage.json, report.md | none | docs/threat-model.md | scanner-accountability, security-artifacts, tests/test_standard_profile_integration.py, tests/test_workflows.py |
+| standard.profile-baselines | standard | profile-baseline-separation | enforced | positive + negative (tests/security-fixtures/profile-baselines/expected.json) | ran | ran | report.md, policy-result.json | none | docs/upgrading.md | scanner-accountability, tests/test_consumer_adoption.py, tests/test_policy.py |
+
+## Interpretation
+
+`enforced` means implementation, controlled fixtures, normalization or artifact checks, failure paths, documentation, and CI evidence are all linked. `conditionally_enforced` means the safe routing and controlled evidence are enforced but live execution needs an explicit trusted condition. No passing row is a claim that VibeSec or a scanned application is secure.

@@ -68,11 +68,11 @@ def classify_plan(state: InstallationState, bundle: VerifiedBundle) -> dict[str,
         expected_old = old.get("expected_sha256") if old else None
         actual = old.get("actual_sha256") if old else None
         expected_new = new.get("sha256") if new else None
-        if path == ".vibesec/project-capabilities.json":
+        if path in {".vibesec/project-capabilities.json", ".vibesec/api-security-baseline.json"}:
             classification = "capability_preserve"
-        elif path in {"policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json"}:
+        elif path in {"policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json", "policy/api-security-baseline.json"}:
             classification = "baseline_preserve"
-        elif path in {"policy/suppressions.yml", "policy/dast-suppressions.json"}:
+        elif path in {"policy/suppressions.yml", "policy/dast-suppressions.json", "policy/api-security-suppressions.json"}:
             classification = "suppression_preserve"
         elif old is None:
             classification = "add"

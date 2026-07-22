@@ -26,6 +26,10 @@ _remove_script_path = SCRIPT_DIRECTORY not in sys.path
 if _remove_script_path:
     sys.path.insert(0, SCRIPT_DIRECTORY)
 from vibesec.bundle import BundleError, VerifiedBundle, validate_catalog, verify_bundle  # noqa: E402
+from vibesec.api_security import (  # noqa: E402
+    ApiSecurityError, parse_config as parse_api_config, validate_base_path,
+    validate_openapi_schema, validate_port,
+)
 from vibesec.capabilities import (  # noqa: E402
     MANIFEST_PATH as CAPABILITY_MANIFEST_PATH,
     CapabilityError,
@@ -38,6 +42,7 @@ from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, V
 from vibesec.manifest import file_record, installation_manifest_bytes  # noqa: E402
 from vibesec.paths import UnsafePath, safe_posix_path  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
+from vibesec.strict_json import canonical_json  # noqa: E402
 from vibesec.version import VersionError, read_version  # noqa: E402
 if _remove_script_path:
     sys.path.remove(SCRIPT_DIRECTORY)
@@ -49,6 +54,7 @@ OVERLAP_MARKERS = (
     "semgrep", "codeql", "snyk", "dependabot", "renovate", "trivy",
     "gitleaks", "osv-scanner", "checkov", "grype", "anchore",
 )
+VARIABLE_NAME = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 
 
 class InvalidTarget(ValueError):
@@ -288,7 +294,8 @@ def build_plan(catalog: dict[str, Any], profile: str, stage: str,
 
 
 def build_addon_plan(catalog: dict[str, Any], addon: str,
-                     source: ConsumerSource | None = None) -> list[PlanEntry]:
+                     source: ConsumerSource | None = None,
+                     api_configuration: bytes | None = None) -> list[PlanEntry]:
     provider = source or tree_source()
     config = catalog["addons"].get(addon)
     if not isinstance(config, dict):
@@ -300,11 +307,24 @@ def build_addon_plan(catalog: dict[str, Any], addon: str,
     records: list[dict[str, Any]] = []
     for source_path, destination in sorted(mappings, key=lambda item: item[1].as_posix()):
         data, source_mode = source_entry(Path(source_path), provider, executable)
+        if addon == "api-security-baseline" and source_path == config["workflow_source"] and api_configuration is not None:
+            generated = loads_strict(api_configuration)
+            marker = b"vars.VIBESEC_API_IMAGE_REFERENCE"
+            replacement = f"vars.{generated['image_variable_name']}".encode("ascii")
+            if data.count(marker) != 2:
+                raise InvalidTarget("API workflow image-variable placeholder is missing or ambiguous")
+            data = data.replace(marker, replacement)
         mode = 0o755 if source_path in executable else 0o644
         if source_mode != mode:
             raise InvalidTarget(f"source mode does not match reviewed catalog: {source_path}")
         entries.append(PlanEntry(source_path, destination, mode, data))
         records.append(file_record(destination.as_posix(), data, mode))
+    if addon == "api-security-baseline":
+        if api_configuration is None:
+            raise InvalidTarget("API Security Baseline requires reviewed target configuration")
+        destination = Path(".vibesec/api-security-baseline.json")
+        entries.append(PlanEntry(None, destination, 0o644, api_configuration))
+        records.append(file_record(destination.as_posix(), api_configuration, 0o644))
     manifest_relative = Path(f".vibesec/install-addon-{addon}.json")
     manifest_data = installation_manifest_bytes(
         profile=addon, stage="addon", source_type=provider.source_type,
@@ -406,11 +426,18 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group(required=True)
     selection.add_argument("--profile", choices=("minimal", "standard"))
-    selection.add_argument("--addon", choices=("dast-baseline",))
+    selection.add_argument("--addon", choices=("dast-baseline", "api-security-baseline"))
     parser.add_argument("--target", required=True, type=Path)
     parser.add_argument("--stage", choices=("support", "workflow"), help="Standard only; defaults to support")
     parser.add_argument("--bundle", type=Path, help="verified local consumer ZIP")
     parser.add_argument("--source-commit", help="optional source-tree full commit SHA")
+    parser.add_argument("--api-schema", help="repository-relative local OpenAPI schema (API add-on only)")
+    parser.add_argument("--api-image-variable-name", default="VIBESEC_API_IMAGE_REFERENCE",
+                        help="GitHub variable containing the immutable API image reference")
+    parser.add_argument("--api-port", default="8080", help="internal API container port")
+    parser.add_argument("--api-base-path", default="/", help="fixed internal API base path")
+    parser.add_argument("--api-safe-methods-only", choices=("true", "false"), default="true",
+                        help="default true; false explicitly opts into mutating methods")
     capabilities = parser.add_mutually_exclusive_group()
     capabilities.add_argument("--capabilities-file", type=Path, help="trusted local project capability JSON")
     capabilities.add_argument("--all-capabilities", action="store_true", help="non-interactively answer Yes to every capability")
@@ -462,6 +489,9 @@ def main() -> int:
             raise InvalidTarget("--stage cannot be combined with --addon")
         if args.profile == "minimal" and args.stage is not None:
             raise InvalidTarget("--stage is only valid with --profile standard")
+        api_options_used = args.api_schema is not None or args.api_image_variable_name != "VIBESEC_API_IMAGE_REFERENCE" or args.api_port != "8080" or args.api_base_path != "/" or args.api_safe_methods_only != "true"
+        if args.addon != "api-security-baseline" and api_options_used:
+            raise InvalidTarget("API target options are only valid with --addon api-security-baseline")
         if args.addon:
             verify_addon_prerequisites(target, catalog)
             stage = "addon"
@@ -472,13 +502,40 @@ def main() -> int:
         capabilities = requested_capabilities(args, target, stage)
         output["project_capabilities"] = capabilities
         if args.addon:
-            if not capabilities["capabilities"]["dast_target"]:
+            capability_key = "dast_target" if args.addon == "dast-baseline" else "api_security_target"
+            if not capabilities["capabilities"][capability_key]:
                 output["skipped"].append(
-                    "dast-baseline = not_applicable: project capability manifest declares no runnable web application target"
+                    f"{args.addon} = not_applicable: project capability manifest excludes this runtime target"
                 )
                 print(json.dumps(output, indent=2, sort_keys=True))
                 return SUCCESS
-            plan = build_addon_plan(catalog, args.addon, source)
+            api_configuration = None
+            if args.addon == "api-security-baseline":
+                if not args.api_schema:
+                    raise InvalidTarget("API Security Baseline requires --api-schema")
+                schema = Path(args.api_schema)
+                if schema.is_absolute() or ".." in schema.parts or "\\" in args.api_schema or schema.suffix.casefold() not in {".json", ".yaml", ".yml"}:
+                    raise InvalidTarget("--api-schema must be a repository-relative JSON or YAML path")
+                schema_file = target / schema
+                if schema_file.is_symlink() or not schema_file.is_file():
+                    raise InvalidTarget("--api-schema must identify an existing regular non-symlink target file")
+                if not VARIABLE_NAME.fullmatch(args.api_image_variable_name):
+                    raise InvalidTarget("--api-image-variable-name is invalid")
+                try:
+                    api_port = validate_port(args.api_port)
+                    api_base_path = validate_base_path(args.api_base_path)
+                    api_config = parse_api_config(source.read("config/api-security-baseline.json"))
+                    validate_openapi_schema(target, schema.as_posix(), config=api_config,
+                                            port=api_port, base_path=api_base_path)
+                except ApiSecurityError as exc:
+                    raise InvalidTarget(f"API target configuration is invalid: {exc}") from exc
+                api_configuration = canonical_json({
+                    "schema_version": 1, "schema_path": schema.as_posix(),
+                    "image_variable_name": args.api_image_variable_name, "container_port": api_port,
+                    "base_path": api_base_path, "safe_methods_only": args.api_safe_methods_only == "true",
+                    "authentication": False, "custom_headers": False, "external_target_url": None,
+                })
+            plan = build_addon_plan(catalog, args.addon, source, api_configuration)
         else:
             manifest_data = None if stage == "workflow" else capability_bytes(capabilities)
             plan = build_plan(catalog, args.profile, stage, source, manifest_data)

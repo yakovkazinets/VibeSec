@@ -42,11 +42,14 @@ REQUIRED_CONSUMER_PATHS = {
     "scripts/validate_project_capabilities.py",
     "templates/github-actions/security-baseline.yml", "templates/github-actions/security-standard.yml",
     "templates/github-actions/dast-baseline.yml", "scripts/run_dast_baseline.py",
+    "templates/github-actions/api-security-baseline.yml", "scripts/run_api_security_baseline.py",
+    "config/api-security-baseline.json", "config/api-security-result-schema.json", "scripts/vibesec/api_security.py", "scripts/vibesec/schemathesis_runtime.py",
     "config/zap-passive-plan-schema.json", "scripts/vibesec/zap_automation.py",
     "docs/distribution.md", "docs/dast-baseline.md", "docs/dast-threat-model.md", "docs/github-actions-runtime.md", "docs/installation-verification.md", "docs/doctor.md", "docs/upgrading.md",
 }
 REQUIRED_EXECUTABLES = {
     "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py", "scripts/run_dast_baseline.py", "scripts/validate_dast_artifacts.py",
+    "scripts/run_api_security_baseline.py", "scripts/validate_api_security_artifacts.py",
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
     "scripts/plan_vibesec_upgrade.py",
     "scripts/validate_project_capabilities.py",
@@ -123,18 +126,20 @@ def validate_catalog(payload: Any) -> dict[str, Any]:
         if destination != f".github/workflows/vibesec-{profile}.yml":
             raise BundleError(f"adoption catalog {profile} workflow destination is invalid")
     addons = payload.get("addons")
-    if not isinstance(addons, dict) or set(addons) != {"dast-baseline"}:
-        raise BundleError("adoption catalog must define the reviewed DAST add-on")
-    addon = addons["dast-baseline"]
-    if not isinstance(addon, dict) or set(addon) != {"support", "workflow_source", "workflow_destination"}:
-        raise BundleError("DAST add-on catalog is malformed")
-    validate_unique_paths(addon["support"])
-    for value in addon["support"]:
-        _reviewed_source_path(value)
-    all_paths.extend(addon["support"])
-    all_paths.append(_reviewed_source_path(addon["workflow_source"]))
-    if safe_posix_path(addon["workflow_destination"]) != ".github/workflows/vibesec-dast-baseline.yml":
-        raise BundleError("DAST add-on workflow destination is invalid")
+    if not isinstance(addons, dict) or set(addons) != {"dast-baseline", "api-security-baseline"}:
+        raise BundleError("adoption catalog must define the reviewed runtime add-ons")
+    destinations = {"dast-baseline": ".github/workflows/vibesec-dast-baseline.yml",
+                    "api-security-baseline": ".github/workflows/vibesec-api-security-baseline.yml"}
+    for name, addon in addons.items():
+        if not isinstance(addon, dict) or set(addon) != {"support", "workflow_source", "workflow_destination"}:
+            raise BundleError(f"{name} add-on catalog is malformed")
+        validate_unique_paths(addon["support"])
+        for value in addon["support"]:
+            _reviewed_source_path(value)
+        all_paths.extend(addon["support"])
+        all_paths.append(_reviewed_source_path(addon["workflow_source"]))
+        if safe_posix_path(addon["workflow_destination"]) != destinations[name]:
+            raise BundleError(f"{name} add-on workflow destination is invalid")
     validate_unique_paths(sorted(set(all_paths)))
     selected = set(configured_bundle_paths_unchecked(payload))
     executable = set(payload["executable_files"])
@@ -227,7 +232,7 @@ def create_manifest(version: str, source_commit: str | None, files: list[BundleF
         "development_version": version,
         "source_commit": source_commit,
         "supported_profiles": ["minimal", "standard"],
-        "supported_addons": ["dast-baseline"],
+        "supported_addons": ["api-security-baseline", "dast-baseline"],
         "files": records,
         "total_file_count": len(records),
         "total_uncompressed_size": sum(item["size"] for item in records),
@@ -297,7 +302,7 @@ def _validate_manifest(payload: Any) -> dict[str, Any]:
         raise BundleError("bundle source commit is invalid")
     if payload["supported_profiles"] != ["minimal", "standard"]:
         raise BundleError("bundle profile declaration is invalid")
-    if payload["supported_addons"] != ["dast-baseline"]:
+    if payload["supported_addons"] != ["api-security-baseline", "dast-baseline"]:
         raise BundleError("bundle add-on declaration is invalid")
     if payload["capabilities"] != ["initialize", "verify_installation", "doctor", "plan_upgrade"]:
         raise BundleError("bundle capability declaration is invalid")

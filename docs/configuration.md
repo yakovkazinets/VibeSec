@@ -6,6 +6,8 @@ Project scope is declared separately in `.vibesec/project-capabilities.json`; se
 
 GitHub Action pins and embedded runtimes are configured only through the strict `config/github-actions.json` inventory. The supported baseline is Node 24 on Actions Runner 2.327.1 or newer; Node 20 runtime fallback and runtime-forcing environment overrides are invalid. These settings concern third-party actions, not an npm or Node runtime required by VibeSec. See [GitHub Actions runtime and pin policy](github-actions-runtime.md).
 
+API target path, port, and base-path environment defaults come from the `installed add-on configuration` when no explicit trusted override is provided.
+
 | Variable | Profile | Type/default | Accepted values | Security and privacy effect | Failure and example |
 |---|---|---|---|---|---|
 | `VIBESEC_ENFORCEMENT` | Minimal, Standard | enum / `observe` | `observe`, `new`, `all` | Selects policy gating; no privacy effect | unsupported exits 3; `new` |
@@ -21,8 +23,15 @@ GitHub Action pins and embedded runtimes are configured only through the strict 
 | `VIBESEC_DAST_BASE_PATH` | DAST Baseline | path / `/` | bounded absolute path without query, fragment, credentials, or traversal | Bounds the passive crawl start; sanitized paths can appear in reports | invalid exits 3; `/health` |
 | `VIBESEC_DAST_ENFORCEMENT` | DAST Baseline | enum / `observe` | `observe`, `new`, `all` | Selects the independent DAST policy gate | unsupported exits 3; `new` |
 | `VIBESEC_DAST_MIN_SEVERITY` | DAST Baseline | enum / `high` | `low`, `medium`, `high`, `critical` | Sets the minimum DAST severity eligible for enforcement | unsupported exits 3; `medium` |
+| `VIBESEC_API_IMAGE_REFERENCE` | API Security Baseline | string / empty | immutable `registry/name@sha256:<digest>` | Selects one prebuilt non-root API image on trusted manual/scheduled events | missing is `not_configured`; malformed/mutable/root fails closed |
+| `VIBESEC_API_SCHEMA_PATH` | API Security Baseline | path / installed value | repository-relative local JSON/YAML | Selects untrusted OpenAPI 3.x input for strict validation | missing/remote/unsafe fails closed |
+| `VIBESEC_API_CONTAINER_PORT` | API Security Baseline | integer / installed value | `1`–`65535` | Selects only the internal target port | invalid exits 3 |
+| `VIBESEC_API_BASE_PATH` | API Security Baseline | path / installed value | bounded absolute path | Forces the fixed internal origin path | invalid exits 3 |
+| `VIBESEC_API_SAFE_METHODS_ONLY` | API Security Baseline | Boolean / `true` | `true`, `false` | `true` permits GET/HEAD/OPTIONS; `false` explicitly enables reviewed mutating methods | invalid exits 3 |
+| `VIBESEC_API_ENFORCEMENT` | API Security Baseline | enum / `observe` | `observe`, `new`, `all` | Selects independent API policy gating | unsupported exits 3 |
+| `VIBESEC_API_MIN_SEVERITY` | API Security Baseline | enum / `high` | `low`, `medium`, `high`, `critical` | Sets minimum API severity eligible for enforcement | unsupported exits 3 |
 
-`VIBESEC_ROOT`, `VIBESEC_RESULTS`, and `VIBESEC_TOOLS` are Standard starter internals created under the runner temporary directory. `VIBESEC_DAST_RESULTS` is the DAST starter's runner-temporary sanitized report directory. Consumers should not populate these internals from pull-request inputs.
+`VIBESEC_ROOT`, `VIBESEC_RESULTS`, and `VIBESEC_TOOLS` are Standard starter internals created under the runner temporary directory. `VIBESEC_DAST_RESULTS` and `VIBESEC_API_RESULTS` are runner-temporary sanitized report directories. Consumers should not populate these internals from pull-request inputs.
 
 Result destinations are positional command arguments, not environment configuration. Minimal defaults to `results`; Standard's starter uses `$RUNNER_TEMP/vibesec-results`. No supported `VIBESEC_*` variable may contain a secret. Registry credentials are intentionally not accepted by the starter.
 

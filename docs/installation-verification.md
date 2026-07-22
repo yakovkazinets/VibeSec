@@ -29,3 +29,5 @@ Verification is offline and does not resolve action tags. A self-hosted consumer
 Never replace local baselines, suppressions, ignore files, policy, or workflows merely because they differ. A wrong executable mode, symlink replacement, unsafe path, malformed manifest, or mismatched workflow/support set is blocking; changed policy content is drift for human review.
 
 Legacy manifests are parsed only with their exact known schema and are not upgraded or reinterpreted. Verification is offline and makes no changes. It checks installation integrity and trust boundaries, not scanner effectiveness, vulnerabilities, CI history, branch protection, or application security.
+
+The API add-on has `.vibesec/install-addon-api-security-baseline.json` plus a hashed `.vibesec/api-security-baseline.json`. Verification requires the independent API policy/configuration, runner, parser, validator, and manual/scheduled workflow as one version-compatible set. It never interprets a changed target configuration as proof that a scan ran.

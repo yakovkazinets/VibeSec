@@ -41,6 +41,8 @@
     "docs/distribution.md",
     "docs/dast-baseline.md",
     "docs/dast-threat-model.md",
+    "docs/api-security-baseline.md",
+    "docs/api-security-threat-model.md",
     "docs/github-actions-runtime.md",
     "docs/installation-verification.md",
     "docs/profile-selection.md",
@@ -68,6 +70,8 @@
     "scripts/run_standard_profile.py",
     "scripts/run_dast_baseline.py",
     "scripts/validate_dast_artifacts.py",
+    "scripts/run_api_security_baseline.py",
+    "scripts/validate_api_security_artifacts.py",
     "scripts/write_minimal_artifacts.py",
     "scripts/verify_consumer_bundle.py",
     "scripts/verify_installation.py",
@@ -126,6 +130,20 @@
       ],
       "workflow_source": "templates/github-actions/dast-baseline.yml",
       "workflow_destination": ".github/workflows/vibesec-dast-baseline.yml"
+    },
+    "api-security-baseline": {
+      "support": [
+        "config/api-security-baseline.json",
+        "config/api-security-result-schema.json",
+        "policy/api-security-baseline.json",
+        "policy/api-security-suppressions.json",
+        "scripts/run_api_security_baseline.py",
+        "scripts/validate_api_security_artifacts.py",
+        "scripts/vibesec/api_security.py",
+        "scripts/vibesec/schemathesis_runtime.py"
+      ],
+      "workflow_source": "templates/github-actions/api-security-baseline.yml",
+      "workflow_destination": ".github/workflows/vibesec-api-security-baseline.yml"
     }
   }
 }

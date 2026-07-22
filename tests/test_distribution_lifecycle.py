@@ -53,6 +53,17 @@ class DistributionLifecycleTests(unittest.TestCase):
         completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
         return completed, json.loads(completed.stdout)
 
+    def init_api_addon(self, target, bundle=True, write=True, schema="openapi.yaml"):
+        command = ["python3", "scripts/init_vibesec.py", "--addon", "api-security-baseline", "--target", str(target),
+                   "--api-schema", schema, "--api-image-variable-name", "MY_IMMUTABLE_API_IMAGE",
+                   "--api-port", "8080", "--api-base-path", "/api", "--api-safe-methods-only", "true"]
+        if bundle:
+            command += ["--bundle", str(self.bundle)]
+        if write:
+            command.append("--write")
+        completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+        return completed, json.loads(completed.stdout)
+
     def command_json(self, script, *arguments, env=None):
         completed = subprocess.run(["python3", script, *map(str, arguments), "--json"], cwd=ROOT, text=True, capture_output=True, env=env)
         return completed, json.loads(completed.stdout)
@@ -123,6 +134,63 @@ class DistributionLifecycleTests(unittest.TestCase):
         self.assertIn(completed.returncode, {0, 1})
         self.assertIn("policy/dast-baseline.json", payload["result"]["files_to_preserve"])
         self.assertIn("policy/dast-suppressions.json", payload["result"]["files_to_preserve"])
+
+    def test_api_addon_is_opt_in_atomic_rendered_and_preservation_aware(self):
+        target = self.target("api-addon")
+        installed, _ = self.init(target)
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        (target / "openapi.yaml").write_bytes((ROOT / "tests/security-fixtures/api-security/openapi.yaml").read_bytes())
+        dry, preview = self.init_api_addon(target, write=False)
+        self.assertEqual(dry.returncode, 0, dry.stderr)
+        self.assertIn(".vibesec/api-security-baseline.json", preview["would_create"])
+        self.assertFalse((target / ".vibesec/api-security-baseline.json").exists())
+        written, _ = self.init_api_addon(target)
+        self.assertEqual(written.returncode, 0, written.stderr)
+        state = verify_installation(target)
+        self.assertEqual(state.status, "valid", state.errors)
+        self.assertEqual(set(state.profiles), {"minimal", "api-security-baseline"})
+        workflow = (target / ".github/workflows/vibesec-api-security-baseline.yml").read_text()
+        self.assertIn("vars.MY_IMMUTABLE_API_IMAGE", workflow)
+        self.assertNotIn("vars.VIBESEC_API_IMAGE_REFERENCE", workflow)
+        config = json.loads((target / ".vibesec/api-security-baseline.json").read_text())
+        self.assertTrue(config["safe_methods_only"])
+        self.assertEqual(config["schema_path"], "openapi.yaml")
+        repeated, repeated_payload = self.init_api_addon(target)
+        self.assertEqual(repeated.returncode, 2)
+        self.assertTrue(repeated_payload["conflict"])
+        plan, payload = self.command_json("scripts/plan_vibesec_upgrade.py", "--target", target, "--bundle", self.bundle)
+        self.assertEqual(plan.returncode, 1)
+        self.assertIn("policy/api-security-baseline.json", payload["result"]["files_to_preserve"])
+        self.assertIn("policy/api-security-suppressions.json", payload["result"]["files_to_preserve"])
+
+    def test_api_addon_rejects_invalid_openapi_before_writing(self):
+        target = self.target("api-invalid-schema")
+        self.assertEqual(self.init(target)[0].returncode, 0)
+        (target / "openapi.yaml").write_text(
+            "openapi: 3.1.0\ninfo: {title: bad, version: 1}\npaths: {}\nexternalDocs: {url: https://example.invalid}\n",
+            encoding="utf-8",
+        )
+        completed, payload = self.init_api_addon(target)
+        self.assertEqual(completed.returncode, 3)
+        self.assertTrue(payload["error"])
+        self.assertFalse((target / ".vibesec/api-security-baseline.json").exists())
+
+    def test_api_doctor_detects_unsafe_schema_and_custom_image_variable(self):
+        target = self.target("api-doctor")
+        self.assertEqual(self.init(target)[0].returncode, 0)
+        (target / "openapi.yaml").write_bytes((ROOT / "tests/security-fixtures/api-security/openapi.yaml").read_bytes())
+        self.assertEqual(self.init_api_addon(target)[0].returncode, 0)
+        (target / "openapi.yaml").write_text(
+            "openapi: 3.1.0\ninfo: {title: bad, version: 1}\npaths:\n  /x:\n    get:\n      operationId: x\n      responses:\n        '200':\n          description: x\n          content:\n            application/json:\n              schema: {$ref: 'https://example.invalid/schema'}\n",
+            encoding="utf-8",
+        )
+        environment = os.environ.copy()
+        environment["MY_IMMUTABLE_API_IMAGE"] = "registry.example/api:mutable"
+        completed, payload = self.command_json("scripts/vibesec_doctor.py", "--target", target, env=environment)
+        self.assertEqual(completed.returncode, 2)
+        codes = {item["code"] for item in payload["result"]["diagnostics"]}
+        self.assertIn("API_IMAGE_REFERENCE_INVALID", codes)
+        self.assertIn("API_SCHEMA_INVALID", codes)
 
     def test_invalid_bundle_is_rejected_before_target_planning(self):
         target = self.target()
@@ -225,7 +293,7 @@ class DistributionLifecycleTests(unittest.TestCase):
                 "kubernetes": False, "infrastructure_as_code": True, "github_actions": True,
                 "javascript_typescript": False, "python": True, "java": False,
                 "public_runtime": False, "authentication": False, "database": False,
-                "secrets_configuration": True, "dast_target": False,
+                "secrets_configuration": True, "dast_target": False, "api_security_target": False,
             },
         }
         answers.write_text(json.dumps(payload), encoding="utf-8")

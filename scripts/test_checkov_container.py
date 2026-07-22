@@ -12,6 +12,7 @@ import tempfile
 SCRIPT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_ROOT))
 from run_standard_profile import run_checkov_files
+from vibesec.model import Finding
 
 
 ROOT = SCRIPT_ROOT.parent
@@ -38,7 +39,15 @@ def scan_files(target: Path, files: list[str]) -> tuple[bool, list[dict[str, obj
             return None
         if error or invalid_input:
             return False, []
-        return True, [finding.to_dict() for finding in findings]
+        normalized = [finding.to_dict() for finding in findings]
+        try:
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            raw_paths = [item["file_path"] for item in payload["results"]["failed_checks"]]
+        except (OSError, KeyError, TypeError, json.JSONDecodeError):
+            return False, []
+        if raw_paths != [item["file"] for item in normalized]:
+            return False, []
+        return True, normalized
 
 
 def scan(fixture: str, expected_exit: int) -> tuple[bool, list[str]] | None:
@@ -70,8 +79,18 @@ def main() -> int:
     findings = multi[1]
     if [item["rule_id"] for item in findings] != [CHECK_ID]:
         return fail("multi-file fixture did not produce one deterministic finding")
-    if findings[0]["file"] != "positive/main.tf" or str(FIXTURE_ROOT) in json.dumps(findings):
+    serialized = json.dumps(findings)
+    if (findings[0]["file"] != "positive/main.tf" or str(FIXTURE_ROOT) in serialized
+            or "/workspace/" in serialized or "\\" in serialized or ".." in findings[0]["file"]):
         return fail("multi-file fixture exposed a non-relative path")
+    expected = Finding.create(
+        tool="checkov", category="iac", rule_id=str(findings[0]["rule_id"]),
+        severity=str(findings[0]["severity"]), file="positive/main.tf",
+        line=findings[0]["line"] if isinstance(findings[0]["line"], int) else None,
+        description=str(findings[0]["description"]), confidence=str(findings[0]["confidence"]),
+    )
+    if findings[0]["fingerprint"] != expected.fingerprint:
+        return fail("multi-file fixture fingerprint did not use the canonical relative path")
     if len({item["fingerprint"] for item in findings}) != len(findings):
         return fail("multi-file fixture produced duplicate findings")
 

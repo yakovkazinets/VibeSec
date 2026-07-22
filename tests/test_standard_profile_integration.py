@@ -10,8 +10,9 @@ import zipfile
 from datetime import date
 from unittest.mock import patch
 
-from scripts.run_standard_profile import CHECKOV_CONTAINER_CONFIG, checkov_command, run as run_scanner
+from scripts.run_standard_profile import CHECKOV_CONTAINER_CONFIG, checkov_command, run as run_scanner, run_checkov_files
 from scripts.test_checkov_container import scan as smoke_scan
+from scripts.vibesec.model import Finding
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -149,6 +150,19 @@ if mode == "malformed": print("{"); raise SystemExit(0)
 failed = []
 if mode == "finding":
     failed = [{"check_id":"CKV_TEST","check_name":"Synthetic IaC finding","file_path":requested,"file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "pinned-path":
+    failed = [{"check_id":"CKV_TEST","check_name":"Synthetic IaC finding","file_path":"/" + requested.rsplit("/", 1)[-1],"file_abs_path":requested,"file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "wrong-path":
+    failed = [{"check_id":"CKV_TEST","check_name":"Wrong path","file_path":"/wrong.tf","file_abs_path":requested,"file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "scanner-windows-path":
+    failed = [{"check_id":"CKV_TEST","check_name":"Windows path","file_path":"C:/repo/main.tf","file_abs_path":"C:/repo/main.tf","file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "scanner-traversal-path":
+    failed = [{"check_id":"CKV_TEST","check_name":"Traversal path","file_path":"../main.tf","file_abs_path":requested,"file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "same-basename" and requested in {"/workspace/one/main.tf", "/workspace/two/main.tf"}:
+    failed = [{"check_id":"CKV_TEST","check_name":"Same basename","file_path":"/main.tf","file_abs_path":requested,"file_line_range":[1,1],"severity":"HIGH"}]
+if mode == "duplicate":
+    item = {"check_id":"CKV_TEST","check_name":"Duplicate","file_path":requested,"file_line_range":[1,1],"severity":"HIGH"}
+    failed = [item, dict(item)]
 print(json.dumps({"results":{"failed_checks":failed}}))
 if failed: raise SystemExit(1)
 ''')
@@ -358,7 +372,7 @@ if failed: raise SystemExit(1)
 
     def test_checkov_scans_each_file_and_merges_deterministic_relative_findings(self):
         invocation_log = self.target.parent / "checkov-invocations.txt"
-        completed = self.run_profile(FAKE_CHECKOV_MODE="finding", FAKE_CHECKOV_LOG=str(invocation_log))
+        completed = self.run_profile(FAKE_CHECKOV_MODE="pinned-path", FAKE_CHECKOV_LOG=str(invocation_log))
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(
             invocation_log.read_text(encoding="utf-8").splitlines(),
@@ -370,9 +384,73 @@ if failed: raise SystemExit(1)
         ]
         self.assertEqual([item["file"] for item in findings], [".github/workflows/test.yml", "main.tf"])
         self.assertEqual(len({item["fingerprint"] for item in findings}), 2)
+        expected = Finding.create(
+            tool="checkov", category="iac", rule_id="CKV_TEST", severity="high",
+            file="main.tf", line=1, description="Synthetic IaC finding", confidence="possible",
+        )
+        self.assertEqual(findings[1]["fingerprint"], expected.fingerprint)
         self.assertNotIn(str(self.target), json.dumps(findings))
+        self.assertNotIn("/workspace/", json.dumps(findings))
+        self.assertNotIn(str(Path.home()), json.dumps(findings))
+        self.assertNotIn(tempfile.gettempdir(), json.dumps(findings))
         raw = self.load_json("raw/checkov.json")
         self.assertEqual(len(raw["results"]["failed_checks"]), 2)
+        self.assertEqual(
+            [item["file_path"] for item in raw["results"]["failed_checks"]],
+            [".github/workflows/test.yml", "main.tf"],
+        )
+
+    def test_checkov_rejects_wrong_scanner_path_as_invalid_input(self):
+        completed = self.run_profile(FAKE_CHECKOV_MODE="wrong-path")
+        self.assertEqual(completed.returncode, 3, completed.stderr)
+        self.assertIn("component=checkov category=invalid_input", completed.stderr)
+        self.assertFalse((self.results / "raw/checkov.json").exists())
+        self.assertEqual(self.load_json("policy-result.json")["exit_category"], "invalid_input")
+
+    def test_checkov_rejects_noncanonical_scanner_paths_as_invalid_input(self):
+        for mode in ("scanner-windows-path", "scanner-traversal-path"):
+            with self.subTest(mode=mode):
+                completed = self.run_profile(FAKE_CHECKOV_MODE=mode)
+                self.assertEqual(completed.returncode, 3, completed.stderr)
+                self.assertIn("component=checkov category=invalid_input", completed.stderr)
+                self.assertFalse((self.results / "raw/checkov.json").exists())
+
+    def test_checkov_rejects_windows_and_traversal_invocation_paths_before_execution(self):
+        for value in ("C:/repo/main.tf", "../main.tf", "one/../main.tf", "one\\main.tf"):
+            with self.subTest(value=value), patch("scripts.run_standard_profile.subprocess.run") as invoked:
+                findings, error, invalid = run_checkov_files(
+                    self.target, ROOT / "config/checkov-standard.yaml",
+                    "bridgecrew/checkov@sha256:" + "a" * 64, [value],
+                    self.results / "raw/checkov.json", cwd=self.target, env={},
+                )
+                self.assertEqual(findings, [])
+                self.assertEqual(error, "checkov invocation path failed validation")
+                self.assertTrue(invalid)
+                invoked.assert_not_called()
+
+    def test_checkov_same_basenames_keep_distinct_paths_and_fingerprints(self):
+        for directory in ("one", "two"):
+            path = self.target / directory
+            path.mkdir()
+            (path / "main.tf").write_text('resource "test" "fixture" {}\n', encoding="utf-8")
+        completed = self.run_profile(FAKE_CHECKOV_MODE="same-basename")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        findings = [
+            item for item in self.load_json("normalized.json")["results"]
+            if item["tool"] == "checkov" and item["result_type"] == "finding"
+        ]
+        self.assertEqual([item["file"] for item in findings], ["one/main.tf", "two/main.tf"])
+        self.assertEqual(len({item["fingerprint"] for item in findings}), 2)
+
+    def test_duplicate_checkov_findings_deduplicate_deterministically(self):
+        completed = self.run_profile(FAKE_CHECKOV_MODE="duplicate")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        findings = [
+            item for item in self.load_json("normalized.json")["results"]
+            if item["tool"] == "checkov" and item["result_type"] == "finding"
+        ]
+        self.assertEqual([item["file"] for item in findings], [".github/workflows/test.yml", "main.tf"])
+        self.assertEqual(len({item["fingerprint"] for item in findings}), 2)
 
     def test_one_failed_checkov_file_discards_the_partial_capability(self):
         completed = self.run_profile(FAKE_CHECKOV_MODE="fail-main")

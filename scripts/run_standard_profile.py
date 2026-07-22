@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import sys
@@ -122,6 +122,105 @@ def run(scanner: str, argv: list[str], raw_path: Path | None, *, cwd: Path,
     return None
 
 
+def validate_checkov_relative_file(root: Path, relative_file: str) -> tuple[str, Path]:
+    """Validate one trusted inventory path and resolve its exact regular file."""
+    try:
+        relative_file.encode("utf-8")
+    except (AttributeError, UnicodeEncodeError) as exc:
+        raise ValueError("Checkov input path must be a UTF-8 string") from exc
+    if (not relative_file or "\\" in relative_file
+            or any(ord(character) < 32 or ord(character) == 127 for character in relative_file)
+            or re.match(r"^/?[A-Za-z]:", relative_file)):
+        raise ValueError("Checkov input path is not a canonical repository-relative path")
+    pure = PurePosixPath(relative_file)
+    if pure.is_absolute() or ".." in pure.parts or pure.as_posix() != relative_file:
+        raise ValueError("Checkov input path is not a canonical repository-relative path")
+    try:
+        resolved_root = root.resolve(strict=True)
+        candidate = resolved_root.joinpath(*pure.parts)
+        if candidate.is_symlink():
+            raise ValueError("Checkov input path must not be a symlink")
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(resolved_root)
+    except (OSError, ValueError) as exc:
+        raise ValueError("Checkov input path does not resolve beneath the scan root") from exc
+    if not resolved.is_file():
+        raise ValueError("Checkov input path must identify a regular file")
+    return relative_file, resolved
+
+
+def _checkov_reported_paths(path: Path) -> list[tuple[str | None, str | None]]:
+    """Extract only scanner path claims after the main normalizer validates the report."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Checkov path metadata is malformed") from exc
+    documents = payload if isinstance(payload, list) else [payload]
+    reported: list[tuple[str | None, str | None]] = []
+    for document in documents:
+        if not isinstance(document, dict) or not isinstance(document.get("results"), dict):
+            raise ValueError("Checkov path metadata is malformed")
+        failed_checks = document["results"].get("failed_checks", [])
+        if not isinstance(failed_checks, list):
+            raise ValueError("Checkov path metadata is malformed")
+        for item in failed_checks:
+            if not isinstance(item, dict):
+                raise ValueError("Checkov path metadata is malformed")
+            file_path = item.get("file_path")
+            absolute_path = item.get("file_abs_path")
+            if file_path is not None and not isinstance(file_path, str):
+                raise ValueError("Checkov file_path must be a string")
+            if absolute_path is not None and not isinstance(absolute_path, str):
+                raise ValueError("Checkov file_abs_path must be a string")
+            reported.append((file_path or None, absolute_path or None))
+    return reported
+
+
+def _validate_scanner_path(value: str) -> None:
+    if ("\\" in value or any(ord(character) < 32 or ord(character) == 127 for character in value)
+            or re.match(r"^/?[A-Za-z]:", value)):
+        raise ValueError("Checkov reported a non-canonical path")
+    pure = PurePosixPath(value)
+    if ".." in pure.parts or pure.as_posix() != value:
+        raise ValueError("Checkov reported a non-canonical path")
+
+
+def canonicalize_checkov_findings(relative_file: str, resolved_file: Path,
+                                  findings: list[Finding], raw_path: Path) -> list[Finding]:
+    """Verify scanner path claims and replace them with the trusted invocation path."""
+    reported = _checkov_reported_paths(raw_path)
+    if len(reported) != len(findings):
+        raise ValueError("Checkov finding and path counts differ")
+    full_equivalents = {
+        relative_file,
+        f"/{relative_file}",
+        f"/workspace/{relative_file}",
+        resolved_file.as_posix(),
+    }
+    basename_equivalents = {PurePosixPath(relative_file).name, f"/{PurePosixPath(relative_file).name}"}
+    canonical: list[Finding] = []
+    for finding, (file_path, absolute_path) in zip(findings, reported, strict=True):
+        if not file_path and not absolute_path:
+            raise ValueError("Checkov finding omitted its path")
+        if file_path:
+            _validate_scanner_path(file_path)
+        if absolute_path:
+            _validate_scanner_path(absolute_path)
+        absolute_matches = absolute_path in full_equivalents if absolute_path else False
+        if absolute_path and not absolute_matches:
+            raise ValueError("Checkov reported a path for a different file")
+        if file_path and file_path not in full_equivalents:
+            if file_path not in basename_equivalents or not absolute_matches:
+                raise ValueError("Checkov reported a path for a different file")
+        canonical.append(Finding.create(
+            tool=finding.tool, category=finding.category, rule_id=finding.rule_id,
+            severity=finding.severity, file=relative_file, line=finding.line,
+            description=finding.description, confidence=finding.confidence,
+            result_type=finding.result_type,
+        ))
+    return canonical
+
+
 def run_checkov_files(root: Path, config: Path, image: str, files: list[str],
                       raw_path: Path, *, cwd: Path, env: dict[str, str],
                       extra_arguments: tuple[str, ...] = ()) -> tuple[list[Finding], str | None, bool]:
@@ -137,11 +236,17 @@ def run_checkov_files(root: Path, config: Path, image: str, files: list[str],
         return [], f"checkov could not clear its output: {type(exc).__name__}", False
 
     findings: list[Finding] = []
+    if not all(isinstance(item, str) for item in files):
+        return [], "checkov invocation path failed validation", True
     ordered_files = sorted(set(files))
     try:
         with tempfile.TemporaryDirectory(prefix=".checkov-", dir=raw_path.parent) as temporary:
             temporary_root = Path(temporary)
             for index, relative_file in enumerate(ordered_files):
+                try:
+                    relative_file, resolved_file = validate_checkov_relative_file(root, relative_file)
+                except ValueError:
+                    return [], "checkov invocation path failed validation", True
                 output = temporary_root / f"{index:06d}.json"
                 error = run(
                     "checkov",
@@ -151,7 +256,10 @@ def run_checkov_files(root: Path, config: Path, image: str, files: list[str],
                 if error:
                     return [], error, False
                 try:
-                    findings.extend(normalize_file("checkov", output))
+                    per_file_findings = normalize_file("checkov", output)
+                    findings.extend(canonicalize_checkov_findings(
+                        relative_file, resolved_file, per_file_findings, output,
+                    ))
                 except ValueError:
                     return [], "checkov output failed structural validation", True
     except OSError as exc:

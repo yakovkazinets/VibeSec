@@ -12,12 +12,14 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.bundle import validate_catalog  # noqa: E402
-from vibesec.dast import (  # noqa: E402
-    ZAP_POLICY_FILENAME, ZAP_REPORT_FILENAME, ZAP_RUNTIME_ADDON_OPTIONS,
-    load_config, trusted_zap_baseline_arguments,
-)
+from vibesec.dast import load_config  # noqa: E402
 from vibesec.strict_json import loads_strict  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
+from vibesec.zap_automation import (  # noqa: E402
+    JOB_TYPES, REPORT_FILENAME, REPORT_TEMPLATE,
+    RUNTIME_ADDON_OPTIONS, build_passive_plan, trusted_zap_command,
+    validate_passive_plan,
+)
 from validate_security_capabilities import validate_matrix  # noqa: E402
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "cosign", "checkov", "zap-baseline", "dast-fixture-python"}
@@ -111,7 +113,8 @@ def validate_references() -> None:
         "scripts/verify_installation.py", "scripts/vibesec_doctor.py", "scripts/plan_vibesec_upgrade.py",
         "scripts/validate_security_capabilities.py", "scripts/run_security_accountability.py",
         "scripts/validate_security_artifacts.py", "config/security-capabilities.json", "config/self-scan-scope.json",
-        "scripts/run_dast_baseline.py", "scripts/test_dast_container.py", "scripts/validate_dast_artifacts.py", "scripts/vibesec/dast.py",
+        "scripts/run_dast_baseline.py", "scripts/test_dast_container.py", "scripts/validate_dast_artifacts.py",
+        "scripts/vibesec/dast.py", "scripts/vibesec/zap_automation.py", "config/zap-passive-plan-schema.json",
         "config/environment-variables.json", "docs/quickstart.md", "docs/profile-selection.md",
         "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md", "docs/distribution.md",
         "docs/installation-verification.md", "docs/doctor.md", "docs/dast-baseline.md", "docs/dast-threat-model.md",
@@ -129,26 +132,33 @@ def validate_references() -> None:
 
 def validate_dast_command_contract() -> None:
     config = load_config(ROOT)
-    command = trusted_zap_baseline_arguments(target_url="http://target:8080/", config=config)
-    expected = [
-        "zap-baseline.py", "-t", "http://target:8080/", "-c", ZAP_POLICY_FILENAME,
-        "-m", str(config["spider_duration_minutes"]), "-T", str(config["passive_scan_timeout_minutes"]),
-        "-J", ZAP_REPORT_FILENAME, "-s", "-i", "-z", "-silent", "--autooff",
-    ]
-    if command != expected:
-        raise ValueError("DAST command must contain only the complete reviewed packaged-scan arguments")
-    if command.count("-z") != 1 or command[command.index("-z") + 1] != "-silent":
-        raise ValueError("DAST command must contain exactly the trusted -z -silent option")
-    if command[command.index("-c") + 1] != ZAP_POLICY_FILENAME or command[command.index("-J") + 1] != ZAP_REPORT_FILENAME:
-        raise ValueError("DAST packaged-scan files must remain relative to /zap/wrk")
-    if not {"-i", "--autooff"} <= set(command) or "-a" in command or "-j" in command:
-        raise ValueError("DAST command must remain a traditional-spider passive packaged scan")
-    if ZAP_RUNTIME_ADDON_OPTIONS.intersection(command):
-        raise ValueError("DAST command must not update, install, or remove ZAP add-ons at runtime")
+    command = trusted_zap_command()
+    if command != ["zap.sh", "-cmd", "-silent", "-autorun", "/zap/wrk/vibesec-zap-plan.yaml"]:
+        raise ValueError("DAST command must contain only the reviewed Automation Framework arguments")
+    if RUNTIME_ADDON_OPTIONS.intersection(command) or any("proxy" in item.casefold() for item in command):
+        raise ValueError("DAST command must not update add-ons or configure a proxy")
+    plan = build_passive_plan(
+        port=8080, base_path="/", spider_minutes=config["spider_duration_minutes"],
+        passive_wait_minutes=config["passive_scan_timeout_minutes"],
+    )
+    validate_passive_plan(
+        plan, port=8080, base_path="/", spider_minutes=config["spider_duration_minutes"],
+        passive_wait_minutes=config["passive_scan_timeout_minutes"],
+    )
+    if tuple(job["type"] for job in plan["jobs"]) != JOB_TYPES:
+        raise ValueError("DAST plan job order differs from the reviewed passive sequence")
+    report = plan["jobs"][2]
+    if report["parameters"]["template"] != REPORT_TEMPLATE or report["parameters"]["reportFile"] != REPORT_FILENAME:
+        raise ValueError("DAST plan must use only the traditional JSON private report")
+    schema = load_object(ROOT / "config/zap-passive-plan-schema.json")
+    if schema.get("additionalProperties") is not False or schema.get("properties", {}).get("jobs", {}).get("maxItems") != 4:
+        raise ValueError("trusted ZAP plan schema does not preserve the closed four-job contract")
     for relative in ("scripts/run_dast_baseline.py", "scripts/test_dast_container.py"):
         source = (ROOT / relative).read_text(encoding="utf-8")
-        if "trusted_zap_baseline_arguments(" not in source or '"zap-baseline.py"' in source:
-            raise ValueError(f"{relative} must use only the shared trusted ZAP command builder")
+        if "trusted_zap_container_command(" not in source or "zap-baseline.py" in source or "zap-full-scan.py" in source:
+            raise ValueError(f"{relative} must use only the shared trusted ZAP Automation Framework builder")
+        if "PLAN_FILENAME" not in source and relative.endswith("run_dast_baseline.py"):
+            raise ValueError("production DAST runner must create and delete the trusted plan")
 
 
 def validate_adoption_metadata() -> None:

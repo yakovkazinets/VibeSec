@@ -31,7 +31,10 @@ def validate(results: Path, expected_state: str) -> None:
         raise DastError("DAST coverage profile or exact state differs")
     fixed = {"network_mode": "internal_only", "active_scanning": False, "traditional_spider": True,
              "ajax_spider": False, "authentication": False, "external_egress": False,
-             "application_source_built": False, "project_dependencies_installed": False}
+             "application_source_built": False, "project_dependencies_installed": False,
+             "scanner_mode": "automation_framework", "report_template": "traditional-json",
+             "runtime_addon_updates": False,
+             "automation_plan_jobs": ["spider", "passiveScan-wait", "report", "exitStatus"]}
     if any(coverage.get(key) != value for key, value in fixed.items()):
         raise DastError("DAST coverage isolation declarations differ")
     if coverage.get("target_digest") is not None and (not isinstance(coverage["target_digest"], str) or not DIGEST.fullmatch(coverage["target_digest"])):

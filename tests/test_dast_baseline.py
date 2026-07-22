@@ -7,11 +7,15 @@ import tempfile
 import unittest
 
 from scripts.vibesec.dast import (
-    DastError, ZAP_RUNTIME_ADDON_OPTIONS, load_config, normalize_zap_report, sanitize_url,
-    trusted_event, trusted_zap_baseline_arguments, validate_base_path,
-    validate_image_reference, validate_port,
+    DastError, load_config, normalize_zap_report, sanitize_url, trusted_event,
+    validate_base_path, validate_image_reference, validate_port,
 )
 from scripts.test_dast_container import classify_zap_failure, zap_failure_summary
+from scripts.vibesec.zap_automation import (
+    JOB_TYPES, PLAN_FILENAME, REPORT_FILENAME, RUNTIME_ADDON_OPTIONS,
+    build_passive_plan, load_passive_plan, trusted_zap_command,
+    trusted_zap_container_command, validate_passive_plan, write_passive_plan,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,20 +40,21 @@ if args[:2] == ["rm","-f"]: raise SystemExit(1 if mode == "cleanup_fail" else 0)
 if args[:1] == ["run"]:
  if "--detach" in args: print("container-id"); raise SystemExit(1 if mode == "target_fail" else 0)
  if "python3" in args: raise SystemExit(1 if mode in {"early_exit", "not_ready"} else 0)
- if "zap-baseline.py" in args:
-  config=args[args.index("-c")+1] if "-c" in args else ""
-  report=args[args.index("-J")+1] if "-J" in args else ""
-  policy_mount="dst=/zap/wrk/vibesec-zap-baseline.conf,readonly"
-  if config != "vibesec-zap-baseline.conf" or report != "zap-report.json" or not any(policy_mount in value for value in args):
-   print("packaged scan file argument contract failed",file=sys.stderr); raise SystemExit(3)
-  if "-z" not in args or args.count("-z") != 1 or args[args.index("-z")+1] != "-silent":
-   print("add-on update failure: connection failure while applying -addonupdate",file=sys.stderr); raise SystemExit(3)
-  if any(value in args for value in ("-addonupdate","-addoninstall","-addoninstallall","-addonuninstall")):
-   print("runtime add-on option rejected",file=sys.stderr); raise SystemExit(3)
+ if "zap.sh" in args:
+  tail=args[args.index("zap.sh"):]
+  if tail not in (["zap.sh","-cmd","-silent","-autorun","/zap/wrk/vibesec-zap-plan.yaml"],
+                  ["zap.sh","-cmd","-silent","-autocheck","/zap/wrk/vibesec-zap-plan.yaml"]):
+   print("automation command contract failed",file=sys.stderr); raise SystemExit(3)
+  mount=next(value for value in args if value.startswith("type=bind,src=") and value.endswith(",dst=/zap/wrk"))
+  directory=pathlib.Path(next(part.split("=",1)[1] for part in mount.split(",") if part.startswith("src=")))
+  plan=directory/"vibesec-zap-plan.yaml"
+  payload=json.loads(plan.read_text(encoding="utf-8"))
+  if os.environ.get("FAKE_ZAP_PLAN_LOG"): pathlib.Path(os.environ["FAKE_ZAP_PLAN_LOG"]).write_bytes(plan.read_bytes())
+  if [job.get("type") for job in payload.get("jobs",[])] != ["spider","passiveScan-wait","report","exitStatus"]:
+   print("automation plan contract failed",file=sys.stderr); raise SystemExit(3)
+  if tail[3] == "-autocheck": raise SystemExit(1 if mode == "autocheck_fail" else 0)
   if mode == "zap_fail": raise SystemExit(3)
   if mode != "missing_report":
-   mount=next(value for value in args if value.startswith("type=bind,src=") and value.endswith(",dst=/zap/wrk"))
-   directory=pathlib.Path(next(part.split("=",1)[1] for part in mount.split(",") if part.startswith("src=")))
    source=pathlib.Path(os.environ["FAKE_ZAP_REPORT"])
    (directory/"zap-report.json").write_bytes(source.read_bytes())
   raise SystemExit(int(os.environ.get("FAKE_ZAP_EXIT", "2")))
@@ -71,7 +76,8 @@ class DastBaselineTests(unittest.TestCase):
         results = self.work / f"results-{len(list(self.work.glob('results-*')))}"
         environment = {key: value for key, value in os.environ.items() if not key.startswith(("VIBESEC_DAST_", "FAKE_DAST_", "FAKE_ZAP_"))}
         environment.update({"FAKE_DOCKER_LOG": str(self.log), "FAKE_DAST_MODE": mode,
-                            "FAKE_ZAP_REPORT": str(FIXTURE / report / "raw.json"), "FAKE_ZAP_EXIT": zap_exit})
+                            "FAKE_ZAP_REPORT": str(FIXTURE / report / "raw.json"), "FAKE_ZAP_EXIT": zap_exit,
+                            "FAKE_ZAP_PLAN_LOG": str(self.work / "observed-plan.json")})
         completed = subprocess.run(
             [sys.executable, "scripts/run_dast_baseline.py", str(results), "--docker", str(self.docker),
              "--event", event, "--image-reference", image, "--container-port", "8080",
@@ -165,7 +171,7 @@ class DastBaselineTests(unittest.TestCase):
         self.assertEqual(normalized["results"], [])
 
     def test_runtime_commands_enforce_isolation(self):
-        completed, _ = self.run_profile()
+        completed, results = self.run_profile()
         self.assertEqual(completed.returncode, 0, completed.stderr)
         commands = [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
         flattened = "\n".join(" ".join(command) for command in commands)
@@ -182,64 +188,90 @@ class DastBaselineTests(unittest.TestCase):
         self.assertNotIn("docker.sock", flattened)
         target = next(command for command in commands if command[:1] == ["run"] and "--detach" in command)
         self.assertNotIn("--mount", target)
-        scanner = next(command for command in commands if command[:1] == ["run"] and "zap-baseline.py" in command)
-        self.assertEqual(scanner[scanner.index("-c") + 1], "vibesec-zap-baseline.conf")
-        self.assertEqual(scanner[scanner.index("-J") + 1], "zap-report.json")
-        self.assertFalse(scanner[scanner.index("-c") + 1].startswith("/"))
-        self.assertFalse(scanner[scanner.index("-J") + 1].startswith("/"))
+        scanner = next(command for command in commands if command[:1] == ["run"] and "zap.sh" in command)
+        self.assertEqual(scanner[scanner.index("zap.sh"):], trusted_zap_command())
+        self.assertEqual(scanner[scanner.index("--user") + 1], f"{os.getuid()}:{os.getgid()}")
         mounts = [value for index, value in enumerate(scanner) if index and scanner[index - 1] == "--mount"]
-        output_mount = next(value for value in mounts if value.endswith("dst=/zap/wrk"))
-        policy_mount = next(value for value in mounts if "dst=/zap/wrk/vibesec-zap-baseline.conf" in value)
+        self.assertEqual(len(mounts), 1)
+        output_mount = mounts[0]
+        self.assertTrue(output_mount.endswith("dst=/zap/wrk"))
         self.assertNotIn("readonly", output_mount)
-        self.assertTrue(policy_mount.endswith(",readonly"))
-        self.assertIn(str(ROOT / "config/zap-baseline.conf"), policy_mount)
         private = Path(next(part.split("=", 1)[1] for part in output_mount.split(",") if part.startswith("src=")))
-        self.assertFalse(private.exists(), "private raw-output directory survived cleanup")
-        self.assertIn("-T", scanner)
-        self.assertEqual(scanner[scanner.index("-T") + 1], "3")
-        self.assertEqual(scanner.count("-z"), 1)
-        self.assertEqual(scanner[scanner.index("-z") + 1], "-silent")
-        self.assertIn("-i", scanner)
-        self.assertIn("--autooff", scanner)
-        self.assertFalse(ZAP_RUNTIME_ADDON_OPTIONS.intersection(scanner))
-        scan_arguments = scanner[scanner.index("zap-baseline.py"):]
-        self.assertFalse(any("proxy" in value.casefold() for value in scan_arguments))
-        self.assertNotIn("-a", scanner)
+        self.assertFalse(private.exists(), "private plan/report directory survived cleanup")
+        self.assertFalse(RUNTIME_ADDON_OPTIONS.intersection(scanner))
+        self.assertFalse(any("proxy" in value.casefold() for value in scanner[scanner.index("zap.sh"):]))
+        for prohibited in ("zap-baseline.py", "zap-full-scan.py", "zap-api-scan.py", "activeScan", "spiderAjax", "spiderClient"):
+            self.assertNotIn(prohibited, flattened)
+        observed_plan = json.loads((self.work / "observed-plan.json").read_text(encoding="utf-8"))
+        self.assertEqual(tuple(job["type"] for job in observed_plan["jobs"]), JOB_TYPES)
+        self.assertEqual(observed_plan["env"]["contexts"][0]["urls"], ["http://target:8080/positive"])
+        coverage = json.loads((results / "coverage.json").read_text(encoding="utf-8"))
+        self.assertEqual(coverage["scanner_mode"], "automation_framework")
+        self.assertEqual(coverage["report_template"], "traditional-json")
+        self.assertFalse(coverage["runtime_addon_updates"])
 
-    def test_shared_builder_is_closed_to_caller_options(self):
+    def test_trusted_plan_and_command_are_closed_to_caller_extensions(self):
         config = load_config(ROOT)
-        command = trusted_zap_baseline_arguments(target_url="http://target:8080/positive", config=config)
-        self.assertEqual(command, [
-            "zap-baseline.py", "-t", "http://target:8080/positive",
-            "-c", "vibesec-zap-baseline.conf", "-m", "1", "-T", "3",
-            "-J", "zap-report.json", "-s", "-i", "-z", "-silent", "--autooff",
-        ])
-        self.assertEqual(command.count("-z"), 1)
-        self.assertEqual(command[command.index("-z") + 1], "-silent")
-        self.assertEqual(command[command.index("-c") + 1], "vibesec-zap-baseline.conf")
-        self.assertEqual(command[command.index("-J") + 1], "zap-report.json")
-        self.assertTrue({"-i", "--autooff"} <= set(command))
-        self.assertFalse(ZAP_RUNTIME_ADDON_OPTIONS.intersection(command))
+        command = trusted_zap_command()
+        self.assertEqual(command, ["zap.sh", "-cmd", "-silent", "-autorun", "/zap/wrk/vibesec-zap-plan.yaml"])
+        self.assertEqual(
+            trusted_zap_command("autocheck"),
+            ["zap.sh", "-cmd", "-silent", "-autocheck", "/zap/wrk/vibesec-zap-plan.yaml"],
+        )
+        self.assertFalse(RUNTIME_ADDON_OPTIONS.intersection(command))
         self.assertFalse(any("proxy" in value.casefold() for value in command))
         with self.assertRaises(TypeError):
-            trusted_zap_baseline_arguments(
-                target_url="http://target:8080/positive", config=config, zap_options="-addonupdate"  # type: ignore[call-arg]
-            )
+            trusted_zap_command("autorun", options="-addonupdate")  # type: ignore[call-arg]
         with self.assertRaises(DastError):
-            trusted_zap_baseline_arguments(target_url="https://example.invalid/", config=config)
-        target_shaped_options = trusted_zap_baseline_arguments(
-            target_url="http://target:8080/-z/-addonupdate", config=config,
+            trusted_zap_command("arbitrary")
+        plan = build_passive_plan(
+            port=8080, base_path="/positive", spider_minutes=config["spider_duration_minutes"],
+            passive_wait_minutes=config["passive_scan_timeout_minutes"],
         )
-        self.assertEqual(target_shaped_options.count("-z"), 1)
-        self.assertFalse(ZAP_RUNTIME_ADDON_OPTIONS.intersection(target_shaped_options))
-        urls = [value for value in target_shaped_options if value.startswith(("http://", "https://"))]
-        self.assertEqual(urls, ["http://target:8080/-z/-addonupdate"])
+        self.assertEqual(tuple(job["type"] for job in plan["jobs"]), JOB_TYPES)
+        self.assertEqual(plan["env"]["contexts"][0]["urls"], ["http://target:8080/positive"])
+        self.assertEqual(plan["jobs"][2]["parameters"]["template"], "traditional-json")
+        self.assertNotIn("authentication", plan["env"]["contexts"][0])
+        serialized = json.dumps(plan)
+        for prohibited in ("activeScan", "spiderAjax", "spiderClient", "requestor", "script", "addOns", "proxy"):
+            self.assertNotIn(prohibited, serialized)
+
+    def test_plan_validator_rejects_origin_escape_plus_reports_and_forbidden_jobs(self):
+        config = load_config(ROOT)
+        original = build_passive_plan(port=8080, base_path="/positive", spider_minutes=1, passive_wait_minutes=3)
+        mutations = []
+        changed = json.loads(json.dumps(original)); changed["env"]["contexts"][0]["urls"] = ["https://example.invalid/"]; mutations.append(changed)
+        changed = json.loads(json.dumps(original)); changed["env"]["contexts"][0]["authentication"] = {}; mutations.append(changed)
+        changed = json.loads(json.dumps(original)); changed["env"]["proxy"] = {"hostname": "proxy"}; mutations.append(changed)
+        changed = json.loads(json.dumps(original)); changed["jobs"][2]["parameters"]["template"] = "traditional-json-plus"; mutations.append(changed)
+        for job in ("activeScan", "spiderAjax", "spiderClient", "script", "requestor", "openapi", "graphql", "soap", "addOns"):
+            changed = json.loads(json.dumps(original)); changed["jobs"].insert(1, {"type": job, "parameters": {}}); mutations.append(changed)
+        for changed in mutations:
+            with self.subTest(plan=changed), self.assertRaises(DastError):
+                validate_passive_plan(
+                    changed, port=8080, base_path="/positive",
+                    spider_minutes=config["spider_duration_minutes"],
+                    passive_wait_minutes=config["passive_scan_timeout_minutes"],
+                )
+
+    def test_plan_is_restrictive_atomic_and_round_trips_strictly(self):
+        path = self.work / PLAN_FILENAME
+        write_passive_plan(path, port=8080, base_path="/positive", spider_minutes=1, passive_wait_minutes=3)
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        loaded = load_passive_plan(path, port=8080, base_path="/positive", spider_minutes=1, passive_wait_minutes=3)
+        self.assertEqual(tuple(job["type"] for job in loaded["jobs"]), JOB_TYPES)
+        path.write_text(path.read_text(encoding="utf-8").replace("traditional-json", "traditional-json-plus"), encoding="utf-8")
+        path.chmod(0o600)
+        with self.assertRaises(DastError):
+            load_passive_plan(path, port=8080, base_path="/positive", spider_minutes=1, passive_wait_minutes=3)
 
     def test_production_and_live_harness_share_the_command_builder(self):
         for relative in ("scripts/run_dast_baseline.py", "scripts/test_dast_container.py"):
             source = (ROOT / relative).read_text(encoding="utf-8")
-            self.assertIn("trusted_zap_baseline_arguments(", source)
-            self.assertNotIn('"zap-baseline.py"', source)
+            self.assertIn("trusted_zap_container_command(", source)
+            self.assertIn("write_passive_plan(", source)
+            self.assertNotIn("zap-baseline.py", source)
+            self.assertNotIn("zap-full-scan.py", source)
 
     def test_live_harness_diagnostics_are_bounded_and_sanitized(self):
         marker = "MUST_NOT_APPEAR_IN_DIAGNOSTIC"
@@ -258,68 +290,24 @@ class DastBaselineTests(unittest.TestCase):
             "addon_update_blocked",
         )
         self.assertEqual(classify_zap_failure("marketplace unavailable during startup"), "addon_update_blocked")
+        self.assertEqual(classify_zap_failure("Automation plan autocheck failed"), "automation_plan_invalid")
         self.assertEqual(classify_zap_failure(marker * 1000), "unknown_zap_exit")
 
-    def test_live_harness_uses_packaged_scan_relative_file_contract(self):
+    def test_live_harness_uses_controlled_fixture_and_pinned_autocheck(self):
         harness = (ROOT / "scripts/test_dast_container.py").read_text(encoding="utf-8")
-        self.assertIn("trusted_zap_baseline_arguments(", harness)
-        self.assertIn('dst=/zap/wrk/vibesec-zap-baseline.conf,readonly', harness)
-        self.assertIn('dst=/zap/wrk"', harness)
-        self.assertNotIn('"-c", "/zap/', harness)
-        self.assertNotIn('"-J", "/zap/', harness)
+        self.assertIn('ROOT / "tests/security-fixtures/zap-baseline/server.py"', harness)
+        self.assertIn('operation="autocheck"', harness)
+        builder = (ROOT / "scripts/vibesec/zap_automation.py").read_text(encoding="utf-8")
+        self.assertIn('dst={CONTAINER_WORKDIR}', builder)
+        self.assertNotIn("run_dast_baseline.py .", harness)
 
-    def test_fake_docker_rejects_absolute_packaged_scan_file_arguments(self):
-        private = self.work / "private"
-        private.mkdir()
-        environment = os.environ.copy()
-        environment.update({
-            "FAKE_DOCKER_LOG": str(self.log),
-            "FAKE_ZAP_REPORT": str(FIXTURE / "positive/raw.json"),
-            "FAKE_ZAP_EXIT": "2",
-        })
-        mounts = [
-            "--mount", f"type=bind,src={private},dst=/zap/wrk",
-            "--mount", f"type=bind,src={ROOT / 'config/zap-baseline.conf'},dst=/zap/wrk/vibesec-zap-baseline.conf,readonly",
-        ]
-        absolute = subprocess.run(
-            [str(self.docker), "run", *mounts, "pinned-zap", "zap-baseline.py",
-             "-c", "/zap/policy/vibesec-zap-baseline.conf", "-J", "/zap/wrk/zap-report.json"],
-            env=environment, text=True, capture_output=True, check=False,
-        )
-        self.assertEqual(absolute.returncode, 3)
-        self.assertIn("packaged scan file argument contract failed", absolute.stderr)
-        relative = subprocess.run(
-            [str(self.docker), "run", *mounts, "pinned-zap", "zap-baseline.py",
-             "-c", "vibesec-zap-baseline.conf", "-J", "zap-report.json", "-z", "-silent"],
-            env=environment, text=True, capture_output=True, check=False,
-        )
-        self.assertEqual(relative.returncode, 2)
-        self.assertEqual((private / "zap-report.json").read_bytes(), (FIXTURE / "positive/raw.json").read_bytes())
-
-    def test_fake_packaged_scan_reproduces_no_update_before_and_after(self):
-        private = self.work / "private-update"
-        private.mkdir()
-        environment = os.environ.copy()
-        environment.update({
-            "FAKE_DOCKER_LOG": str(self.log),
-            "FAKE_ZAP_REPORT": str(FIXTURE / "positive/raw.json"),
-            "FAKE_ZAP_EXIT": "2",
-        })
-        base = [
-            str(self.docker), "run",
-            "--mount", f"type=bind,src={private},dst=/zap/wrk",
-            "--mount", f"type=bind,src={ROOT / 'config/zap-baseline.conf'},dst=/zap/wrk/vibesec-zap-baseline.conf,readonly",
-            "pinned-zap", "zap-baseline.py", "-c", "vibesec-zap-baseline.conf", "-J", "zap-report.json",
-        ]
-        legacy = subprocess.run(base, env=environment, text=True, capture_output=True, check=False)
-        self.assertEqual(legacy.returncode, 3)
-        self.assertEqual(classify_zap_failure(legacy.stderr), "addon_update_blocked")
-        self.assertFalse((private / "zap-report.json").exists())
-        corrected = subprocess.run(
-            [*base, "-z", "-silent"], env=environment, text=True, capture_output=True, check=False,
-        )
-        self.assertEqual(corrected.returncode, 2)
-        self.assertEqual((private / "zap-report.json").read_bytes(), (FIXTURE / "positive/raw.json").read_bytes())
+    def test_vibesec_dast_self_state_is_not_applicable_and_consumer_addon_is_opt_in(self):
+        matrix = json.loads((ROOT / "config/security-capabilities.json").read_text(encoding="utf-8"))
+        states = {item["self_repository_scan"] for item in matrix["capabilities"] if item["profile"] == "dast-baseline"}
+        self.assertEqual(states, {"not_applicable"})
+        catalog = json.loads((ROOT / "config/adoption-files.json").read_text(encoding="utf-8"))
+        self.assertEqual(set(catalog["addons"]), {"dast-baseline"})
+        self.assertTrue(all("run_dast_baseline.py" not in profile["support"] for profile in catalog["profiles"].values()))
 
     def test_untrusted_and_missing_configuration_never_invoke_docker(self):
         for event, image in (("pull_request", IMAGE), ("workflow_dispatch", "")):
@@ -329,6 +317,12 @@ class DastBaselineTests(unittest.TestCase):
             self.assertFalse(self.log.exists())
             coverage = json.loads((results / "coverage.json").read_text(encoding="utf-8"))
             self.assertEqual(coverage["state"], "not_configured")
+
+    def test_automation_exit_one_without_report_is_runtime_failure(self):
+        completed, results = self.run_profile(mode="missing_report", zap_exit="1")
+        self.assertEqual(completed.returncode, 2, completed.stderr)
+        coverage = json.loads((results / "coverage.json").read_text(encoding="utf-8"))
+        self.assertEqual(coverage["state"], "tool_error")
 
     def test_tool_invalid_and_cleanup_failures_are_not_clean(self):
         for mode, expected in (("pull_fail", 2), ("root", 3), ("root_name", 3), ("root_uid", 3), ("target_fail", 2), ("zap_fail", 2),

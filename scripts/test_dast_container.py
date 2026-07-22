@@ -21,12 +21,20 @@ import time
 SCRIPT_ROOT = Path(__file__).resolve().parent
 ROOT = SCRIPT_ROOT.parent
 if __package__:
-    from .vibesec.dast import load_config, normalize_zap_report, trusted_zap_baseline_arguments
+    from .vibesec.dast import load_config, normalize_zap_report
     from .vibesec.strict_json import loads_strict
+    from .vibesec.zap_automation import (
+        PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
+        validate_private_workspace, write_passive_plan,
+    )
 else:
     sys.path.insert(0, str(SCRIPT_ROOT))
-    from vibesec.dast import load_config, normalize_zap_report, trusted_zap_baseline_arguments  # type: ignore[no-redef]
+    from vibesec.dast import load_config, normalize_zap_report  # type: ignore[no-redef]
     from vibesec.strict_json import loads_strict  # type: ignore[no-redef]
+    from vibesec.zap_automation import (  # type: ignore[no-redef]
+        PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
+        validate_private_workspace, write_passive_plan,
+    )
 
 
 def run(command: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
@@ -46,6 +54,8 @@ def classify_zap_failure(stderr: str) -> str:
     text = stderr[:8192].casefold()
     if any(marker in text for marker in ("config file not found", "config_file", "unable to open config", "/zap/wrk//zap/policy")):
         return "config_file_unavailable"
+    if any(marker in text for marker in ("automation plan", "autocheck", "yaml", "unrecognised job", "unrecognized job")):
+        return "automation_plan_invalid"
     if "report" in text and any(marker in text for marker in ("no such file", "cannot write", "can't write", "unable to write", "invalid path")):
         return "report_path_invalid"
     update_markers = (
@@ -62,6 +72,14 @@ def classify_zap_failure(stderr: str) -> str:
     if any(marker in text for marker in ("permission denied", "read-only file system", "filesystem unavailable")):
         return "filesystem_unavailable"
     return "unknown_zap_exit"
+
+
+def update_attempted(completed: subprocess.CompletedProcess[str]) -> bool:
+    text = (completed.stdout + "\n" + completed.stderr)[:16384].casefold()
+    return any(marker in text for marker in (
+        "-addonupdate", "-addoninstall", "marketplace", "checking for add-on updates",
+        "checking for addon updates", "installing add-on", "installing addon",
+    ))
 
 
 def zap_failure_summary(case: str, scan: subprocess.CompletedProcess[str], report: Path) -> str:
@@ -119,43 +137,78 @@ def main() -> int:
                 raise RuntimeError("live fixture readiness timed out")
             time.sleep(1)
         observed: dict[str, list[str]] = {}
-        policy = ROOT / config["rule_disposition_file"]
+        exits: dict[str, int] = {}
         for case in ("positive", "negative"):
+            checker = f"vibesec-dast-live-check-{case}-{suffix}"
             scanner = f"vibesec-dast-live-zap-{case}-{suffix}"
-            scanners.append(scanner)
             with tempfile.TemporaryDirectory(prefix=f"vibesec-zap-live-{case}-") as temporary:
                 private = Path(temporary)
-                private.chmod(0o733)
-                target_url = f"http://target:8080/{case}"
-                scan = run([docker, "run", "--name", scanner, "--network", network,
-                            *flags(config, config["zap_tmpfs_megabytes"]),
-                            "--tmpfs", f"/home/zap:rw,noexec,nosuid,nodev,size={config['zap_tmpfs_megabytes']}m",
-                            "--mount", f"type=bind,src={private},dst=/zap/wrk",
-                            "--mount", f"type=bind,src={policy},dst=/zap/wrk/vibesec-zap-baseline.conf,readonly",
-                            zap, *trusted_zap_baseline_arguments(target_url=target_url, config=config)],
-                           config["total_scan_timeout_minutes"] * 60 + 60)
+                private.chmod(0o700)
+                plan = private / PLAN_FILENAME
+                report = private / REPORT_FILENAME
+                write_passive_plan(
+                    plan, port=8080, base_path=f"/{case}",
+                    spider_minutes=config["spider_duration_minutes"],
+                    passive_wait_minutes=config["passive_scan_timeout_minutes"],
+                )
+                validate_private_workspace(private, report_required=False)
+                scanners.append(checker)
+                check = run(trusted_zap_container_command(
+                    docker=docker, container_name=checker, network=network, workspace=private,
+                    image=zap, config=config, operation="autocheck",
+                ), 60)
+                if check.returncode != 0 or update_attempted(check):
+                    raise RuntimeError(zap_failure_summary(case, check, report))
+                validate_private_workspace(private, report_required=False)
+                if run([docker, "rm", "-f", checker], 30).returncode != 0:
+                    raise RuntimeError("live ZAP autocheck container cleanup failed")
+                scanners.remove(checker)
+                scanners.append(scanner)
+                scan = run(trusted_zap_container_command(
+                    docker=docker, container_name=scanner, network=network, workspace=private,
+                    image=zap, config=config,
+                ), config["total_scan_timeout_minutes"] * 60 + 60)
                 if scan.returncode not in {0, 1, 2}:
-                    raise RuntimeError(zap_failure_summary(case, scan, private / "zap-report.json"))
-                findings, _ = normalize_zap_report(private / "zap-report.json", port=8080,
+                    raise RuntimeError(zap_failure_summary(case, scan, report))
+                if update_attempted(scan) or (scan.returncode == 1 and not report.is_file()):
+                    raise RuntimeError(zap_failure_summary(case, scan, report))
+                validate_private_workspace(private, report_required=True)
+                findings, _ = normalize_zap_report(report, port=8080,
                                                    maximum_bytes=config["maximum_raw_report_bytes"],
                                                    maximum_findings=config["maximum_normalized_findings"])
                 observed[case] = [item["rule_id"] for item in findings]
-            run([docker, "rm", "-f", scanner], 30)
+                exits[case] = scan.returncode
+                report.unlink()
+                plan.unlink()
+                if any(private.iterdir()):
+                    raise RuntimeError("live ZAP private evidence cleanup failed")
+            if run([docker, "rm", "-f", scanner], 30).returncode != 0:
+                raise RuntimeError("live ZAP scanner container cleanup failed")
             scanners.remove(scanner)
         if observed != {"positive": ["10020"], "negative": []}:
             raise RuntimeError(f"live DAST evidence differs: {json.dumps(observed, sort_keys=True)}")
+        if set(exits.values()) - {0, 1, 2}:
+            raise RuntimeError("live DAST produced an undocumented Automation Framework exit")
         print("live DAST container fixture passed: positive=10020 negative=clean")
-        return 0
+        result = 0
     except (OSError, RuntimeError, subprocess.TimeoutExpired, ValueError) as exc:
         print(f"live DAST container fixture failed: {exc}", file=sys.stderr)
-        return 2
+        result = 2
     finally:
+        cleanup_failed = False
         for scanner in scanners:
-            run([docker, "rm", "-f", scanner], 30)
+            if run([docker, "rm", "-f", scanner], 30).returncode != 0:
+                cleanup_failed = True
         if target_created:
-            run([docker, "rm", "-f", target], 30)
+            if run([docker, "rm", "-f", target], 30).returncode != 0:
+                cleanup_failed = True
         if network_created:
-            run([docker, "network", "rm", network], 30)
+            if run([docker, "network", "rm", network], 30).returncode != 0:
+                cleanup_failed = True
+        if cleanup_failed:
+            print("live DAST container fixture failed: current-run resource cleanup failed", file=sys.stderr)
+            result = 2
+    return result
 
 
 if __name__ == "__main__":

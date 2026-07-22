@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "env": {
+      "additionalProperties": false,
+      "properties": {
+        "contexts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "excludePaths": {"const": []},
+              "includePaths": {"items": {"type": "string"}, "maxItems": 1, "minItems": 1, "type": "array"},
+              "name": {"const": "vibesec-passive"},
+              "urls": {"items": {"pattern": "^http://target:[0-9]{1,5}/", "type": "string"}, "maxItems": 1, "minItems": 1, "type": "array"}
+            },
+            "required": ["name", "urls", "includePaths", "excludePaths"],
+            "type": "object"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "type": "array"
+        },
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "failOnError": {"const": true},
+            "failOnWarning": {"const": false},
+            "progressToStdout": {"const": false}
+          },
+          "required": ["failOnError", "failOnWarning", "progressToStdout"],
+          "type": "object"
+        }
+      },
+      "required": ["contexts", "parameters"],
+      "type": "object"
+    },
+    "jobs": {
+      "items": false,
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "context": {"const": "vibesec-passive"},
+                "maxDuration": {"maximum": 5, "minimum": 1, "type": "integer"},
+                "url": {"pattern": "^http://target:[0-9]{1,5}/", "type": "string"}
+              },
+              "required": ["context", "url", "maxDuration"],
+              "type": "object"
+            },
+            "type": {"const": "spider"}
+          },
+          "required": ["type", "parameters"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {"maxDuration": {"maximum": 10, "minimum": 1, "type": "integer"}},
+              "required": ["maxDuration"],
+              "type": "object"
+            },
+            "type": {"const": "passiveScan-wait"}
+          },
+          "required": ["type", "parameters"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "displayReport": {"const": false},
+                "reportDir": {"const": "/zap/wrk"},
+                "reportFile": {"const": "zap-report.json"},
+                "template": {"const": "traditional-json"}
+              },
+              "required": ["template", "reportDir", "reportFile", "displayReport"],
+              "type": "object"
+            },
+            "sites": {"items": {"pattern": "^http://target:[0-9]{1,5}$", "type": "string"}, "maxItems": 1, "minItems": 1, "type": "array"},
+            "type": {"const": "report"}
+          },
+          "required": ["type", "parameters", "sites"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "errorExitValue": {"const": 1},
+                "errorLevel": {"const": "High"},
+                "okExitValue": {"const": 0},
+                "warnExitValue": {"const": 2},
+                "warnLevel": {"const": "Informational"}
+              },
+              "required": ["errorLevel", "warnLevel", "okExitValue", "warnExitValue", "errorExitValue"],
+              "type": "object"
+            },
+            "type": {"const": "exitStatus"}
+          },
+          "required": ["type", "parameters"],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  "required": ["env", "jobs"],
+  "title": "VibeSec trusted passive ZAP Automation Framework plan",
+  "type": "object"
+}

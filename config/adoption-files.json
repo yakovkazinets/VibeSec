@@ -108,12 +108,14 @@
     "dast-baseline": {
       "support": [
         "config/dast-baseline.json",
+        "config/zap-passive-plan-schema.json",
         "config/zap-baseline.conf",
         "policy/dast-baseline.json",
         "policy/dast-suppressions.json",
         "scripts/run_dast_baseline.py",
         "scripts/validate_dast_artifacts.py",
-        "scripts/vibesec/dast.py"
+        "scripts/vibesec/dast.py",
+        "scripts/vibesec/zap_automation.py"
       ],
       "workflow_source": "templates/github-actions/dast-baseline.yml",
       "workflow_destination": ".github/workflows/vibesec-dast-baseline.yml"

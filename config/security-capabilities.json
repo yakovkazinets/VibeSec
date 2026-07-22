@@ -278,55 +278,55 @@
     {
       "id": "dast.target-validation", "profile": "dast-baseline", "category": "trust_boundary", "component": "dast-target-validation", "tool": null, "tool_version_source": "VERSION",
       "positive_fixture": "tests/security-fixtures/zap-baseline/positive", "negative_fixture": "tests/security-fixtures/zap-baseline/negative", "expected_metadata": "tests/security-fixtures/zap-baseline/expected/target-validation.json",
-      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["coverage.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "not_configured",
+      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["coverage.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "not_applicable",
       "limitations_document": "docs/dast-threat-model.md", "ci_enforcement": ["dast-accountability", "dast-artifacts", "tests/test_dast_baseline.py"], "status": "enforced", "status_reason": "Immutable digest, port, path, event, and non-root validation fail closed before Docker execution."
     },
     {
       "id": "dast.isolated-runtime", "profile": "dast-baseline", "category": "trust_boundary", "component": "isolated-application-runtime", "tool": null, "tool_version_source": "VERSION",
       "positive_fixture": "tests/security-fixtures/zap-baseline/positive", "negative_fixture": "tests/security-fixtures/zap-baseline/negative", "expected_metadata": "tests/security-fixtures/zap-baseline/expected/isolated-runtime.json",
-      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["coverage.json"], "network_behavior": "dedicated_internal_docker_network", "trusted_event_only": true, "self_repository_scan": "conditional",
+      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["coverage.json"], "network_behavior": "dedicated_internal_docker_network", "trusted_event_only": true, "self_repository_scan": "not_applicable",
       "limitations_document": "docs/dast-threat-model.md", "ci_enforcement": ["dast-accountability", "dast-artifacts", "tests/test_dast_baseline.py"], "status": "conditionally_enforced", "status_reason": "Command isolation is enforced; live execution requires Docker and an approved immutable application image."
     },
     {
       "id": "dast.zap-passive-baseline", "profile": "dast-baseline", "category": "dast", "component": "passive-baseline", "tool": "zap-baseline", "tool_version_source": "config/tools.json#zap-baseline.version",
       "positive_fixture": "tests/security-fixtures/zap-baseline/positive", "negative_fixture": "tests/security-fixtures/zap-baseline/negative", "expected_metadata": "tests/security-fixtures/zap-baseline/expected/zap-passive-baseline.json",
-      "expected_coverage": "ran", "expected_finding_ids": ["10020"], "expected_artifacts": ["normalized.json", "coverage.json", "report.md"], "network_behavior": "internal_target_only", "trusted_event_only": true, "self_repository_scan": "conditional",
+      "expected_coverage": "ran", "expected_finding_ids": ["10020"], "expected_artifacts": ["normalized.json", "coverage.json", "report.md"], "network_behavior": "internal_target_only", "trusted_event_only": true, "self_repository_scan": "not_applicable",
       "limitations_document": "docs/dast-baseline.md", "ci_enforcement": ["dast-accountability", "dast-artifacts", "tests/test_dast_baseline.py"], "status": "conditionally_enforced", "status_reason": "Passive-only ZAP normalization is deterministic; a consumer scan requires trusted Docker execution."
     },
     {
       "id": "dast.normalization", "profile": "dast-baseline", "category": "dast", "component": "dast-normalization", "tool": null, "tool_version_source": "VERSION",
       "positive_fixture": "tests/security-fixtures/zap-baseline/positive", "negative_fixture": "tests/security-fixtures/zap-baseline/negative", "expected_metadata": "tests/security-fixtures/zap-baseline/expected/normalization.json",
-      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["normalized.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "ran",
+      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["normalized.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "not_applicable",
       "limitations_document": "docs/dast-baseline.md", "ci_enforcement": ["dast-accountability", "dast-artifacts", "tests/test_dast_baseline.py"], "status": "enforced", "status_reason": "Strict bounded reports normalize only reviewed fields and sanitized exact-origin paths."
     },
     {
       "id": "dast.policy-gate", "profile": "dast-baseline", "category": "policy", "component": "dast-policy-baseline-suppression", "tool": null, "tool_version_source": "VERSION",
       "positive_fixture": "tests/security-fixtures/zap-baseline/positive", "negative_fixture": "tests/security-fixtures/zap-baseline/negative", "expected_metadata": "tests/security-fixtures/zap-baseline/expected/policy-gate.json",
-      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["policy-result.json", "report.md"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "ran",
+      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["policy-result.json", "report.md"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "not_applicable",
       "limitations_document": "docs/dast-baseline.md", "ci_enforcement": ["dast-accountability", "dast-artifacts", "tests/test_dast_baseline.py"], "status": "enforced", "status_reason": "DAST has a separate baseline and expiring suppressions with independent observe/new/all policy."
     },
     {
       "id": "dast.artifact-sanitization", "profile": "dast-baseline", "category": "coverage", "component": "dast-artifact-sanitization", "tool": null, "tool_version_source": "VERSION",
       "positive_fixture": "tests/security-fixtures/zap-baseline/positive", "negative_fixture": "tests/security-fixtures/zap-baseline/negative", "expected_metadata": "tests/security-fixtures/zap-baseline/expected/artifact-sanitization.json",
-      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["normalized.json", "coverage.json", "report.md", "policy-result.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "ran",
+      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["normalized.json", "coverage.json", "report.md", "policy-result.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "not_applicable",
       "limitations_document": "docs/dast-threat-model.md", "ci_enforcement": ["dast-accountability", "dast-artifacts", "tests/test_dast_baseline.py"], "status": "enforced", "status_reason": "Raw URLs, queries, headers, bodies, evidence, image names, and reports are excluded from artifacts."
     },
     {
       "id": "dast.trusted-event", "profile": "dast-baseline", "category": "trust_boundary", "component": "dast-event-gate", "tool": null, "tool_version_source": "VERSION",
       "positive_fixture": "tests/security-fixtures/zap-baseline/positive", "negative_fixture": "tests/security-fixtures/zap-baseline/negative", "expected_metadata": "tests/security-fixtures/zap-baseline/expected/trusted-event.json",
-      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["coverage.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "not_configured",
+      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["coverage.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "not_applicable",
       "limitations_document": "docs/dast-threat-model.md", "ci_enforcement": ["dast-accountability", "dast-artifacts", "tests/test_dast_baseline.py", "tests/test_workflows.py"], "status": "enforced", "status_reason": "Pull requests and unknown events cannot invoke Docker; only dispatch and schedule are accepted."
     },
     {
       "id": "dast.cleanup", "profile": "dast-baseline", "category": "trust_boundary", "component": "dast-resource-cleanup", "tool": null, "tool_version_source": "VERSION",
       "positive_fixture": "tests/security-fixtures/zap-baseline/positive", "negative_fixture": "tests/security-fixtures/zap-baseline/negative", "expected_metadata": "tests/security-fixtures/zap-baseline/expected/cleanup.json",
-      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["coverage.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "conditional",
+      "expected_coverage": "ran", "expected_finding_ids": [], "expected_artifacts": ["coverage.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "not_applicable",
       "limitations_document": "docs/dast-threat-model.md", "ci_enforcement": ["dast-accountability", "dast-artifacts", "tests/test_dast_baseline.py"], "status": "conditionally_enforced", "status_reason": "Unique current-run resource names are cleaned on every tested exit; abrupt runner termination remains a residual risk."
     },
     {
       "id": "dast.failure-paths", "profile": "dast-baseline", "category": "coverage", "component": "dast-failure-contract", "tool": null, "tool_version_source": "VERSION",
       "positive_fixture": "tests/security-fixtures/zap-baseline/positive", "negative_fixture": "tests/security-fixtures/zap-baseline/negative", "expected_metadata": "tests/security-fixtures/zap-baseline/expected/failure-paths.json",
-      "expected_coverage": "tool_error", "expected_finding_ids": [], "expected_artifacts": ["normalized.json", "coverage.json", "report.md", "policy-result.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "ran",
+      "expected_coverage": "tool_error", "expected_finding_ids": [], "expected_artifacts": ["normalized.json", "coverage.json", "report.md", "policy-result.json"], "network_behavior": "none", "trusted_event_only": true, "self_repository_scan": "not_applicable",
       "limitations_document": "docs/dast-threat-model.md", "ci_enforcement": ["dast-accountability", "dast-artifacts", "tests/test_dast_baseline.py"], "status": "enforced", "status_reason": "Docker, startup, ZAP, parser, report, and cleanup failures remain distinct from clean scans and findings."
     }
   ]

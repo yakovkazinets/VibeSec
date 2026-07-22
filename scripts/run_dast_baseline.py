@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run passive ZAP baseline against one isolated immutable application image.
+"""Run passive ZAP automation against one isolated immutable application image.
 
 Exit codes: 0 completed without policy violation, 1 policy violation,
 2 Docker/ZAP/runtime failure, and 3 invalid configuration or scanner output.
@@ -23,10 +23,13 @@ ROOT = SCRIPT_ROOT.parent
 sys.path.insert(0, str(SCRIPT_ROOT))
 from vibesec.dast import (  # noqa: E402
     DastError, image_digest, load_config, normalize_zap_report, tool_error,
-    trusted_event, trusted_zap_baseline_arguments, validate_base_path,
-    validate_image_reference, validate_port, write_artifacts,
+    trusted_event, validate_base_path, validate_image_reference, validate_port, write_artifacts,
 )
 from vibesec.strict_json import loads_strict  # noqa: E402
+from vibesec.zap_automation import (  # noqa: E402
+    PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
+    validate_private_workspace, write_passive_plan,
+)
 
 READY_SCRIPT = """import sys,urllib.request
 url=sys.argv[1]; maximum=int(sys.argv[2])
@@ -108,11 +111,13 @@ def main() -> int:
     scanner = f"vibesec-dast-zap-{suffix}"
     created_network = False
     created_target = False
+    scanner_attempted = False
     final_code = 2
     findings: list[dict[str, object]] = []
     url_count = 0
     reason = "DAST runtime did not complete"
     raw: Path | None = None
+    plan: Path | None = None
     temporary: tempfile.TemporaryDirectory[str] | None = None
     cleanup_failed = False
     try:
@@ -156,24 +161,33 @@ def main() -> int:
             raise RuntimeError("application readiness timed out")
         temporary = tempfile.TemporaryDirectory(prefix="vibesec-zap-private-")
         private = Path(temporary.name)
-        # The pinned image runs as a non-root UID distinct from the hosted runner.
-        # This unique, runner-temporary directory contains only raw output, is never
-        # uploaded, and is recursively removed after strict normalization.
-        private.chmod(0o733)
-        raw = private / "zap-report.json"
-        policy = root / config["rule_disposition_file"]
-        zap_command = [docker, "run", "--name", scanner, "--network", network,
-                       *security_flags(config, tmpfs=config["zap_tmpfs_megabytes"]),
-                       "--tmpfs", f"/home/zap:rw,noexec,nosuid,nodev,size={config['zap_tmpfs_megabytes']}m",
-                       "--mount", f"type=bind,src={private},dst=/zap/wrk",
-                       "--mount", f"type=bind,src={policy},dst=/zap/wrk/vibesec-zap-baseline.conf,readonly",
-                       zap, *trusted_zap_baseline_arguments(target_url=target_url, config=config)]
+        private.chmod(0o700)
+        raw = private / REPORT_FILENAME
+        plan = private / PLAN_FILENAME
+        write_passive_plan(
+            plan, port=port, base_path=base_path,
+            spider_minutes=config["spider_duration_minutes"],
+            passive_wait_minutes=config["passive_scan_timeout_minutes"],
+        )
+        validate_private_workspace(private, report_required=False)
+        zap_command = trusted_zap_container_command(
+            docker=docker, container_name=scanner, network=network, workspace=private,
+            image=zap, config=config,
+        )
+        scanner_attempted = True
         zap_result = run(zap_command, timeout=config["total_scan_timeout_minutes"] * 60 + 60)
         if zap_result.returncode not in {0, 1, 2}:
-            raise RuntimeError("ZAP baseline execution failed")
+            raise RuntimeError("ZAP automation returned an undocumented exit")
+        if zap_result.returncode == 1 and not raw.is_file():
+            raise RuntimeError("ZAP automation failed before producing a report")
+        validate_private_workspace(private, report_required=True)
         findings, url_count = normalize_zap_report(raw, port=port, maximum_bytes=config["maximum_raw_report_bytes"],
                                                    maximum_findings=config["maximum_normalized_findings"])
-        reason = "passive ZAP baseline completed and the report was structurally validated"
+        raw.unlink()
+        plan.unlink()
+        if any(private.iterdir()):
+            raise DastError("private ZAP evidence survived normalization")
+        reason = "passive ZAP automation completed and the report was structurally validated"
         evaluation_code = 0
         if args.enforcement != "observe":
             from datetime import date
@@ -198,9 +212,11 @@ def main() -> int:
     finally:
         if raw is not None:
             raw.unlink(missing_ok=True)
+        if plan is not None:
+            plan.unlink(missing_ok=True)
         if temporary is not None:
             temporary.cleanup()
-        for command, expected in (([docker, "rm", "-f", scanner], False), ([docker, "rm", "-f", target], created_target),
+        for command, expected in (([docker, "rm", "-f", scanner], scanner_attempted), ([docker, "rm", "-f", target], created_target),
                                   ([docker, "network", "rm", network], created_network)):
             cleanup = run(command, timeout=30)
             if expected and cleanup.returncode != 0:

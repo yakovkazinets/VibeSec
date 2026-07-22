@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.bundle import validate_catalog  # noqa: E402
 from vibesec.strict_json import loads_strict  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
+from validate_security_capabilities import validate_matrix  # noqa: E402
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "cosign", "checkov"}
 EXPECTED_VIBESEC_VARIABLES = {
@@ -95,9 +96,12 @@ def validate_references() -> None:
         "scripts/init_vibesec.py", "scripts/preflight.py", "config/adoption-files.json",
         "VERSION", "scripts/build_consumer_bundle.py", "scripts/verify_consumer_bundle.py",
         "scripts/verify_installation.py", "scripts/vibesec_doctor.py", "scripts/plan_vibesec_upgrade.py",
+        "scripts/validate_security_capabilities.py", "scripts/run_security_accountability.py",
+        "scripts/validate_security_artifacts.py", "config/security-capabilities.json",
         "config/environment-variables.json", "docs/quickstart.md", "docs/profile-selection.md",
         "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md", "docs/distribution.md",
         "docs/installation-verification.md", "docs/doctor.md",
+        "docs/security-validation-policy.md", "docs/security-capability-matrix.md", "docs/self-hosted-validation.md",
         "examples/reports/README.md",
         "skills/appsec-guardian/SKILL.md",
     )
@@ -151,6 +155,7 @@ def main() -> int:
         validate_policy()
         validate_references()
         validate_adoption_metadata()
+        validate_matrix()
     except (OSError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 3

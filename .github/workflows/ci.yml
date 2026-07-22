@@ -16,7 +16,91 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  self-scan-minimal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install checksum-verified Minimal scanners
+        run: scripts/install_tools.sh . .tools/bin
+      - name: Run Minimal against VibeSec
+        env:
+          VIBESEC_ENFORCEMENT: observe
+          VIBESEC_MIN_SEVERITY: high
+        run: scripts/run_minimal_profile.sh . self-scan-minimal
+      - name: Validate Minimal self-scan artifacts and states
+        run: >-
+          python3 scripts/validate_security_artifacts.py --profile minimal --results self-scan-minimal
+          --expect-state trivy=ran --expect-state gitleaks=ran --expect-state actionlint=ran
+
+  self-scan-standard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install pinned validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Install checksum and signature-verified scanners
+        run: |
+          scripts/install_tools.sh . .tools/bin
+          scripts/install_standard_tools.sh . .tools/bin
+      - name: Run Standard against VibeSec
+        env:
+          VIBESEC_ENFORCEMENT: observe
+          VIBESEC_MIN_SEVERITY: high
+        run: python3 scripts/run_standard_profile.py . self-scan-standard --vibesec-root . --tool-dir .tools/bin
+      - name: Validate Standard self-scan artifacts and exact states
+        run: >-
+          python3 scripts/validate_security_artifacts.py --profile standard --results self-scan-standard
+          --expect-state opengrep=ran --expect-state osv-scanner=ran --expect-state syft=ran
+          --expect-state checkov=ran --expect-state trivy=ran --expect-state gitleaks=ran
+          --expect-state actionlint=ran --expect-state trivy-image=not_configured
+
+  scanner-accountability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out trusted fixture and expectation data
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install pinned validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Generate and validate controlled fixture evidence
+        run: |
+          mkdir accountability
+          python3 scripts/run_security_accountability.py --output accountability/evidence.json
+          python3 scripts/validate_security_capabilities.py --evidence accountability/evidence.json
+      - name: Exercise all current Opengrep rules with the pinned scanner
+        run: |
+          scripts/install_standard_tools.sh . .tools/bin
+          python3 scripts/test_opengrep_rules.py .tools/bin/opengrep
+
+  security-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out trusted harness tests
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install pinned validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Run artifact, failure-path, fork, and trust-boundary regressions
+        run: >-
+          python3 -m unittest -v tests.test_security_accountability tests.test_minimal_profile_integration
+          tests.test_standard_profile_integration tests.test_workflows tests.test_policy tests.test_results
+
   validate:
+    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -92,6 +176,8 @@ jobs:
           path: |
             results/normalized.json
             results/report.md
+            results/coverage.json
+            results/policy-result.json
           if-no-files-found: error
           retention-days: 14
       - name: Fail when scanner execution failed

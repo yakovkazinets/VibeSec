@@ -35,7 +35,7 @@ def scan_files(target: Path, files: list[str]) -> tuple[bool, list[dict[str, obj
             target, config, image, files, output,
             cwd=ROOT, env=dict(__import__("os").environ), extra_arguments=("--check", CHECK_ID),
         )
-        if error == "Docker is unavailable":
+        if error and error.endswith(" Docker is unavailable"):
             return None
         if error or invalid_input:
             return False, []

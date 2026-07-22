@@ -26,4 +26,8 @@ The Standard harness emits one bounded diagnostic line for execution or structur
 
 The stable CI jobs are `self-scan-minimal`, `self-scan-standard`, `scanner-accountability`, and `security-artifacts`. The existing required `validate` job depends on all four, so a ruleset that already requires `validate` remains merge-blocking without an immediate ruleset migration. Projects may additionally require the individual names for clearer branch-protection reporting.
 
+The Standard VibeSec self-scan uses `scripts/run_vibesec_self_scan.py` and the reviewed `config/self-scan-scope.json`. It creates an inert, read-only snapshot containing tracked product files while excluding only `tests/security-fixtures`, `tests/consumer-fixtures`, and `examples/reports`. Those synthetic and example roots remain mandatory inputs to `scanner-accountability` and `security-artifacts`; the scope validator fails if their capability, test, or required-job linkage disappears. This VibeSec-only wrapper is not included in consumer installations and does not add an ignore mechanism to the Standard profile.
+
+Per-file Checkov failures identify only the validated repository-relative invocation path. Scanner-reported paths, absolute checkout paths, source content, and raw output remain excluded from diagnostics.
+
 A passing self-scan demonstrates only that the pinned controls completed with expected evidence. It does not prove VibeSec is secure.

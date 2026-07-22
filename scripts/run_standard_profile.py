@@ -221,6 +221,11 @@ def canonicalize_checkov_findings(relative_file: str, resolved_file: Path,
     return canonical
 
 
+def checkov_file_failure(relative_file: str, reason: str) -> str:
+    """Create a bounded diagnostic from an already validated trusted path."""
+    return f"file={relative_file[:180]} {' '.join(reason.split())}"[:240]
+
+
 def run_checkov_files(root: Path, config: Path, image: str, files: list[str],
                       raw_path: Path, *, cwd: Path, env: dict[str, str],
                       extra_arguments: tuple[str, ...] = ()) -> tuple[list[Finding], str | None, bool]:
@@ -254,14 +259,16 @@ def run_checkov_files(root: Path, config: Path, image: str, files: list[str],
                     output, cwd=cwd, env=env, stdout_output=True,
                 )
                 if error:
-                    return [], error, False
+                    return [], checkov_file_failure(relative_file, error), False
                 try:
                     per_file_findings = normalize_file("checkov", output)
                     findings.extend(canonicalize_checkov_findings(
                         relative_file, resolved_file, per_file_findings, output,
                     ))
                 except ValueError:
-                    return [], "checkov output failed structural validation", True
+                    return [], checkov_file_failure(
+                        relative_file, "checkov output failed structural validation",
+                    ), True
     except OSError as exc:
         return [], f"checkov could not manage private output: {type(exc).__name__}", False
 

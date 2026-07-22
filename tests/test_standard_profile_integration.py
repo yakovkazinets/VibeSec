@@ -366,8 +366,10 @@ if failed: raise SystemExit(1)
         docker.unlink()
         completed = self.run_profile()
         self.assertEqual(completed.returncode, 2)
-        self.assertIn("component=checkov category=tool_error reason=Docker is unavailable", completed.stderr)
-        self.assertEqual(next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")["state"], "tool_error")
+        self.assertIn("component=checkov category=tool_error reason=file=.github/workflows/test.yml Docker is unavailable", completed.stderr)
+        checkov = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")
+        self.assertEqual(checkov["state"], "tool_error")
+        self.assertEqual(checkov["reason"], "file=.github/workflows/test.yml Docker is unavailable")
         self.assertFalse(self.load_json("policy-result.json")["clean"])
 
     def test_checkov_scans_each_file_and_merges_deterministic_relative_findings(self):
@@ -404,8 +406,16 @@ if failed: raise SystemExit(1)
         completed = self.run_profile(FAKE_CHECKOV_MODE="wrong-path")
         self.assertEqual(completed.returncode, 3, completed.stderr)
         self.assertIn("component=checkov category=invalid_input", completed.stderr)
+        self.assertIn("reason=file=.github/workflows/test.yml checkov output failed structural validation", completed.stderr)
+        self.assertNotIn(str(self.target), completed.stderr)
+        self.assertNotIn(tempfile.gettempdir(), completed.stderr)
         self.assertFalse((self.results / "raw/checkov.json").exists())
         self.assertEqual(self.load_json("policy-result.json")["exit_category"], "invalid_input")
+        checkov = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")
+        self.assertEqual(
+            checkov["reason"],
+            "file=.github/workflows/test.yml checkov output failed structural validation",
+        )
 
     def test_checkov_rejects_noncanonical_scanner_paths_as_invalid_input(self):
         for mode in ("scanner-windows-path", "scanner-traversal-path"):

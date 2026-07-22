@@ -1,5 +1,7 @@
 # Security and Result Model
 
+DAST uses the same outcome separation with an independent policy namespace. Its parser requires the exact isolated origin, strips origin and query data, allows only safe paths and bounded passive rule metadata, and rejects malformed, oversized, off-origin, or control-bearing reports. Application code execution is explicitly recorded in DAST coverage and occurs only inside the constrained target container.
+
 Each normalized result records `tool`, `category`, `rule_id`, normalized `severity`, `file`, `line`, `description`, `confidence`, `fingerprint`, and `result_type`.
 
 `result_type` has three meanings:

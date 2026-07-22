@@ -1,5 +1,7 @@
 # Consumer distribution
 
+Consumer bundles declare `supported_addons: [dast-baseline]` and include the reviewed DAST runner, parser, configuration, policies, artifact validator, documentation, and workflow template. Install a base profile first, then preview and write `--addon dast-baseline`. The initializer remains offline and atomic; it never pulls the configured application image.
+
 VibeSec development bundles are deterministic, consumer-only ZIP files. Build and verify one locally:
 
 ```shell

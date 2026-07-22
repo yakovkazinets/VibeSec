@@ -1,5 +1,7 @@
 # Threat Model
 
+The optional container-executing passive add-on has a dedicated [DAST threat model](dast-threat-model.md). Its target image and HTTP responses are untrusted. It permits application code execution only on a disposable trusted runner, never on a pull request, and does not weaken the repository-scanning trust boundaries described here.
+
 ## Assets and trust boundaries
 
 Assets include repository source, workflow tokens, scanner reports, policy decisions, dependency metadata, and maintainer trust. Boundaries exist between pull-request content and trusted branch configuration, GitHub-hosted runners and upstream releases, scanners and normalization logic, and reports and human reviewers.

@@ -1,5 +1,7 @@
 # Upgrading VibeSec
 
+Upgrade planning treats `policy/dast-baseline.json` and `policy/dast-suppressions.json` as preservation-sensitive and never applies a plan. Review add-on workflow, image pins, isolation bounds, baseline, and suppressions manually with the version-compatible support set.
+
 VibeSec has no destructive automatic upgrader and no `--apply` mode. Create a working branch, back up policy files and local modifications, verify a newer local bundle, and generate a read-only plan:
 
 ```shell

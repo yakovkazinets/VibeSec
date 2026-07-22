@@ -1,5 +1,7 @@
 # Installation verification
 
+An installed DAST Baseline add-on has its own `install-addon-dast-baseline.json` manifest and must coexist with exactly one Minimal or Standard base profile. Verification requires the exact add-on support/workflow set and correct DAST baseline profile. Partial, conflicting, locally changed, or wrong-profile policy state remains visible and is not scanner evidence.
+
 Run the read-only verifier from an installed VibeSec support set:
 
 ```shell

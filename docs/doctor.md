@@ -1,5 +1,7 @@
 # VibeSec doctor
 
+For an installed DAST add-on, doctor validates redacted image-reference syntax, port, base path, enforcement settings, and Docker availability. It does not pull or inspect an image, start containers, contact a registry, or assert that the target is secure. Runtime image-user validation remains part of the trusted-event runner.
+
 The doctor performs bounded, read-only, offline diagnostics:
 
 ```shell

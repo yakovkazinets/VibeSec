@@ -1,5 +1,7 @@
 # Self-hosted security validation
 
+DAST accountability adds a synthetic local HTTP fixture and controlled Docker-command harness for positive/negative passive results, immutable/non-root eligibility, internal-network construction, no-host-port/no-secret/no-mount assertions, trusted-event gating, strict normalization, exit categories, cleanup, and sanitized artifacts. Live container execution is environment-dependent and must never be described as covered when Docker is unavailable.
+
 VibeSec scans its own repository so advertised controls have current execution evidence. This is separate from implementation unit tests: unit tests verify code branches with controlled fake scanners, scanner accountability validates maintained positive/negative fixtures and normalization, and repository self-scans run the pinned profiles over VibeSec itself.
 
 ## Enforced scanners and expected states

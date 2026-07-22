@@ -1,5 +1,7 @@
 # Security Policy
 
+Reports about the optional DAST Baseline should identify whether the issue affects target isolation, immutable image validation, non-root enforcement, event gating, external egress, passive-only behavior, raw-report handling, normalization, policy separation, cleanup, or artifact sanitization. Do not include live credentials, private application responses, raw ZAP reports, or exploitable production targets in an issue.
+
 ## Reporting a vulnerability
 
 Do not open a public issue for a vulnerability in VibeSec. Use GitHub private vulnerability reporting when it is enabled for the repository. If that channel is unavailable, contact a maintainer through a private channel listed in their GitHub profile and request a disclosure channel without including exploit details in the first message.

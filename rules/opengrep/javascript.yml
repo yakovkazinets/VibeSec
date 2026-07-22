@@ -30,7 +30,7 @@ rules:
       false_positive_notes: A separately validated request property may be safe and requires manual review.
       license: Apache-2.0
       provenance: original-vibesec
-    pattern: $RES.redirect($REQ.$FIELD)
+    pattern: $RES.redirect($REQ.query.$FIELD)
   - id: vibesec.javascript.express-untrusted-file-path
     languages: [javascript, typescript]
     message: Do not pass a request-controlled path directly to Express sendFile.
@@ -46,7 +46,7 @@ rules:
       false_positive_notes: Framework root constraints and prior canonicalization may make a path safe.
       license: Apache-2.0
       provenance: original-vibesec
-    pattern: $RES.sendFile($REQ.$FIELD)
+    pattern: $RES.sendFile($REQ.query.$FIELD)
   - id: vibesec.javascript.express-permissive-cors
     languages: [javascript, typescript]
     message: An argument-free CORS middleware call permits every origin by default.
@@ -78,7 +78,7 @@ rules:
       false_positive_notes: A request field constrained to a closed server-side allowlist may be safe.
       license: Apache-2.0
       provenance: original-vibesec
-    pattern: $CHILD.exec($REQ.$FIELD)
+    pattern: $CHILD.exec($REQ.query.$FIELD)
   - id: vibesec.javascript.express-request-template
     languages: [javascript, typescript]
     message: Do not use a request-controlled template name.
@@ -94,7 +94,7 @@ rules:
       false_positive_notes: A closed allowlist applied before this call may make the value safe.
       license: Apache-2.0
       provenance: original-vibesec
-    pattern: $RES.render($REQ.$FIELD, ...)
+    pattern: $RES.render($REQ.query.$FIELD, ...)
   - id: vibesec.javascript.next-untrusted-redirect
     languages: [javascript, typescript]
     message: Do not redirect a Next.js response directly to request-controlled input.
@@ -110,7 +110,7 @@ rules:
       false_positive_notes: A URL parsed and restricted to the application origin may be safe.
       license: Apache-2.0
       provenance: original-vibesec
-    pattern: NextResponse.redirect($REQ.$FIELD)
+    pattern: NextResponse.redirect($REQ.nextUrl.searchParams.get(...))
   - id: vibesec.javascript.next-request-file-path
     languages: [javascript, typescript]
     message: Do not pass request-controlled input directly to a filesystem read.
@@ -126,7 +126,7 @@ rules:
       false_positive_notes: Prior path canonicalization and containment checks may make the path safe.
       license: Apache-2.0
       provenance: original-vibesec
-    pattern: $FS.readFile($REQ.$FIELD, ...)
+    pattern: $FS.readFile($REQ.nextUrl.searchParams.get(...), ...)
   - id: vibesec.javascript.next-public-secret
     languages: [javascript, typescript]
     message: Do not expose a secret-shaped value through a NEXT_PUBLIC environment variable.

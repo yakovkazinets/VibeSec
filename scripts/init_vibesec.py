@@ -30,6 +30,12 @@ from vibesec.api_security import (  # noqa: E402
     ApiSecurityError, parse_config as parse_api_config, validate_base_path,
     validate_openapi_schema, validate_port,
 )
+from vibesec.authenticated import (  # noqa: E402
+    CONFIG_PATH as AUTH_CONFIG_PATH,
+    AuthenticatedSecurityError,
+    configuration_bytes as authenticated_configuration_bytes,
+    load_configuration as load_authenticated_configuration,
+)
 from vibesec.capabilities import (  # noqa: E402
     MANIFEST_PATH as CAPABILITY_MANIFEST_PATH,
     CapabilityError,
@@ -254,7 +260,8 @@ def overlap_warnings(target: Path) -> list[str]:
 
 def build_plan(catalog: dict[str, Any], profile: str, stage: str,
                source: ConsumerSource | None = None,
-               project_capabilities: bytes | None = None) -> list[PlanEntry]:
+               project_capabilities: bytes | None = None,
+               authenticated_configuration: bytes | None = None) -> list[PlanEntry]:
     provider = source or tree_source()
     config = catalog["profiles"].get(profile)
     if not isinstance(config, dict):
@@ -282,6 +289,10 @@ def build_plan(catalog: dict[str, Any], profile: str, stage: str,
         capability_destination = Path(CAPABILITY_MANIFEST_PATH)
         entries.append(PlanEntry(None, capability_destination, 0o644, project_capabilities))
         records.append(file_record(CAPABILITY_MANIFEST_PATH, project_capabilities, 0o644))
+    if authenticated_configuration is not None:
+        destination = Path(AUTH_CONFIG_PATH)
+        entries.append(PlanEntry(None, destination, 0o644, authenticated_configuration))
+        records.append(file_record(AUTH_CONFIG_PATH, authenticated_configuration, 0o644))
     manifest_relative = Path(f".vibesec/install-{profile}-{stage}.json")
     manifest_data = installation_manifest_bytes(
         profile=profile, stage=stage, source_type=provider.source_type,
@@ -295,7 +306,8 @@ def build_plan(catalog: dict[str, Any], profile: str, stage: str,
 
 def build_addon_plan(catalog: dict[str, Any], addon: str,
                      source: ConsumerSource | None = None,
-                     api_configuration: bytes | None = None) -> list[PlanEntry]:
+                     api_configuration: bytes | None = None,
+                     authenticated_configuration: dict[str, Any] | None = None) -> list[PlanEntry]:
     provider = source or tree_source()
     config = catalog["addons"].get(addon)
     if not isinstance(config, dict):
@@ -311,8 +323,18 @@ def build_addon_plan(catalog: dict[str, Any], addon: str,
             generated = loads_strict(api_configuration)
             marker = b"vars.VIBESEC_API_IMAGE_REFERENCE"
             replacement = f"vars.{generated['image_variable_name']}".encode("ascii")
-            if data.count(marker) != 2:
+            if data.count(marker) != 1:
                 raise InvalidTarget("API workflow image-variable placeholder is missing or ambiguous")
+            data = data.replace(marker, replacement)
+        if source_path == config["workflow_source"]:
+            marker = b"          # AUTHENTICATED_SCANNER_ENV_MARKER\n"
+            if data.count(marker) != 1:
+                raise InvalidTarget("authenticated scanner environment marker is missing or ambiguous")
+            replacement = b""
+            if authenticated_configuration is not None:
+                secret_name = authenticated_configuration["secret_name"]
+                replacement = (f"          VIBESEC_AUTH_MODE: bearer\n"
+                               f"          VIBESEC_AUTH_BEARER_TOKEN: ${{{{ secrets.{secret_name} }}}}\n").encode("ascii")
             data = data.replace(marker, replacement)
         mode = 0o755 if source_path in executable else 0o644
         if source_mode != mode:
@@ -438,6 +460,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--api-base-path", default="/", help="fixed internal API base path")
     parser.add_argument("--api-safe-methods-only", choices=("true", "false"), default="true",
                         help="default true; false explicitly opts into mutating methods")
+    parser.add_argument("--auth-secret-name", help="GitHub Actions secret name containing the opaque bearer token")
     capabilities = parser.add_mutually_exclusive_group()
     capabilities.add_argument("--capabilities-file", type=Path, help="trusted local project capability JSON")
     capabilities.add_argument("--all-capabilities", action="store_true", help="non-interactively answer Yes to every capability")
@@ -501,6 +524,34 @@ def main() -> int:
                 verify_standard_workflow_prerequisites(target, catalog)
         capabilities = requested_capabilities(args, target, stage)
         output["project_capabilities"] = capabilities
+        auth_enabled = capabilities["capabilities"]["authenticated_security_testing"]
+        auth_configuration_bytes = None
+        auth_configuration = None
+        if args.addon or stage == "workflow":
+            if args.auth_secret_name is not None:
+                raise InvalidTarget("--auth-secret-name is only valid when first creating the capability manifest")
+            if auth_enabled:
+                try:
+                    auth_configuration = load_authenticated_configuration(target)
+                except AuthenticatedSecurityError as exc:
+                    raise InvalidTarget(f"authenticated testing configuration is required: {exc}") from exc
+        else:
+            if auth_enabled:
+                secret_name = args.auth_secret_name
+                if not secret_name and args.all_capabilities:
+                    secret_name = "VIBESEC_AUTH_BEARER_TOKEN"
+                if not secret_name and sys.stdin.isatty():
+                    sys.stderr.write("GitHub Actions secret name containing the bearer token: ")
+                    sys.stderr.flush()
+                    secret_name = sys.stdin.readline().strip()
+                if not secret_name:
+                    raise InvalidTarget("authenticated_security_testing=true requires --auth-secret-name")
+                try:
+                    auth_configuration_bytes = authenticated_configuration_bytes(secret_name)
+                except AuthenticatedSecurityError as exc:
+                    raise InvalidTarget(str(exc)) from exc
+            elif args.auth_secret_name is not None:
+                raise InvalidTarget("--auth-secret-name requires authenticated_security_testing=true")
         if args.addon:
             capability_key = "dast_target" if args.addon == "dast-baseline" else "api_security_target"
             if not capabilities["capabilities"][capability_key]:
@@ -535,10 +586,10 @@ def main() -> int:
                     "base_path": api_base_path, "safe_methods_only": args.api_safe_methods_only == "true",
                     "authentication": False, "custom_headers": False, "external_target_url": None,
                 })
-            plan = build_addon_plan(catalog, args.addon, source, api_configuration)
+            plan = build_addon_plan(catalog, args.addon, source, api_configuration, auth_configuration)
         else:
             manifest_data = None if stage == "workflow" else capability_bytes(capabilities)
-            plan = build_plan(catalog, args.profile, stage, source, manifest_data)
+            plan = build_plan(catalog, args.profile, stage, source, manifest_data, auth_configuration_bytes)
         output["warning"].extend(overlap_warnings(target))
         if args.profile == "standard" and stage == "support":
             output["warning"].append("Standard uses a two-stage bootstrap: merge support files before initializing the workflow stage.")
@@ -551,7 +602,7 @@ def main() -> int:
         output["error"].append(str(exc))
         print(json.dumps(output, indent=2, sort_keys=True))
         return VERIFICATION_FAILED
-    except (InvalidTarget, CapabilityError, VersionError, UnsafePath) as exc:
+    except (InvalidTarget, AuthenticatedSecurityError, CapabilityError, VersionError, UnsafePath) as exc:
         output["error"].append(str(exc))
         print(json.dumps(output, indent=2, sort_keys=True))
         return INVALID_INPUT

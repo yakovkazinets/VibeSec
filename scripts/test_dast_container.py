@@ -22,6 +22,7 @@ SCRIPT_ROOT = Path(__file__).resolve().parent
 ROOT = SCRIPT_ROOT.parent
 if __package__:
     from .vibesec.dast import load_config, normalize_zap_report
+    from .vibesec.authenticated import consume_bearer_token
     from .vibesec.strict_json import loads_strict
     from .vibesec.zap_automation import (
         CONTAINER_ZAP_HOME, PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
@@ -33,6 +34,7 @@ if __package__:
 else:
     sys.path.insert(0, str(SCRIPT_ROOT))
     from vibesec.dast import load_config, normalize_zap_report  # type: ignore[no-redef]
+    from vibesec.authenticated import consume_bearer_token  # type: ignore[no-redef]
     from vibesec.strict_json import loads_strict  # type: ignore[no-redef]
     from vibesec.zap_automation import (  # type: ignore[no-redef]
         CONTAINER_ZAP_HOME, PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
@@ -43,8 +45,8 @@ else:
     )
 
 
-def run(command: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+def run(command: list[str], timeout: int, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(command, input=input_text, stdin=subprocess.DEVNULL if input_text is None else None, stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE, text=True, timeout=timeout, check=False)
 
 
@@ -98,7 +100,12 @@ def capture_zap_runtime_diagnostic(*, docker: str, container: str,
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--allow-unavailable", action="store_true", help="return 0 with an explicit skip when Docker is unavailable")
+    parser.add_argument("--authenticated", action="store_true")
     args = parser.parse_args()
+    token = consume_bearer_token() if args.authenticated else None
+    if args.authenticated and token is None:
+        print("authenticated DAST fixture secret is unavailable", file=sys.stderr)
+        return 2
     docker = shutil.which("docker")
     if docker is None or run([docker, "info", "--format", "{{json .ServerVersion}}"], 30).returncode != 0:
         print("SKIP: Docker daemon is unavailable; live DAST container evidence was not produced.")
@@ -143,7 +150,8 @@ def main() -> int:
         observed: dict[str, list[str]] = {}
         exits: dict[str, int] = {}
         report_sizes: dict[str, int] = {}
-        for case in ("positive", "negative"):
+        cases = ("private", "private-negative") if args.authenticated else ("positive", "negative")
+        for case in cases:
             checker = f"vibesec-dast-live-check-{case}-{suffix}"
             scanner = f"vibesec-dast-live-zap-{case}-{suffix}"
             with tempfile.TemporaryDirectory(prefix=f"vibesec-zap-live-{case}-") as temporary:
@@ -155,27 +163,30 @@ def main() -> int:
                     plan, port=8080, base_path=f"/{case}",
                     spider_minutes=config["spider_duration_minutes"],
                     passive_wait_minutes=config["passive_scan_timeout_minutes"],
+                    authenticated=args.authenticated,
                 )
                 validate_private_workspace(private, report_required=False)
-                scanners.append(checker)
-                check = run(trusted_zap_container_command(
-                    docker=docker, container_name=checker, network=network, workspace=private,
-                    image=zap, config=config, operation="autocheck",
-                ), 60)
-                if check.returncode != 0 or update_attempted(check):
-                    raise RuntimeError(capture_zap_runtime_diagnostic(
-                        docker=docker, container=checker, private=private,
-                        case=case, scan=check, report=report,
-                    ))
-                validate_private_workspace(private, report_required=False)
-                if run([docker, "rm", "-f", checker], 30).returncode != 0:
-                    raise RuntimeError("live ZAP autocheck container cleanup failed")
-                scanners.remove(checker)
+                if not args.authenticated:
+                    scanners.append(checker)
+                    check = run(trusted_zap_container_command(
+                        docker=docker, container_name=checker, network=network, workspace=private,
+                        image=zap, config=config, operation="autocheck",
+                    ), 60)
+                    if check.returncode != 0 or update_attempted(check):
+                        raise RuntimeError(capture_zap_runtime_diagnostic(
+                            docker=docker, container=checker, private=private,
+                            case=case, scan=check, report=report,
+                        ))
+                    validate_private_workspace(private, report_required=False)
+                    if run([docker, "rm", "-f", checker], 30).returncode != 0:
+                        raise RuntimeError("live ZAP autocheck container cleanup failed")
+                    scanners.remove(checker)
                 scanners.append(scanner)
                 scan = run(trusted_zap_container_command(
                     docker=docker, container_name=scanner, network=network, workspace=private,
-                    image=zap, config=config,
-                ), config["total_scan_timeout_minutes"] * 60 + 60)
+                    image=zap, config=config, authenticated=args.authenticated,
+                ), config["total_scan_timeout_minutes"] * 60 + 60,
+                    input_text=(token + "\n") if token is not None else None)
                 if scan.returncode not in {0, 1, 2}:
                     raise RuntimeError(capture_zap_runtime_diagnostic(
                         docker=docker, container=scanner, private=private,
@@ -200,13 +211,16 @@ def main() -> int:
             if run([docker, "rm", "-f", scanner], 30).returncode != 0:
                 raise RuntimeError("live ZAP scanner container cleanup failed")
             scanners.remove(scanner)
-        if observed != {"positive": ["10020"], "negative": []}:
+        expected_observed = ({"private": ["10020"], "private-negative": []} if args.authenticated
+                             else {"positive": ["10020"], "negative": []})
+        if observed != expected_observed:
             raise RuntimeError(f"live DAST evidence differs: {json.dumps(observed, sort_keys=True)}")
         if set(exits.values()) - {0, 1, 2}:
             raise RuntimeError("live DAST produced an undocumented Automation Framework exit")
         success_evidence = (
-            f"live DAST evidence: positive_exit={exits['positive']} positive_report_bytes={report_sizes['positive']} "
-            f"negative_exit={exits['negative']} negative_report_bytes={report_sizes['negative']} "
+            f"live DAST evidence: authentication={'bearer' if args.authenticated else 'none'} "
+            f"positive_exit={exits[cases[0]]} positive_report_bytes={report_sizes[cases[0]]} "
+            f"negative_exit={exits[cases[1]]} negative_report_bytes={report_sizes[cases[1]]} "
             "home=ephemeral_tmpfs private_files_deleted=true"
         )
         result = 0

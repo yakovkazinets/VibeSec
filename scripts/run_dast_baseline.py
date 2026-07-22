@@ -25,7 +25,12 @@ from vibesec.dast import (  # noqa: E402
     DastError, image_digest, load_config, normalize_zap_report, tool_error,
     trusted_event, validate_base_path, validate_image_reference, validate_port, write_artifacts,
 )
-from vibesec.strict_json import loads_strict  # noqa: E402
+from vibesec.authenticated import (  # noqa: E402
+    AUTH_ENVIRONMENT_VARIABLE, AuthenticatedSecurityError, consume_bearer_token,
+    combine_result_directories, load_configuration, sanitize_diagnostic,
+)
+from vibesec.capabilities import CapabilityError, load_capabilities_file  # noqa: E402
+from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
 from vibesec.zap_automation import (  # noqa: E402
     PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
     validate_private_workspace, write_passive_plan,
@@ -39,8 +44,9 @@ with urllib.request.urlopen(url, timeout=5) as response:
 """
 
 
-def run(command: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+def run(command: list[str], *, timeout: int, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(command, input=input_text, stdin=subprocess.DEVNULL if input_text is None else None,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           text=True, timeout=timeout, check=False)
 
 
@@ -55,6 +61,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("results", type=Path)
     parser.add_argument("--vibesec-root", type=Path, default=ROOT)
+    parser.add_argument("--repository", type=Path, default=Path.cwd())
     parser.add_argument("--docker", default="docker")
     parser.add_argument("--event", default=os.getenv("GITHUB_EVENT_NAME", "workflow_dispatch"))
     parser.add_argument("--image-reference", default=os.getenv("VIBESEC_DAST_IMAGE_REFERENCE", ""))
@@ -62,48 +69,109 @@ def main() -> int:
     parser.add_argument("--base-path", default=os.getenv("VIBESEC_DAST_BASE_PATH", "/"))
     parser.add_argument("--enforcement", choices=("observe", "new", "all"), default=os.getenv("VIBESEC_DAST_ENFORCEMENT", "observe"))
     parser.add_argument("--minimum-severity", choices=("low", "medium", "high", "critical"), default=os.getenv("VIBESEC_DAST_MIN_SEVERITY", "high"))
+    parser.add_argument("--authentication-mode", default=os.getenv("VIBESEC_AUTH_MODE", "none"))
     args = parser.parse_args()
     root = args.vibesec_root.resolve()
+    repository = args.repository.resolve()
     results = args.results.resolve()
     started = time.monotonic()
     port = 8080
     base_path = "/"
     digest: str | None = None
+    authenticated = args.authentication_mode == "bearer"
+    token: str | None = None
+    if authenticated and os.getenv("VIBESEC_AUTH_SINGLE_RUN") != "1":
+        with tempfile.TemporaryDirectory(prefix="vibesec-dast-comparison-") as comparison:
+            root_directory = Path(comparison)
+            unauthenticated_results = root_directory / "unauthenticated"
+            authenticated_results = root_directory / "authenticated"
+            original = list(sys.argv[1:])
+            original[0] = str(unauthenticated_results)
+            unauthenticated_environment = os.environ.copy()
+            unauthenticated_environment.pop(AUTH_ENVIRONMENT_VARIABLE, None)
+            unauthenticated_environment.update({"VIBESEC_AUTH_MODE": "none", "VIBESEC_AUTH_SINGLE_RUN": "1"})
+            unauthenticated_run = subprocess.run([sys.executable, str(Path(__file__).resolve()), *original],
+                                                  stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                                  text=True, env=unauthenticated_environment, check=False)
+            original[0] = str(authenticated_results)
+            authenticated_environment = os.environ.copy()
+            authenticated_environment["VIBESEC_AUTH_SINGLE_RUN"] = "1"
+            authenticated_run = subprocess.run([sys.executable, str(Path(__file__).resolve()), *original],
+                                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                                text=True, env=authenticated_environment, check=False)
+            os.environ.pop(AUTH_ENVIRONMENT_VARIABLE, None)
+            try:
+                return combine_result_directories(
+                    unauthenticated_results, authenticated_results, results,
+                    unauthenticated_exit_code=unauthenticated_run.returncode,
+                    authenticated_exit_code=authenticated_run.returncode,
+                )
+            except (AuthenticatedSecurityError, OSError, StrictJSONError):
+                return 3
     try:
+        if args.authentication_mode not in {"none", "bearer"}:
+            raise DastError("unsupported authenticated DAST mode")
         config = load_config(root)
         port = validate_port(args.container_port)
         base_path = validate_base_path(args.base_path)
+        if authenticated:
+            capabilities = load_capabilities_file(repository / ".vibesec/project-capabilities.json")
+            values = capabilities["capabilities"]
+            if not values["authentication"] or not values["authenticated_security_testing"] or not values["dast_target"]:
+                write_artifacts(results, root=root, state="not_applicable", reason="project capability manifest excludes authenticated DAST",
+                                event=args.event, digest=None, port=port, base_path=base_path, findings=[], duration_seconds=0,
+                                url_count=0, exit_code=0, enforcement=args.enforcement, minimum_severity=args.minimum_severity,
+                                authenticated=True, authentication_applied=False)
+                os.environ.pop(AUTH_ENVIRONMENT_VARIABLE, None)
+                return 0
+            auth_config = load_configuration(repository)
+            token = consume_bearer_token()
+            if token is None:
+                write_artifacts(results, root=root, state="not_configured", reason=f"GitHub Actions secret {auth_config['secret_name']} is unavailable",
+                                event=args.event, digest=None, port=port, base_path=base_path, findings=[], duration_seconds=0,
+                                url_count=0, exit_code=0, enforcement=args.enforcement, minimum_severity=args.minimum_severity,
+                                authenticated=True, authentication_applied=False)
+                os.environ.pop(AUTH_ENVIRONMENT_VARIABLE, None)
+                return 0
         allowed = trusted_event(args.event)
         if not allowed:
             write_artifacts(results, root=root, state="not_configured", reason="DAST is disabled on pull-request events",
                             event=args.event, digest=None, port=port, base_path=base_path, findings=[], duration_seconds=0,
-                            url_count=0, exit_code=0, enforcement=args.enforcement, minimum_severity=args.minimum_severity)
+                            url_count=0, exit_code=0, enforcement=args.enforcement, minimum_severity=args.minimum_severity,
+                            authenticated=authenticated, authentication_applied=False)
+            os.environ.pop(AUTH_ENVIRONMENT_VARIABLE, None)
             return 0
         if not args.image_reference:
             write_artifacts(results, root=root, state="not_configured", reason="no immutable application image configured",
                             event=args.event, digest=None, port=port, base_path=base_path, findings=[], duration_seconds=0,
-                            url_count=0, exit_code=0, enforcement=args.enforcement, minimum_severity=args.minimum_severity)
+                            url_count=0, exit_code=0, enforcement=args.enforcement, minimum_severity=args.minimum_severity,
+                            authenticated=authenticated, authentication_applied=False)
+            os.environ.pop(AUTH_ENVIRONMENT_VARIABLE, None)
             return 0
         reference = validate_image_reference(args.image_reference)
         digest = image_digest(reference)
         tools = loads_strict((root / "config/tools.json").read_bytes())
         zap = f"{tools['zap-baseline']['image']}@{tools['zap-baseline']['digest']}"
         validate_image_reference(zap)
-    except (DastError, OSError, KeyError, TypeError, ValueError) as exc:
+    except (DastError, AuthenticatedSecurityError, CapabilityError, OSError, KeyError, TypeError, ValueError) as exc:
         try:
             write_artifacts(results, root=root, state="tool_error", reason="invalid DAST configuration",
                             event=args.event, digest=digest, port=port, base_path=base_path,
                             findings=[tool_error("invalid DAST configuration")], duration_seconds=int(time.monotonic()-started),
-                            url_count=0, exit_code=3, enforcement=args.enforcement, minimum_severity=args.minimum_severity)
+                            url_count=0, exit_code=3, enforcement=args.enforcement, minimum_severity=args.minimum_severity,
+                            authenticated=authenticated, authentication_applied=False)
         except Exception:
             pass
-        print(f"DAST configuration failed closed: {exc}", file=sys.stderr)
+        print(f"DAST configuration failed closed: {sanitize_diagnostic(str(exc), token)}", file=sys.stderr)
+        os.environ.pop(AUTH_ENVIRONMENT_VARIABLE, None)
         return 3
     docker = shutil.which(args.docker) if "/" not in args.docker else args.docker
     if not docker:
         write_artifacts(results, root=root, state="tool_error", reason="Docker executable unavailable", event=args.event,
                         digest=digest, port=port, base_path=base_path, findings=[tool_error("Docker executable unavailable")],
-                        duration_seconds=0, url_count=0, exit_code=2, enforcement=args.enforcement, minimum_severity=args.minimum_severity)
+                        duration_seconds=0, url_count=0, exit_code=2, enforcement=args.enforcement, minimum_severity=args.minimum_severity,
+                        authenticated=authenticated, authentication_applied=False)
+        os.environ.pop(AUTH_ENVIRONMENT_VARIABLE, None)
         return 2
     suffix = secrets.token_hex(8)
     network = f"vibesec-dast-net-{suffix}"
@@ -167,15 +235,17 @@ def main() -> int:
         write_passive_plan(
             plan, port=port, base_path=base_path,
             spider_minutes=config["spider_duration_minutes"],
-            passive_wait_minutes=config["passive_scan_timeout_minutes"],
+            passive_wait_minutes=config["passive_scan_timeout_minutes"], authenticated=authenticated,
         )
         validate_private_workspace(private, report_required=False)
         zap_command = trusted_zap_container_command(
             docker=docker, container_name=scanner, network=network, workspace=private,
             image=zap, config=config,
+            authenticated=authenticated,
         )
         scanner_attempted = True
-        zap_result = run(zap_command, timeout=config["total_scan_timeout_minutes"] * 60 + 60)
+        zap_result = run(zap_command, timeout=config["total_scan_timeout_minutes"] * 60 + 60,
+                         input_text=(token + "\n") if authenticated and token is not None else None)
         if zap_result.returncode not in {0, 1, 2}:
             raise RuntimeError("ZAP automation returned an undocumented exit")
         if zap_result.returncode == 1 and not raw.is_file():
@@ -203,13 +273,14 @@ def main() -> int:
         reason = "DAST scanner output or configuration was invalid"
         findings = [tool_error(reason)]
         final_code = 3
-        print(f"DAST validation failed closed: {exc}", file=sys.stderr)
+        print(f"DAST validation failed closed: {sanitize_diagnostic(str(exc), token)}", file=sys.stderr)
     except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
         reason = str(exc) if isinstance(exc, RuntimeError) else "DAST runtime infrastructure failed"
         findings = [tool_error(reason)]
         final_code = 2
-        print(f"DAST runtime failed: {reason}", file=sys.stderr)
+        print(f"DAST runtime failed: {sanitize_diagnostic(reason, token)}", file=sys.stderr)
     finally:
+        os.environ.pop(AUTH_ENVIRONMENT_VARIABLE, None)
         if raw is not None:
             raw.unlink(missing_ok=True)
         if plan is not None:
@@ -228,7 +299,9 @@ def main() -> int:
     state = "ran" if final_code in {0, 1} else "tool_error"
     write_artifacts(results, root=root, state=state, reason=reason, event=args.event, digest=digest,
                     port=port, base_path=base_path, findings=findings, duration_seconds=int(time.monotonic()-started),
-                    url_count=url_count, exit_code=final_code, enforcement=args.enforcement, minimum_severity=args.minimum_severity)
+                    url_count=url_count, exit_code=final_code, enforcement=args.enforcement, minimum_severity=args.minimum_severity,
+                    authenticated=authenticated, authentication_applied=authenticated and token is not None and scanner_attempted)
+    token = None
     return final_code
 
 

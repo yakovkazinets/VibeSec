@@ -7,8 +7,10 @@ ROOT = Path(__file__).resolve().parents[1]
 CI = ROOT / ".github/workflows/ci.yml"
 DAST_INTEGRATION = ROOT / ".github/workflows/dast-integration.yml"
 API_INTEGRATION = ROOT / ".github/workflows/api-security-integration.yml"
+AUTH_DAST_INTEGRATION = ROOT / ".github/workflows/authenticated-dast-integration.yml"
+AUTH_API_INTEGRATION = ROOT / ".github/workflows/authenticated-api-integration.yml"
 STARTERS = [ROOT / "templates/github-actions/security-baseline.yml", ROOT / "templates/github-actions/security-standard.yml", ROOT / "templates/github-actions/dast-baseline.yml", ROOT / "templates/github-actions/api-security-baseline.yml"]
-WORKFLOWS = [CI, DAST_INTEGRATION, API_INTEGRATION, *STARTERS]
+WORKFLOWS = [CI, DAST_INTEGRATION, API_INTEGRATION, AUTH_DAST_INTEGRATION, AUTH_API_INTEGRATION, *STARTERS]
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -34,8 +36,20 @@ class WorkflowSecurityTests(unittest.TestCase):
             self.assertRegex(text, r"(?m)^permissions:\n  contents: read$")
 
     def test_no_secret_context_in_pull_request_workflows(self):
-        for path in WORKFLOWS:
+        for path in [CI, DAST_INTEGRATION, API_INTEGRATION, *STARTERS]:
             self.assertNotIn("secrets.", path.read_text(encoding="utf-8"))
+
+    def test_authenticated_live_workflows_scope_one_secret_to_the_scanner_step(self):
+        for path in (AUTH_DAST_INTEGRATION, AUTH_API_INTEGRATION):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("workflow_dispatch:", text)
+            self.assertIn("schedule:", text)
+            self.assertNotIn("pull_request:", text)
+            self.assertNotIn("push:", text)
+            self.assertEqual(text.count("secrets.VIBESEC_AUTH_FIXTURE_BEARER"), 1)
+            checkout, scanner = text.split("- name: Exercise authenticated", 1)
+            self.assertNotIn("secrets.", checkout)
+            self.assertIn("VIBESEC_AUTH_BEARER_TOKEN", scanner)
 
     def test_required_scripts_and_outputs_align(self):
         for script in ("install_tools.sh", "run_minimal_profile.sh", "normalize_results.py", "append_tool_errors.py", "policy_gate.py", "validate_repository.py"):
@@ -75,7 +89,19 @@ class WorkflowSecurityTests(unittest.TestCase):
 
     def test_ci_lints_the_copyable_workflow(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        self.assertIn("actionlint -no-color .github/workflows/ci.yml .github/workflows/dast-integration.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml", text)
+        actionlint_line = next(line for line in text.splitlines() if "actionlint -no-color" in line)
+        for relative in (
+            ".github/workflows/ci.yml",
+            ".github/workflows/dast-integration.yml",
+            ".github/workflows/api-security-integration.yml",
+            ".github/workflows/authenticated-dast-integration.yml",
+            ".github/workflows/authenticated-api-integration.yml",
+            "templates/github-actions/security-baseline.yml",
+            "templates/github-actions/security-standard.yml",
+            "templates/github-actions/dast-baseline.yml",
+            "templates/github-actions/api-security-baseline.yml",
+        ):
+            self.assertIn(relative, actionlint_line)
         self.assertIn("python3 scripts/test_opengrep_rules.py .tools/bin/opengrep", text)
 
     def test_standard_self_scan_exercises_checkov_and_always_validates_evidence(self):
@@ -97,7 +123,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn('exit_file="$(mktemp "$SELF_SCAN_RESULTS/.scan-exit-code.XXXXXX")"', text)
         self.assertIn('mv "$exit_file" "$SELF_SCAN_RESULTS/scan-exit-code.txt"', text)
-        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts]", text)
+        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts]", text)
         self.assertNotIn("dast-accountability", text)
         validation = text.index("Validate Standard self-scan artifacts and exact states")
         preservation = text.index("Preserve Standard scan exit contract")
@@ -132,6 +158,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         needs = next(line for line in text.splitlines() if line.strip().startswith("needs: ["))
         for job in ("self-scan-minimal", "self-scan-standard", "scanner-accountability", "security-artifacts", "dast-artifacts", "api-security-artifacts"):
             self.assertIn(job, needs)
+        self.assertIn("authenticated-security-artifacts", needs)
         self.assertNotIn("dast-accountability", needs)
         dast = text.split("  dast-artifacts:", 1)[1].split("\n  validate:", 1)[0]
         self.assertIn("tests.test_dast_baseline", dast)
@@ -149,6 +176,8 @@ class WorkflowSecurityTests(unittest.TestCase):
         needs = next(line for line in CI.read_text(encoding="utf-8").splitlines() if line.strip().startswith("needs: ["))
         self.assertIn("api-security-artifacts", needs)
         self.assertNotIn("api-security-integration", needs)
+        self.assertNotIn("authenticated-dast-integration", needs)
+        self.assertNotIn("authenticated-api-integration", needs)
 
     def test_ci_skips_security_upload_after_early_failure(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")

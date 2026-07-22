@@ -4,6 +4,8 @@ The [Passive DAST Baseline add-on](docs/dast-baseline.md) is deliberately outsid
 
 The [API Security Baseline add-on](docs/api-security-baseline.md) is also separate and opt-in. It uses a local OpenAPI 3.x contract and an immutable non-root API image on trusted manual/scheduled events, defaults to GET/HEAD/OPTIONS, and never accepts credentials or public targets. Review its [threat model](docs/api-security-threat-model.md).
 
+[Authenticated security testing](docs/authenticated-security-testing.md) is a bearer-only opt-in for eligible DAST or API targets. The GitHub secret is scoped to the exact scanner step, passed to the fixed scanner launcher over stdin, and excluded from configuration, arguments, reports, diagnostics, and artifacts. Review the dedicated [threat model](docs/authenticated-security-threat-model.md).
+
 VibeSec is an open-source application-security toolkit for vibe coders, solo developers, startups, and small teams. It combines a repository-aware coding-agent skill with a copyable GitHub Actions baseline.
 
 VibeSec cannot guarantee that an application is secure. Scanner coverage is incomplete, findings may be wrong, and a clean scan covers only the checks that completed successfully.
@@ -44,7 +46,7 @@ python3 scripts/init_vibesec.py --profile minimal --target /path/to/application
 python3 scripts/init_vibesec.py --profile standard --target /path/to/application
 ```
 
-The initializer asks 15 project-capability questions, each displayed with `[Y/n]` and defaulting to Yes. Answer No when a capability does not apply. Non-interactive use requires `--capabilities-file <trusted-local-json>` or the explicit `--all-capabilities` option; EOF never supplies defaults. The resulting `.vibesec/project-capabilities.json` is authoritative for scanner applicability.
+The initializer asks 16 project-capability questions, each displayed with `[Y/n]` and defaulting to Yes. Answer No when a capability does not apply. Non-interactive use requires `--capabilities-file <trusted-local-json>` or the explicit `--all-capabilities` option; EOF never supplies defaults. The resulting `.vibesec/project-capabilities.json` is authoritative for scanner applicability. When authenticated testing is enabled, supply only `--auth-secret-name`; never supply the token.
 
 Add `--write` only after reviewing the machine-readable plan. Minimal is one stage. Standard deliberately requires support files to land on the default branch before `--stage workflow` is initialized in a second change, preserving the base-revision trusted-harness boundary. Existing-file conflicts are never overwritten.
 

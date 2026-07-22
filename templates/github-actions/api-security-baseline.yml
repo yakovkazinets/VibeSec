@@ -31,6 +31,7 @@ jobs:
           VIBESEC_API_ENFORCEMENT: observe
           VIBESEC_API_MIN_SEVERITY: high
           VIBESEC_API_RESULTS: ${{ runner.temp }}/vibesec-api-security-results
+          # AUTHENTICATED_SCANNER_ENV_MARKER
         run: |
           mkdir -p "$VIBESEC_API_RESULTS"
           set +e
@@ -42,14 +43,16 @@ jobs:
           printf '%s\n' "$scan_exit" > "$exit_file"
           mv "$exit_file" "$VIBESEC_API_RESULTS/scan-exit-code.txt"
           echo "exit_code=$scan_exit" >> "$GITHUB_OUTPUT"
+          coverage_state="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["state"])' "$VIBESEC_API_RESULTS/coverage.json")"
+          case "$coverage_state" in ran|not_applicable|not_configured|tool_error) ;; *) exit 3 ;; esac
+          echo "coverage_state=$coverage_state" >> "$GITHUB_OUTPUT"
       - name: Validate sanitized API security artifacts
         if: always() && steps.api.outcome != 'skipped'
         env:
           VIBESEC_API_RESULTS: ${{ runner.temp }}/vibesec-api-security-results
         run: |
-          state="ran"
-          case "${{ steps.api.outputs.exit_code }}" in 2|3) state="tool_error" ;; esac
-          if [[ -z "${{ vars.VIBESEC_API_IMAGE_REFERENCE }}" ]]; then state="not_configured"; fi
+          state="${{ steps.api.outputs.coverage_state }}"
+          case "$state" in ran|not_applicable|not_configured|tool_error) ;; *) exit 3 ;; esac
           python3 scripts/validate_api_security_artifacts.py --results "$VIBESEC_API_RESULTS" --expect-state "$state"
       - name: Upload sanitized API security artifacts
         if: always() && steps.api.outcome != 'skipped'

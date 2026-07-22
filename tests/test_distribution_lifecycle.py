@@ -281,6 +281,12 @@ class DistributionLifecycleTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 1, completed.stderr)
         self.assertTrue(payload["result"]["read_only"])
         self.assertIn("policy/baseline.json", payload["result"]["files_to_preserve"])
+        self.assertIn(".vibesec/authenticated-security-testing.json", payload["result"]["files_to_preserve"])
+        auth_record = next(item for item in payload["result"]["files"]
+                           if item["path"] == ".vibesec/authenticated-security-testing.json")
+        self.assertEqual(auth_record["classification"], "capability_preserve")
+        auth_config = json.loads((target / ".vibesec/authenticated-security-testing.json").read_text())
+        self.assertEqual(set(auth_config), {"schema_version", "secret_name", "header_name", "scheme"})
         self.assertEqual(before, after)
 
     def test_upgrade_preserves_explicit_no_answers(self):
@@ -292,7 +298,7 @@ class DistributionLifecycleTests(unittest.TestCase):
                 "web_application": False, "api": False, "container_image": False,
                 "kubernetes": False, "infrastructure_as_code": True, "github_actions": True,
                 "javascript_typescript": False, "python": True, "java": False,
-                "public_runtime": False, "authentication": False, "database": False,
+                "public_runtime": False, "authentication": False, "authenticated_security_testing": False, "database": False,
                 "secrets_configuration": True, "dast_target": False, "api_security_target": False,
             },
         }

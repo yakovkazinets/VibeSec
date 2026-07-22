@@ -83,7 +83,7 @@ class ApiSecurityBaselineTests(unittest.TestCase):
             (repository / "openapi.yaml").write_text(schema)
             _, payload, operations = validate_openapi_schema(repository, "openapi.yaml", config=config, port=8080, base_path="/")
             self.assertEqual(payload["openapi"], version)
-            self.assertEqual(operations, 2)
+            self.assertEqual(operations, 5)
 
     def test_schema_rejects_remote_refs_servers_callbacks_webhooks_aliases_and_swagger(self):
         config = load_config(ROOT)

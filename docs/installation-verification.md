@@ -2,6 +2,8 @@
 
 Modern installations include `.vibesec/project-capabilities.json` in the hashed installation record. Verification fails closed when it is missing, malformed, unsafe, or dependency-conflicting, and reports later edits as local changes. Doctor adds capability-specific diagnostics. Verification proves configuration integrity only; it does not prove that a declared scanner ran or that the project is secure.
 
+When authenticated testing is enabled, the same base installation manifest hashes `.vibesec/authenticated-security-testing.json`. Verification requires the file to contain only the secret name and fixed `Authorization`/`Bearer` declaration, rejects missing configuration, and rejects configuration when the capability is false. It never verifies or accepts a token value.
+
 An installed DAST Baseline add-on has its own `install-addon-dast-baseline.json` manifest and must coexist with exactly one Minimal or Standard base profile. Verification requires the exact add-on support/workflow set and correct DAST baseline profile. Partial, conflicting, locally changed, or wrong-profile policy state remains visible and is not scanner evidence.
 
 Run the read-only verifier from an installed VibeSec support set:

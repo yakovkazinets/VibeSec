@@ -36,6 +36,7 @@ REQUIRED_CONSUMER_PATHS = {
     "policy/baseline.json", "policy/standard-baseline.json", "policy/suppressions.yml",
     "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py",
     "scripts/vibesec/capabilities.py",
+    "scripts/vibesec/authenticated.py",
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
     "scripts/plan_vibesec_upgrade.py", "scripts/vibesec/bundle.py",
     "scripts/vibesec/github_actions.py",
@@ -45,6 +46,7 @@ REQUIRED_CONSUMER_PATHS = {
     "templates/github-actions/api-security-baseline.yml", "scripts/run_api_security_baseline.py",
     "config/api-security-baseline.json", "config/api-security-result-schema.json", "scripts/vibesec/api_security.py", "scripts/vibesec/schemathesis_runtime.py",
     "config/zap-passive-plan-schema.json", "scripts/vibesec/zap_automation.py",
+    "docs/authenticated-security-testing.md", "docs/authenticated-security-threat-model.md",
     "docs/distribution.md", "docs/dast-baseline.md", "docs/dast-threat-model.md", "docs/github-actions-runtime.md", "docs/installation-verification.md", "docs/doctor.md", "docs/upgrading.md",
 }
 REQUIRED_EXECUTABLES = {

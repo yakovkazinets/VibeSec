@@ -2,6 +2,8 @@ name: VibeSec Passive DAST Baseline
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 4"
 
 permissions:
   contents: read
@@ -29,10 +31,11 @@ jobs:
           VIBESEC_DAST_ENFORCEMENT: observe
           VIBESEC_DAST_MIN_SEVERITY: high
           VIBESEC_DAST_RESULTS: ${{ runner.temp }}/vibesec-dast-results
+          # AUTHENTICATED_SCANNER_ENV_MARKER
         run: |
           mkdir -p "$VIBESEC_DAST_RESULTS"
           set +e
-          python3 scripts/run_dast_baseline.py "$VIBESEC_DAST_RESULTS"
+          python3 scripts/run_dast_baseline.py "$VIBESEC_DAST_RESULTS" --repository .
           scan_exit=$?
           set -e
           case "$scan_exit" in 0|1|2|3) ;; *) scan_exit=3 ;; esac
@@ -40,14 +43,16 @@ jobs:
           printf '%s\n' "$scan_exit" > "$exit_file"
           mv "$exit_file" "$VIBESEC_DAST_RESULTS/scan-exit-code.txt"
           echo "exit_code=$scan_exit" >> "$GITHUB_OUTPUT"
+          coverage_state="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["state"])' "$VIBESEC_DAST_RESULTS/coverage.json")"
+          case "$coverage_state" in ran|not_applicable|not_configured|tool_error) ;; *) exit 3 ;; esac
+          echo "coverage_state=$coverage_state" >> "$GITHUB_OUTPUT"
       - name: Validate sanitized DAST artifacts
         if: always() && steps.dast.outcome != 'skipped'
         env:
           VIBESEC_DAST_RESULTS: ${{ runner.temp }}/vibesec-dast-results
         run: |
-          state="ran"
-          case "${{ steps.dast.outputs.exit_code }}" in 2|3) state="tool_error" ;; esac
-          if [[ -z "${{ vars.VIBESEC_DAST_IMAGE_REFERENCE }}" ]]; then state="not_configured"; fi
+          state="${{ steps.dast.outputs.coverage_state }}"
+          case "$state" in ran|not_applicable|not_configured|tool_error) ;; *) exit 3 ;; esac
           python3 scripts/validate_dast_artifacts.py --results "$VIBESEC_DAST_RESULTS" --expect-state "$state"
       - name: Upload sanitized DAST artifacts
         if: always() && steps.dast.outcome != 'skipped'

@@ -18,6 +18,10 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED, WARNINGS  # noqa: E402
 from vibesec.capabilities import CapabilityError, load_capabilities_file, scanner_applicability  # noqa: E402
+from vibesec.authenticated import (  # noqa: E402
+    AUTH_ENVIRONMENT_VARIABLE, AuthenticatedSecurityError, BEARER, LIKELY_JWT,
+    load_configuration as load_auth_configuration,
+)
 from vibesec.installation import InstallationError, verify_installation  # noqa: E402
 from vibesec.github_actions import KNOWN_NODE20_PINS, MAX_AUDIT_FILE_BYTES  # noqa: E402
 from vibesec.output import emit, envelope, safe_text  # noqa: E402
@@ -93,6 +97,50 @@ def _known_node20_workflows(root: Path) -> list[str]:
         if labels:
             found.append(f"{path.name}: {', '.join(labels)}")
     return found
+
+
+def _auth_workflow_problems(text: str, *, secret_name: str | None, enabled: bool) -> list[str]:
+    problems: list[str] = []
+    lowered = text.casefold()
+    secret_references = re.findall(r"\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}", text)
+    if "${{ secrets[" in lowered or "${{ fromjson" in lowered:
+        problems.append("unsafe dynamic secret expression")
+    if any(marker in lowered for marker in ("pull_request:", "pull_request_target:", "push:", "workflow_call:")):
+        problems.append("untrusted workflow trigger")
+    if "authorization: bearer" in lowered:
+        problems.append("literal Authorization bearer value")
+    if "schemathesis.ndjson\n" in lowered or "zap-report.json\n" in lowered or "results/raw" in lowered:
+        problems.append("raw scanner report upload")
+    if enabled:
+        if secret_name is None or secret_references != [secret_name]:
+            problems.append("missing, duplicate, or incorrect static secret reference")
+        expected = f"{AUTH_ENVIRONMENT_VARIABLE}: ${{{{ secrets.{secret_name} }}}}" if secret_name else ""
+        if expected and expected not in text:
+            problems.append("secret is not assigned to the reviewed scanner variable")
+        if secret_references:
+            lines = text.splitlines()
+            scanner_step_names = {
+                "Run isolated passive baseline",
+                "Run isolated contract-driven API baseline",
+            }
+            secret_lines = {index for index, line in enumerate(lines) if "secrets." in line}
+            allowed_lines: set[int] = set()
+            for index, line in enumerate(lines):
+                match = re.match(r"^(\s*)-\s+name:\s*(.*?)\s*$", line)
+                if match is None or match.group(2) not in scanner_step_names:
+                    continue
+                indentation = len(match.group(1))
+                end = len(lines)
+                for candidate in range(index + 1, len(lines)):
+                    if re.match(rf"^\s{{{indentation}}}-\s+name:\s*", lines[candidate]):
+                        end = candidate
+                        break
+                allowed_lines.update(range(index, end))
+            if not secret_lines or not secret_lines <= allowed_lines:
+                problems.append("secret reference exists outside the reviewed scanner step")
+    elif secret_references or AUTH_ENVIRONMENT_VARIABLE in text:
+        problems.append("authenticated workflow material exists while capability is false")
+    return sorted(set(problems))
 
 
 def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[dict[str, str]], dict[str, Any]]:
@@ -175,6 +223,43 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
             diagnostics.append(diagnostic("api_security", "API_SECURITY_NOT_APPLICABLE", "not_applicable",
                                           "Project capability manifest declares no runnable OpenAPI API target.",
                                           "No action unless the project later gains an eligible API target.", "docs/api-security-baseline.md"))
+        auth_enabled = project_capabilities["capabilities"]["authenticated_security_testing"]
+        auth_config = None
+        try:
+            auth_config = load_auth_configuration(state.target)
+        except AuthenticatedSecurityError:
+            if auth_enabled:
+                diagnostics.append(diagnostic("authenticated_testing", "AUTH_CONFIG_INVALID", "error",
+                                              "Authenticated testing is enabled but its bearer secret-name configuration is missing or invalid.",
+                                              "Restore the generated bearer-only configuration; never store the secret value.",
+                                              "docs/authenticated-security-testing.md"))
+        if not auth_enabled:
+            diagnostics.append(diagnostic("authenticated_testing", "AUTHENTICATED_TESTING_NOT_APPLICABLE", "not_applicable",
+                                          "Project capability manifest excludes authenticated runtime security testing.",
+                                          "No action unless the project later gains an eligible authenticated target.",
+                                          "docs/authenticated-security-testing.md"))
+        for workflow_name in ("vibesec-dast-baseline.yml", "vibesec-api-security-baseline.yml"):
+            workflow = state.target / ".github/workflows" / workflow_name
+            if not workflow.is_file() or workflow.is_symlink():
+                continue
+            text = workflow.read_text(encoding="utf-8", errors="replace")
+            problems = _auth_workflow_problems(text, secret_name=auth_config["secret_name"] if auth_config else None,
+                                               enabled=auth_enabled)
+            if problems:
+                diagnostics.append(diagnostic("authenticated_testing", "AUTH_WORKFLOW_UNSAFE", "error",
+                                              f"{workflow_name} violates authenticated secret handling: " + "; ".join(problems) + ".",
+                                              "Restore the atomically generated workflow and keep the secret on the exact scanner step.",
+                                              "docs/authenticated-security-threat-model.md"))
+        generated = [state.target / ".vibesec/project-capabilities.json",
+                     state.target / ".vibesec/authenticated-security-testing.json"]
+        for path in generated:
+            if path.is_file() and not path.is_symlink():
+                data = path.read_bytes()
+                if BEARER.search(data) or LIKELY_JWT.search(data):
+                    diagnostics.append(diagnostic("authenticated_testing", "AUTH_LITERAL_SECRET_DETECTED", "error",
+                                                  "Generated authenticated configuration contains credential-like material; value redacted.",
+                                                  "Remove the literal immediately and retain only the GitHub secret name.",
+                                                  "docs/authenticated-security-threat-model.md"))
     if any("project-capabilities.json" in message for message in state.warnings):
         diagnostics.append(diagnostic("capabilities", "CAPABILITY_MANIFEST_CHANGED", "warning",
                                       "The project capability manifest changed after installation.",
@@ -201,6 +286,7 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
         "VIBESEC_API_ENFORCEMENT": {"observe", "new", "all"},
         "VIBESEC_API_MIN_SEVERITY": {"low", "medium", "high", "critical"},
         "VIBESEC_API_SAFE_METHODS_ONLY": {"true", "false"},
+        "VIBESEC_AUTH_MODE": {"none", "bearer"},
     }
     for name, values in allowed.items():
         if name in os.environ and os.environ[name] not in values:
@@ -294,7 +380,7 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
         workflow = state.target / ".github/workflows/vibesec-api-security-baseline.yml"
         if workflow.is_file() and not workflow.is_symlink():
             text = workflow.read_text(encoding="utf-8", errors="replace").casefold()
-            unsafe = any(marker in text for marker in ("pull_request:", "pull_request_target:", "push:", "--network host", "--publish", "authorization", "raw.ndjson", "schemathesis.ndjson\n"))
+            unsafe = any(marker in text for marker in ("pull_request:", "pull_request_target:", "push:", "--network host", "--publish", "raw.ndjson", "schemathesis.ndjson\n"))
             if unsafe:
                 diagnostics.append(diagnostic("api_security", "API_WORKFLOW_TRUST_BOUNDARY_INVALID", "error",
                                               "Installed API workflow contains an unsafe trigger, network option, authentication, or raw upload marker.",

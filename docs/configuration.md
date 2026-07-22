@@ -2,6 +2,8 @@
 
 Project scope is declared separately in `.vibesec/project-capabilities.json`; see [project capabilities](project-capabilities.md). Exact Boolean answers are authoritative over detection. Validate edits with `python3 scripts/validate_project_capabilities.py`. A declared absent scope becomes `not_applicable`, while an applicable but unavailable optional input is `not_configured`; neither means clean.
 
+Authenticated runtime testing stores only its GitHub Actions secret name in `.vibesec/authenticated-security-testing.json`. `VIBESEC_AUTH_MODE` defaults to `none` and accepts only `none` or `bearer`. `VIBESEC_AUTH_BEARER_TOKEN` is an internal scanner-step-only secret with no repository default. `VIBESEC_AUTH_SINGLE_RUN` is an internal trusted-runner recursion guard. The token value is never a supported configuration value, workflow input, repository variable, or CLI argument. See [authenticated security testing](authenticated-security-testing.md).
+
 `config/environment-variables.json` is the machine-readable source for this page. Unsupported values and malformed configuration fail closed; they are not clean results. Environment values must come from reviewed workflow configuration, not untrusted pull-request text.
 
 GitHub Action pins and embedded runtimes are configured only through the strict `config/github-actions.json` inventory. The supported baseline is Node 24 on Actions Runner 2.327.1 or newer; Node 20 runtime fallback and runtime-forcing environment overrides are invalid. These settings concern third-party actions, not an npm or Node runtime required by VibeSec. See [GitHub Actions runtime and pin policy](github-actions-runtime.md).

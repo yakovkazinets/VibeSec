@@ -24,6 +24,7 @@ QUESTIONS: tuple[tuple[str, str], ...] = (
     ("java", "Does this project contain Java?"),
     ("public_runtime", "Is the application publicly reachable?"),
     ("authentication", "Does the application use authentication?"),
+    ("authenticated_security_testing", "Should VibeSec configure authenticated runtime security testing?"),
     ("database", "Does the application use a database?"),
     ("secrets_configuration", "Does the project use secrets or environment configuration?"),
     ("dast_target", "Should VibeSec configure a runtime DAST target?"),
@@ -60,6 +61,10 @@ def validate_capabilities(payload: Any) -> dict[str, Any]:
         raise CapabilityError("public_runtime=true requires web_application=true or api=true")
     if values["authentication"] and not (values["web_application"] or values["api"]):
         raise CapabilityError("authentication=true requires web_application=true or api=true")
+    if values["authenticated_security_testing"] and not values["authentication"]:
+        raise CapabilityError("authenticated_security_testing=true requires authentication=true")
+    if values["authenticated_security_testing"] and not (values["dast_target"] or values["api_security_target"]):
+        raise CapabilityError("authenticated_security_testing=true requires dast_target=true or api_security_target=true")
     return {"schema_version": SCHEMA_VERSION, "capabilities": {key: values[key] for key in CAPABILITY_KEYS}}
 
 
@@ -127,6 +132,8 @@ def scanner_applicability(payload: Any) -> dict[str, dict[str, str]]:
         "trivy-image": capabilities["container_image"],
         "dast-baseline": capabilities["dast_target"] and capabilities["web_application"],
         "api-security-baseline": capabilities["api_security_target"] and capabilities["api"] and capabilities["container_image"],
+        "authenticated-security-testing": capabilities["authenticated_security_testing"] and capabilities["authentication"]
+        and (capabilities["dast_target"] or capabilities["api_security_target"]),
     }
     result = {
         name: ({"state": "applicable", "reason": "project capability manifest enables this scanner scope"}
@@ -137,4 +144,6 @@ def scanner_applicability(payload: Any) -> dict[str, dict[str, str]]:
         result["dast-baseline"]["reason"] = "project capability manifest declares no runnable web application target"
     if not mapping["api-security-baseline"]:
         result["api-security-baseline"]["reason"] = "project capability manifest declares no runnable OpenAPI API target"
+    if not mapping["authenticated-security-testing"]:
+        result["authenticated-security-testing"]["reason"] = "project capability manifest excludes authenticated runtime security testing"
     return result

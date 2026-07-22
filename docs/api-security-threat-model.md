@@ -1,5 +1,7 @@
 # API Security Baseline threat model
 
+Static bearer authentication adds a separate credential boundary. Its secret lifecycle, in-process scanner-delivery path, redaction rules, and authenticated-versus-unauthenticated correlation model are defined in [Authenticated security testing threat model](authenticated-security-threat-model.md).
+
 ## Assets and trust boundary
 
 The trusted assets are the installed harness, fixed Schemathesis image digest, command builder, limits, policy, and artifact validator. The OpenAPI document, generated inputs, API responses, and target image behavior are untrusted. Only manual and scheduled repository-owned workflow configuration may cross the runtime boundary; secrets, authentication, arbitrary headers, proxy settings, hooks, custom formats, external configuration, custom commands, and public targets cannot.

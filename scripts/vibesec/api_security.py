@@ -14,6 +14,7 @@ from urllib.parse import unquote, urlsplit
 
 import yaml
 
+from .authenticated import annotate_findings, authentication_evidence, validate_publishable_bytes
 from .model import Finding
 from .policy import active_suppressions, evaluate
 from .strict_json import StrictJSONError, canonical_json, loads_strict
@@ -421,7 +422,9 @@ def normalize_schemathesis_report(path: Path, *, schema_source: str,
                 finding = Finding.create(tool="schemathesis", category="api", rule_id=check_id, severity=severity,
                                          file=schema_source, description=description, confidence="confirmed").to_dict()
                 finding.update({"operation_id": operation_id, "method": method.upper(), "path_template": path_template,
-                                "title": title, "remediation": remediation, "response_status": status})
+                                "title": title, "remediation": remediation, "response_status": status,
+                                "status_class": f"{status // 100}xx" if status is not None else "unknown",
+                                "contract_class": check_id})
                 stable = "\0".join(("schemathesis", check_id, operation_id, method.upper(), path_template, schema_source)).encode()
                 finding["fingerprint"] = hashlib.sha256(stable).hexdigest()
                 findings_by_fingerprint[finding["fingerprint"]] = finding
@@ -442,7 +445,8 @@ def tool_error(reason: str) -> dict[str, Any]:
 def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event: str, digest: str | None,
                     schema_source: str | None, port: int, base_path: str, safe_methods_only: bool,
                     findings: list[dict[str, Any]], duration_seconds: int, operation_count: int,
-                    exit_code: int, enforcement: str, minimum_severity: str) -> None:
+                    exit_code: int, enforcement: str, minimum_severity: str,
+                    authenticated: bool = False, authentication_applied: bool | None = None) -> None:
     if state not in {"ran", "not_applicable", "not_configured", "tool_error"}:
         raise ApiSecurityError("API coverage state is invalid")
     baseline = loads_strict((root / "policy/api-security-baseline.json").read_bytes())
@@ -452,6 +456,8 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
     if not isinstance(suppression_payload, dict) or suppression_payload.get("profile") != "api-security-baseline":
         raise ApiSecurityError("API suppressions are malformed")
     active, expired = active_suppressions(suppression_payload, date.today())
+    applied = authenticated if authentication_applied is None else authentication_applied
+    findings = annotate_findings(findings, authenticated=authenticated)
     evaluation = evaluate(findings, minimum_severity=minimum_severity, enforcement=enforcement,
                           baseline=set(baseline["fingerprints"]), suppressions=active, today=date.today())
     category = {0: "pass", 1: "policy_violation", 2: "tool_error", 3: "invalid_input"}.get(exit_code)
@@ -466,7 +472,7 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
         "target_type": "isolated_immutable_container", "target_digest": digest,
         "schema_source": schema_source, "target_port": port, "base_path": base_path,
         "trusted_event": event, "network_mode": "internal_only", "external_egress": False,
-        "authentication": False, "custom_headers": False, "stateful_testing": False,
+        "authentication": authenticated, "custom_headers": authenticated, "stateful_testing": False,
         "phases": ["examples", "coverage", "fuzzing"], "generation_mode": "all",
         "safe_methods_only": safe_methods_only,
         "allowed_methods": config["safe_methods"] if safe_methods_only else config["allowed_methods"],
@@ -474,7 +480,8 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
         "normalized_finding_count": len([item for item in findings if item.get("result_type") == "finding"]),
         "scan_duration_seconds": max(duration_seconds, 0),
         "output_artifacts": ["normalized.json", "coverage.json", "policy-result.json", "report.md"],
-        "limitations": ["Contract-driven unauthenticated testing does not prove that an API is secure."],
+        "limitations": ["Contract-driven testing with one static bearer identity does not prove that an API is secure or authorize role comparisons."],
+        **authentication_evidence(authenticated, applied),
     }
     policy = {"schema_version": 1, "profile": "api-security-baseline", "exit_code": exit_code,
               "exit_category": category, "clean": state == "ran" and exit_code == 0, "security_guarantee": False,
@@ -483,13 +490,18 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
     lines = ["# VibeSec API Security Baseline", "", f"Status: **{category}**", "",
              f"- Coverage: {state}", f"- Findings: {len(evaluation['findings'])}",
              f"- Policy violations: {len(evaluation['violations'])}", f"- Safe methods only: {str(safe_methods_only).lower()}",
-             "- Authentication: false", "- External egress: false", "", "A passing contract test does not prove the API is secure."]
+             f"- Authentication: {'bearer' if authenticated else 'none'}", "- External egress: false", "", "A passing contract test does not prove the API is secure."]
     if evaluation["findings"]:
         lines += ["", "## Findings", "", "| Severity | Check | Operation | Method | Path |", "|---|---|---|---|---|"]
         for item in evaluation["findings"]:
             safe = lambda value: str(value or "").replace("|", "\\|").replace("<", "&lt;").replace(">", "&gt;")[:200]
             lines.append("| " + " | ".join(safe(value) for value in (item["severity"], item["rule_id"], item.get("operation_id"), item.get("method"), item.get("path_template"))) + " |")
-    atomic_write(results / "normalized.json", canonical_json(normalized))
-    atomic_write(results / "coverage.json", canonical_json(coverage))
-    atomic_write(results / "policy-result.json", canonical_json(policy))
-    atomic_write(results / "report.md", ("\n".join(lines) + "\n").encode())
+    artifacts = {
+        "normalized.json": canonical_json(normalized), "coverage.json": canonical_json(coverage),
+        "policy-result.json": canonical_json(policy), "report.md": ("\n".join(lines) + "\n").encode(),
+    }
+    if authenticated:
+        for data in artifacts.values():
+            validate_publishable_bytes(data)
+    for name, data in artifacts.items():
+        atomic_write(results / name, data)

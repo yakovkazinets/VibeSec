@@ -10,6 +10,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.api_security import ApiSecurityError, CHECKS, IMAGE, sanitize_path_template  # noqa: E402
+from vibesec.authenticated import validate_publishable_bytes  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
 
 REQUIRED = {"normalized.json", "coverage.json", "report.md", "policy-result.json"}
@@ -28,8 +29,9 @@ def validate(results: Path, expected_state: str) -> None:
     policy = loads_strict((results / "policy-result.json").read_bytes())
     if not isinstance(normalized, dict) or normalized.get("profile") != "api-security-baseline" or not isinstance(normalized.get("results"), list):
         raise ApiSecurityError("normalized API artifact is malformed")
-    fixed = {"network_mode": "internal_only", "external_egress": False, "authentication": False,
-             "custom_headers": False, "stateful_testing": False, "phases": ["examples", "coverage", "fuzzing"],
+    authenticated = coverage.get("authentication_mode") == "bearer"
+    fixed = {"network_mode": "internal_only", "external_egress": False, "authentication": authenticated,
+             "custom_headers": authenticated, "stateful_testing": False, "phases": ["examples", "coverage", "fuzzing"],
              "generation_mode": "all"}
     if not isinstance(coverage, dict) or coverage.get("profile") != "api-security-baseline" or coverage.get("state") != expected_state or any(coverage.get(key) != value for key, value in fixed.items()):
         raise ApiSecurityError("API coverage profile, state, or isolation declarations differ")
@@ -38,7 +40,8 @@ def validate(results: Path, expected_state: str) -> None:
     if not isinstance(policy, dict) or policy.get("profile") != "api-security-baseline" or policy.get("exit_code") not in {0, 1, 2, 3}:
         raise ApiSecurityError("API policy artifact is malformed")
     allowed_fields = {"tool", "category", "rule_id", "severity", "file", "line", "description", "confidence", "fingerprint", "result_type",
-                      "operation_id", "method", "path_template", "title", "remediation", "response_status"}
+                      "operation_id", "method", "path_template", "title", "remediation", "response_status",
+                      "status_class", "contract_class", "observed_unauthenticated", "observed_authenticated"}
     for item in normalized["results"]:
         if not isinstance(item, dict) or set(item) - allowed_fields or item.get("result_type") not in {"finding", "tool_error"}:
             raise ApiSecurityError("API normalized result contains unapproved fields")
@@ -46,7 +49,9 @@ def validate(results: Path, expected_state: str) -> None:
             if item.get("rule_id") not in CHECKS:
                 raise ApiSecurityError("API normalized result contains an unreviewed check")
             sanitize_path_template(item.get("path_template"))
-    serialized = b"".join((results / name).read_bytes() for name in REQUIRED).decode("utf-8").casefold()
+    raw_artifacts = b"".join((results / name).read_bytes() for name in REQUIRED)
+    validate_publishable_bytes(raw_artifacts)
+    serialized = raw_artifacts.decode("utf-8").casefold()
     if any(marker.casefold() in serialized for marker in PROHIBITED) or re.search(r"https?://", serialized):
         raise ApiSecurityError("API artifacts contain prohibited raw, sensitive, or origin material")
 

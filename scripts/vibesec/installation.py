@@ -12,6 +12,7 @@ import unicodedata
 from typing import Any
 
 from .bundle import BundleError, validate_catalog
+from .authenticated import CONFIG_PATH as AUTH_CONFIG_PATH, AuthenticatedSecurityError, load_configuration as load_auth_configuration
 from .capabilities import MANIFEST_PATH as CAPABILITY_MANIFEST_PATH, CapabilityError, load_capabilities_file
 from .github_actions import GitHubActionsError, audit_workflow_text, load_inventory
 from .manifest import ManifestError, parse_installation_manifest
@@ -27,6 +28,7 @@ PRESERVATION_SENSITIVE = {
     "policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json",
     "policy/dast-suppressions.json", "policy/api-security-baseline.json",
     "policy/api-security-suppressions.json", ".vibesec/api-security-baseline.json", "policy/suppressions.yml",
+    AUTH_CONFIG_PATH,
 }
 
 
@@ -208,6 +210,8 @@ def verify_installation(target_path: Path) -> InstallationState:
                 expected.update(catalog["common"])
                 expected.update(config["support"])
                 expected.add(CAPABILITY_MANIFEST_PATH)
+                if AUTH_CONFIG_PATH in {item["path"] for item in manifest["installed_files"]}:
+                    expected.add(AUTH_CONFIG_PATH)
             if manifest["stage"] in {"all", "workflow"}:
                 expected.add(config["workflow_destination"])
             declared = {item["path"] for item in manifest["installed_files"]}
@@ -223,6 +227,17 @@ def verify_installation(target_path: Path) -> InstallationState:
         errors.append("DAST is installed when dast_target=false")
     if project_capabilities is not None and "api-security-baseline" in profiles and not project_capabilities["capabilities"]["api_security_target"]:
         errors.append("API Security Baseline is installed when api_security_target=false")
+    if project_capabilities is not None:
+        auth_enabled = project_capabilities["capabilities"]["authenticated_security_testing"]
+        try:
+            load_auth_configuration(target)
+            auth_configured = True
+        except AuthenticatedSecurityError:
+            auth_configured = False
+        if auth_enabled and not auth_configured:
+            errors.append("authenticated testing is enabled but its secret-name configuration is missing or invalid")
+        if not auth_enabled and auth_configured:
+            errors.append("authenticated testing configuration exists when authenticated_security_testing=false")
     for manifest in manifests:
         if manifest["schema_version"] == 1:
             records = [{"path": item, "sha256": None, "mode": None} for item in manifest["installed_files"] if item != manifest_paths[0].relative_to(target).as_posix()]

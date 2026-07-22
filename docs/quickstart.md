@@ -8,6 +8,8 @@ The supplied GitHub.com workflows use full-SHA actions that embed Node 24. GitHu
 
 The initializer first asks the [project capability questionnaire](project-capabilities.md). Every question shows `[Y/n]`: Enter is Yes, and you should explicitly answer No for absent scopes. Its dry-run JSON includes the exact manifest and writes nothing. For automation, supply reviewed answers with `--capabilities-file`; do not pipe EOF and assume defaults.
 
+If `authenticated_security_testing=true`, also pass `--auth-secret-name MY_BEARER_SECRET`. This is only the GitHub Actions secret name; never pass the bearer value. The generated configuration stores the name and fixed `Authorization`/`Bearer` model. When DAST or API support is later installed, its manual/scheduled workflow receives `${{ secrets.MY_BEARER_SECRET }}` only on the exact scanner step. See [authenticated security testing](authenticated-security-testing.md).
+
 ## Choose a profile
 
 Choose **Minimal** for the fastest first baseline: Trivy filesystem, Gitleaks, and actionlint. Choose **Standard** when you need local-rule source analysis, deeper dependency routing, SBOMs, or IaC coverage and can maintain the larger toolchain. Read [profile selection](profile-selection.md) before adding Standard to a repository that already has scanners.
@@ -76,4 +78,4 @@ For problems, use [troubleshooting](troubleshooting.md). For upgrades, use [upgr
 
 ## Optional OpenAPI API testing
 
-Projects declaring `api=true`, `container_image=true`, and `api_security_target=true` may separately install [API Security Baseline](api-security-baseline.md). Supply a local OpenAPI 3.x path, the name of a GitHub variable containing an immutable non-root target image, its internal port/base path, and whether to keep the default GET/HEAD/OPTIONS-only mode. Preview first; `--write` is required. It runs only manually or on schedule, without credentials or public targets, and is not part of Minimal or Standard.
+Projects declaring `api=true`, `container_image=true`, and `api_security_target=true` may separately install [API Security Baseline](api-security-baseline.md). Supply a local OpenAPI 3.x path, the name of a GitHub variable containing an immutable non-root target image, its internal port/base path, and whether to keep the default GET/HEAD/OPTIONS-only mode. Preview first; `--write` is required. It runs only manually or on schedule and never against public targets. Authentication remains off unless the bearer-only capability was explicitly configured; it is not part of Minimal or Standard.

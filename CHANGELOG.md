@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add opt-in static-bearer authenticated DAST and OpenAPI testing with scanner-step-only GitHub secret scoping, stdin delivery, tmpfs raw evidence, in-memory redaction, narrow authenticated/unauthenticated correlation, controlled fixtures, lifecycle validation, and separate live accountability workflows.
 - Add the separate opt-in OpenAPI API Security Baseline with immutable Schemathesis 4.24.2, strict schema validation, internal-only container isolation, safe-method defaults, bounded structured normalization, independent policy, controlled fixtures, consumer lifecycle support, and mandatory artifact validation.
 - Modernize every supplied GitHub Actions reference to reviewed full-SHA Node 24 releases, add a strict offline action inventory, and preserve checkout credential and artifact-upload boundaries.
 - Require Actions Runner 2.327.1 or newer for self-hosted workflows; document GitHub.com/GHES differences, Node 20 non-support, and Node 26 as a future compatibility target.

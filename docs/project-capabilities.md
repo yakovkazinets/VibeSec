@@ -1,6 +1,8 @@
 # Project capabilities
 
-`.vibesec/project-capabilities.json` is the authoritative declaration of which project scopes exist. Schema version 1 contains exactly 15 Boolean keys. Unknown or duplicate keys, non-Booleans, malformed or non-UTF-8 input, byte-order marks, oversized files, symlinks, and dependency conflicts fail closed.
+`.vibesec/project-capabilities.json` is the authoritative declaration of which project scopes exist. Schema version 1 contains exactly 16 Boolean keys. Unknown or duplicate keys, non-Booleans, malformed or non-UTF-8 input, byte-order marks, oversized files, symlinks, and dependency conflicts fail closed.
+
+`authenticated_security_testing=true` requires `authentication=true` and at least one of `dast_target=true` or `api_security_target=true`. Installation then asks only for the name of the GitHub Actions secret containing the static bearer token. The token value is never accepted. VibeSec itself declares both authentication capabilities false, so authenticated security testing is `not_applicable`.
 
 The initializer asks every question with `[Y/n]`. Enter, `y`, and `yes` mean Yes; `n` and `no` mean No, case-insensitively. Invalid answers are asked again. Every interactive question defaults to Yes, so maintainers must deliberately answer No for absent capabilities. EOF and non-interactive input never invent answers: use `--capabilities-file <trusted-local-json>` or the explicit `--all-capabilities` shorthand. Dry run remains the default and prints the resulting manifest; `--write` is required for atomic creation and never overwrites an existing file.
 

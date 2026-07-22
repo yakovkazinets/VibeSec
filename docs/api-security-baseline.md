@@ -1,6 +1,8 @@
 # API Security Baseline
 
-The opt-in `api-security-baseline` add-on performs contract-driven testing of one local OpenAPI 3.0.x or 3.1.x document against one already-built immutable, non-root API image. It is separate from Minimal, Standard, and Passive DAST Baseline. It runs only on `workflow_dispatch` or `schedule`, never against VibeSec itself, a pull request, a public URL, or a host service.
+The opt-in `api-security-baseline` add-on performs contract-driven testing of one local OpenAPI 3.0.x or 3.1.x document against one already-built immutable, non-root API image. It is separate from Minimal, Standard, and Passive DAST Baseline. It runs only on `workflow_dispatch` or `schedule`, never against VibeSec itself, a pull request, a public URL, or a host service. Optional authentication supports only the separately configured static bearer model.
+
+Bearer mode uses the pinned Schemathesis CLI header option through a trusted in-process launcher after reading the opaque value from stdin. The value is not an OS argument, Docker environment setting, config file, curl reproduction, or report field. Raw NDJSON stays on container tmpfs until in-memory redaction and credential/JWT rejection complete. Safe methods, stateless execution, fixed origin, local schema, no hooks, and no arbitrary-header rules remain unchanged. See [authenticated security testing](authenticated-security-testing.md).
 
 Schemathesis 4.24.2 runs from `ghcr.io/schemathesis/schemathesis@sha256:1f9f038554cc8b60ee28da38f508b9682c59affa31c1fc00c4a750b302100996`. The official MIT-licensed release and multi-platform image digest were verified against the Schemathesis GitHub release and GHCR metadata on 2026-07-22. The distributed runtime does not use pip, uvx, a floating tag, or `schemathesis/action`.
 
@@ -15,7 +17,7 @@ python3 scripts/init_vibesec.py --addon api-security-baseline --target /path/to/
   --api-port 8080 --api-base-path /api --api-safe-methods-only true
 ```
 
-Review the dry-run plan and add `--write`. Creation is atomic and refuses conflicts. The named GitHub repository variable must contain `registry/name@sha256:<digest>`. The schema, port, base path, and method choice are stored in `.vibesec/api-security-baseline.json`; the workflow is rendered for the selected image-variable name. No credentials are accepted.
+Review the dry-run plan and add `--write`. Creation is atomic and refuses conflicts. The named GitHub repository variable must contain `registry/name@sha256:<digest>`. The schema, port, base path, and method choice are stored in `.vibesec/api-security-baseline.json`; the workflow is rendered for the selected image-variable name. No credential is accepted there; bearer values come only from the separately named GitHub Actions secret.
 
 ## Request model and bounds
 

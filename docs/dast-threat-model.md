@@ -1,5 +1,7 @@
 # DAST Baseline threat model
 
+Static bearer authentication adds a separate credential boundary. Its secret lifecycle, scanner-delivery path, redaction rules, and authenticated-versus-unauthenticated correlation model are defined in [Authenticated security testing threat model](authenticated-security-threat-model.md).
+
 ## Assets and trust boundaries
 
 Protected assets include runner credentials, the Docker daemon, neighboring networks, external services, scanner integrity, target image identity, and sanitized evidence. Trusted inputs are the checked-in VibeSec harness, immutable tool pins, repository variables configured by maintainers, and trusted-event metadata. Application image contents and HTTP responses are hostile scan data. Pull-request text, mutable tags, external URLs, application-supplied scanner configuration, and authentication material are never trusted configuration.

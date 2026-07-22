@@ -1,6 +1,6 @@
 # Choosing Minimal or Standard
 
-The Passive DAST Baseline is an independent add-on, not a profile-selection criterion. Add it only when an owner can supply an authorized non-production digest-pinned non-root image and operate a disposable trusted Docker runner. Its passive unauthenticated crawl does not replace SAST, SCA, IaC review, threat modeling, or penetration testing.
+The Passive DAST Baseline is an independent add-on, not a profile-selection criterion. Add it only when an owner can supply an authorized non-production digest-pinned non-root image and operate a disposable trusted Docker runner. Its passive crawl does not replace SAST, SCA, IaC review, threat modeling, or penetration testing. Static-bearer authenticated coverage is a separate capability layered onto an eligible DAST or API target, not a base profile.
 
 More scanners are not automatically better. Choose the smallest profile that adds useful, maintainable coverage beyond controls already present.
 
@@ -31,4 +31,4 @@ Do not choose Standard merely because more tools sound safer. Inventory existing
 
 If the repository is unsupported or mostly generated/vendored content, neither profile can establish broad security. Standard provides clearer `not_applicable` and outside-coverage reporting, but that visibility is not itself new scanning coverage.
 
-API Security Baseline is not a third base profile. Consider it only when the manifest declares an API and container image, a reviewed local OpenAPI 3.x contract exists, and an immutable non-root disposable target can run on manual/scheduled events. It sends invalid inputs by design; keep safe-method mode unless mutation is explicitly authorized. It does not replace passive DAST, SAST, SCA, authentication testing, or design review.
+API Security Baseline is not a third base profile. Consider it only when the manifest declares an API and container image, a reviewed local OpenAPI 3.x contract exists, and an immutable non-root disposable target can run on manual/scheduled events. It sends invalid inputs by design; keep safe-method mode unless mutation is explicitly authorized. Bearer mode tests one static identity only and does not replace role-based authorization, passive DAST, SAST, SCA, or design review.

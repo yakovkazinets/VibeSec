@@ -1,5 +1,7 @@
 # Consumer distribution
 
+Authenticated testing configuration is distributed as trusted support code and documentation, while consumer installations generate only the validated GitHub secret name and fixed bearer metadata. Bundle contents never include a bearer value or derivative; see [Authenticated security testing](authenticated-security-testing.md).
+
 The bundle includes the strict project-capability schema, validator, questionnaire-enabled initializer, doctor support, and upgrade preservation logic. It does not carry VibeSec's own answers into a consumer repository. Consumers answer every `[Y/n]` question or provide a trusted local `--capabilities-file`; non-interactive EOF is rejected.
 
 Consumer bundles declare `supported_addons: [dast-baseline]` and include the reviewed DAST runner, parser, configuration, policies, artifact validator, documentation, and workflow template. Install a base profile first, then preview and write `--addon dast-baseline`. The initializer remains offline and atomic; it never pulls the configured application image.

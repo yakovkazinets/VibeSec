@@ -5,16 +5,21 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from scripts.vibesec.dast import (
     DastError, load_config, normalize_zap_report, sanitize_url, trusted_event,
     validate_base_path, validate_image_reference, validate_port,
 )
-from scripts.test_dast_container import classify_zap_failure, zap_failure_summary
+from scripts.test_dast_container import capture_zap_runtime_diagnostic
 from scripts.vibesec.zap_automation import (
     JOB_TYPES, PLAN_FILENAME, REPORT_FILENAME, RUNTIME_ADDON_OPTIONS,
     build_passive_plan, load_passive_plan, trusted_zap_command,
     trusted_zap_container_command, validate_passive_plan, write_passive_plan,
+)
+from scripts.vibesec.zap_diagnostics import (
+    ERROR_CODES, classify_zap_runtime, render_zap_runtime_diagnostic,
+    verified_zap_image_config,
 )
 
 
@@ -30,12 +35,19 @@ log=pathlib.Path(os.environ["FAKE_DOCKER_LOG"])
 with log.open("a",encoding="utf-8") as stream: stream.write(json.dumps(args)+"\n")
 mode=os.environ.get("FAKE_DAST_MODE", "success")
 if args[:1] == ["pull"]: raise SystemExit(1 if mode == "pull_fail" else 0)
+if args[:4] == ["image","inspect","--format","{{json .Config}}"]:
+ print(json.dumps({"User":"zap","Env":["HOME=/home/zap"]})); raise SystemExit(0)
 if args[:3] == ["image","inspect","--format"]:
  users={"root":"", "root_name":"root:root", "root_uid":"0:0"}
  print(json.dumps(users.get(mode,"1000"))); raise SystemExit(0)
 if args[:2] == ["network","create"]: raise SystemExit(1 if mode == "network_fail" else 0)
 if args[:2] == ["network","rm"]: raise SystemExit(1 if mode == "cleanup_fail" else 0)
+if args[:3] == ["inspect","--format","{{json .State}}"]:
+ print(json.dumps({"Status":"exited","ExitCode":1,"OOMKilled":False,"Error":""})); raise SystemExit(0)
 if args[:2] == ["inspect","--format"]: print("false" if mode == "early_exit" else "true"); raise SystemExit(0)
+if args[:1] == ["logs"]: print(os.environ.get("FAKE_ZAP_RUNTIME_LOG", "")); raise SystemExit(0)
+if args[:1] == ["cp"]:
+ pathlib.Path(args[-1]).write_text(os.environ.get("FAKE_ZAP_RUNTIME_LOG", ""),encoding="utf-8"); raise SystemExit(0)
 if args[:2] == ["rm","-f"]: raise SystemExit(1 if mode == "cleanup_fail" else 0)
 if args[:1] == ["run"]:
  if "--detach" in args: print("container-id"); raise SystemExit(1 if mode == "target_fail" else 0)
@@ -273,30 +285,85 @@ class DastBaselineTests(unittest.TestCase):
             self.assertNotIn("zap-baseline.py", source)
             self.assertNotIn("zap-full-scan.py", source)
 
-    def test_live_harness_diagnostics_are_bounded_and_sanitized(self):
-        marker = "MUST_NOT_APPEAR_IN_DIAGNOSTIC"
-        completed = subprocess.CompletedProcess([], 3, "", "unable to open config file " + marker)
-        report = self.work / "zap-report.json"
-        report.write_bytes(b"{}")
-        summary = zap_failure_summary("positive", completed, report)
-        self.assertEqual(
-            summary,
-            "live ZAP scan failed: case=positive exit=3 report_exists=true report_bytes=2 category=config_file_unavailable",
+    def test_live_runtime_diagnostic_categories_are_precise(self):
+        cases = (
+            ("fatal Java heap space", {"OOMKilled": True, "ExitCode": 137}, "java_out_of_memory"),
+            ("unable to create native thread", {"ExitCode": 1}, "java_thread_limit"),
+            ("permission denied writing /home/zap/.ZAP/config.xml", {"ExitCode": 1}, "zap_home_unwritable"),
+            ("permission denied writing /zap/wrk/zap-report.json", {"ExitCode": 1}, "filesystem_permission_failed"),
+            ("failed to access URL: connection refused", {"ExitCode": 1}, "target_unreachable"),
+            ("report job failed: cannot write output", {"ExitCode": 1}, "report_generation_failed"),
+            ("report job failed: template traditional-json unavailable", {"ExitCode": 1}, "report_template_unavailable"),
+            ("passive scan rule add-on missing", {"ExitCode": 1}, "passive_rule_unavailable"),
+            ("", {"ExitCode": 143, "Error": "killed"}, "container_killed"),
+            ("Automation Framework job spider failed", {"ExitCode": 1}, "automation_job_error"),
+            ("unclassified failure", {"ExitCode": 1}, "unknown_zap_runtime_error"),
         )
-        self.assertNotIn(marker, summary)
-        self.assertEqual(classify_zap_failure("permission denied " + marker), "filesystem_unavailable")
-        self.assertEqual(
-            classify_zap_failure("connection failure while applying -addonupdate " + marker),
-            "addon_update_blocked",
+        for text, state, expected in cases:
+            with self.subTest(expected=expected):
+                classified = classify_zap_runtime(text, state)
+                self.assertEqual(classified["code"], expected)
+                self.assertIn(classified["code"], ERROR_CODES)
+        self.assertEqual(classify_zap_runtime(cases[-2][0], cases[-2][1])["job"], "spider")
+
+    def test_live_runtime_diagnostic_is_bounded_and_sanitized(self):
+        report = self.work / REPORT_FILENAME
+        raw = ("ERROR Automation Framework job report failed for https://target:8080/positive?secret=yes "
+               "at /home/runner/work/VibeSec/private/0123456789abcdef\x00") * 20
+        summary = render_zap_runtime_diagnostic(
+            case="positive", exit_code=1,
+            state={"Status": "exited", "ExitCode": 1, "OOMKilled": False, "Error": ""},
+            report=report, runtime_text=raw,
         )
-        self.assertEqual(classify_zap_failure("marketplace unavailable during startup"), "addon_update_blocked")
-        self.assertEqual(classify_zap_failure("Automation plan autocheck failed"), "automation_plan_invalid")
-        self.assertEqual(classify_zap_failure(marker * 1000), "unknown_zap_exit")
+        self.assertLessEqual(len(summary), 512)
+        self.assertIn("code=report_generation_failed", summary)
+        self.assertIn("job=report", summary)
+        for prohibited in ("https://", "/home/runner", "0123456789abcdef", "secret=yes", "\x00"):
+            self.assertNotIn(prohibited, summary)
+
+    def test_stopped_container_log_is_copied_parsed_and_deleted(self):
+        private = self.work / "private-diagnostic"
+        private.mkdir(mode=0o700)
+        report = private / REPORT_FILENAME
+        runtime_log = "ERROR Automation Framework job report failed: template traditional-json unavailable"
+        scan = subprocess.CompletedProcess([], 1, "", "")
+        with patch.dict(os.environ, {
+            "FAKE_DOCKER_LOG": str(self.log),
+            "FAKE_ZAP_RUNTIME_LOG": runtime_log,
+        }):
+            summary = capture_zap_runtime_diagnostic(
+                docker=str(self.docker), container="vibesec-dast-live-zap-positive-deadbeef",
+                zap_home="/home/zap", private=private, case="positive", scan=scan, report=report,
+            )
+        self.assertIn("code=report_template_unavailable", summary)
+        self.assertFalse((private / ".vibesec-zap-runtime.log").exists())
+        commands = [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+        self.assertTrue(any(command[:3] == ["logs", "--tail", "200"] for command in commands))
+        self.assertTrue(any(command[:1] == ["cp"] and ":/home/zap/.ZAP/zap.log" in command[1] for command in commands))
+
+    def test_pinned_image_home_is_verified_not_assumed(self):
+        self.assertEqual(
+            verified_zap_image_config({"User": "zap", "Env": ["LANG=C.UTF-8", "HOME=/home/zap"]}),
+            ("zap", "/home/zap"),
+        )
+        for payload in (
+            {"User": "root", "Env": ["HOME=/home/zap"]},
+            {"User": "zap", "Env": []},
+            {"User": "zap", "Env": ["HOME=/home/zap/../root"]},
+        ):
+            with self.subTest(payload=payload), self.assertRaises(DastError):
+                verified_zap_image_config(payload)
 
     def test_live_harness_uses_controlled_fixture_and_pinned_autocheck(self):
         harness = (ROOT / "scripts/test_dast_container.py").read_text(encoding="utf-8")
         self.assertIn('ROOT / "tests/security-fixtures/zap-baseline/server.py"', harness)
         self.assertIn('operation="autocheck"', harness)
+        self.assertIn('capture_zap_runtime_diagnostic(', harness)
+        self.assertIn('[docker, "logs", "--tail", "200", container]', harness)
+        self.assertIn('[docker, "cp", f"{container}:{zap_home}/.ZAP/zap.log"', harness)
+        production = (ROOT / "scripts/run_dast_baseline.py").read_text(encoding="utf-8")
+        self.assertNotIn("capture_zap_runtime_diagnostic", production)
+        self.assertNotIn('"logs", "--tail"', production)
         builder = (ROOT / "scripts/vibesec/zap_automation.py").read_text(encoding="utf-8")
         self.assertIn('dst={CONTAINER_WORKDIR}', builder)
         self.assertNotIn("run_dast_baseline.py .", harness)

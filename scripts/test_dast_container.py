@@ -27,6 +27,10 @@ if __package__:
         PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
         validate_private_workspace, write_passive_plan,
     )
+    from .vibesec.zap_diagnostics import (
+        read_private_log_tail, render_zap_runtime_diagnostic,
+        verified_zap_image_config,
+    )
 else:
     sys.path.insert(0, str(SCRIPT_ROOT))
     from vibesec.dast import load_config, normalize_zap_report  # type: ignore[no-redef]
@@ -34,6 +38,10 @@ else:
     from vibesec.zap_automation import (  # type: ignore[no-redef]
         PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
         validate_private_workspace, write_passive_plan,
+    )
+    from vibesec.zap_diagnostics import (  # type: ignore[no-redef]
+        read_private_log_tail, render_zap_runtime_diagnostic,
+        verified_zap_image_config,
     )
 
 
@@ -49,31 +57,6 @@ def flags(config: dict[str, object], tmpfs: int) -> list[str]:
             "--tmpfs", f"/tmp:rw,noexec,nosuid,nodev,size={tmpfs}m"]
 
 
-def classify_zap_failure(stderr: str) -> str:
-    """Map bounded scanner stderr to a non-sensitive diagnostic category."""
-    text = stderr[:8192].casefold()
-    if any(marker in text for marker in ("config file not found", "config_file", "unable to open config", "/zap/wrk//zap/policy")):
-        return "config_file_unavailable"
-    if any(marker in text for marker in ("automation plan", "autocheck", "yaml", "unrecognised job", "unrecognized job")):
-        return "automation_plan_invalid"
-    if "report" in text and any(marker in text for marker in ("no such file", "cannot write", "can't write", "unable to write", "invalid path")):
-        return "report_path_invalid"
-    update_markers = (
-        "add-on update failure", "add-on update failed", "unable to update add-ons",
-        "marketplace unavailable during startup", "add-on installation failure", "failed to install add-on",
-    )
-    connection_markers = ("connection failure", "connection refused", "timed out", "unknown host")
-    if any(marker in text for marker in update_markers) or ("-addonupdate" in text and any(marker in text for marker in connection_markers)):
-        return "addon_update_blocked"
-    if any(marker in text for marker in ("failed to start zap", "zap startup", "zap daemon")):
-        return "zap_startup_failed"
-    if any(marker in text for marker in ("target unreachable", "failed to access url", "connection refused", "name or service not known")):
-        return "target_unreachable"
-    if any(marker in text for marker in ("permission denied", "read-only file system", "filesystem unavailable")):
-        return "filesystem_unavailable"
-    return "unknown_zap_exit"
-
-
 def update_attempted(completed: subprocess.CompletedProcess[str]) -> bool:
     text = (completed.stdout + "\n" + completed.stderr)[:16384].casefold()
     return any(marker in text for marker in (
@@ -82,14 +65,47 @@ def update_attempted(completed: subprocess.CompletedProcess[str]) -> bool:
     ))
 
 
-def zap_failure_summary(case: str, scan: subprocess.CompletedProcess[str], report: Path) -> str:
-    if case not in {"positive", "negative"}:
-        case = "unknown"
-    exists = report.is_file() and not report.is_symlink()
-    size = report.stat().st_size if exists else 0
-    category = classify_zap_failure(scan.stderr)
-    return (f"live ZAP scan failed: case={case} exit={scan.returncode} "
-            f"report_exists={str(exists).lower()} report_bytes={size} category={category}")
+def inspect_zap_image(docker: str, image: str) -> tuple[str, str]:
+    inspected = run([docker, "image", "inspect", "--format", "{{json .Config}}", image], 30)
+    if inspected.returncode != 0:
+        raise RuntimeError("pinned ZAP image configuration inspection failed")
+    try:
+        payload = loads_strict(inspected.stdout.encode("utf-8"), maximum_bytes=32_768)
+        return verified_zap_image_config(payload)
+    except (UnicodeError, ValueError) as exc:
+        raise RuntimeError("pinned ZAP image configuration is invalid") from exc
+
+
+def capture_zap_runtime_diagnostic(*, docker: str, container: str, zap_home: str,
+                                   private: Path, case: str,
+                                   scan: subprocess.CompletedProcess[str], report: Path) -> str:
+    """Inspect a stopped scanner without exposing or retaining its raw logs."""
+    state: dict[str, object] = {}
+    runtime_parts = [scan.stdout[-65_536:], scan.stderr[-65_536:]]
+    inspected = run([docker, "inspect", "--format", "{{json .State}}", container], 30)
+    if inspected.returncode == 0:
+        try:
+            parsed = loads_strict(inspected.stdout.encode("utf-8"), maximum_bytes=32_768)
+            if isinstance(parsed, dict):
+                state = parsed
+        except (UnicodeError, ValueError):
+            runtime_parts.append("container state inspection failed")
+    container_logs = run([docker, "logs", "--tail", "200", container], 30)
+    runtime_parts.extend((container_logs.stdout[-65_536:], container_logs.stderr[-65_536:]))
+    copied_log = private / ".vibesec-zap-runtime.log"
+    copied_log.unlink(missing_ok=True)
+    try:
+        copied = run([docker, "cp", f"{container}:{zap_home}/.ZAP/zap.log", str(copied_log)], 30)
+        if copied.returncode == 0:
+            runtime_parts.append(read_private_log_tail(copied_log))
+        else:
+            runtime_parts.append("ZAP private runtime log unavailable")
+        return render_zap_runtime_diagnostic(
+            case=case, exit_code=scan.returncode, state=state,
+            report=report, runtime_text="\n".join(runtime_parts),
+        )
+    finally:
+        copied_log.unlink(missing_ok=True)
 
 
 def main() -> int:
@@ -108,6 +124,11 @@ def main() -> int:
         if run([docker, "pull", image], 300).returncode != 0:
             print("live DAST fixture image pull failed", file=sys.stderr)
             return 2
+    try:
+        _, zap_home = inspect_zap_image(docker, zap)
+    except RuntimeError as exc:
+        print(f"live DAST fixture failed: {exc}", file=sys.stderr)
+        return 2
     suffix = secrets.token_hex(8)
     network = f"vibesec-dast-live-net-{suffix}"
     target = f"vibesec-dast-live-target-{suffix}"
@@ -158,7 +179,10 @@ def main() -> int:
                     image=zap, config=config, operation="autocheck",
                 ), 60)
                 if check.returncode != 0 or update_attempted(check):
-                    raise RuntimeError(zap_failure_summary(case, check, report))
+                    raise RuntimeError(capture_zap_runtime_diagnostic(
+                        docker=docker, container=checker, zap_home=zap_home, private=private,
+                        case=case, scan=check, report=report,
+                    ))
                 validate_private_workspace(private, report_required=False)
                 if run([docker, "rm", "-f", checker], 30).returncode != 0:
                     raise RuntimeError("live ZAP autocheck container cleanup failed")
@@ -169,9 +193,15 @@ def main() -> int:
                     image=zap, config=config,
                 ), config["total_scan_timeout_minutes"] * 60 + 60)
                 if scan.returncode not in {0, 1, 2}:
-                    raise RuntimeError(zap_failure_summary(case, scan, report))
+                    raise RuntimeError(capture_zap_runtime_diagnostic(
+                        docker=docker, container=scanner, zap_home=zap_home, private=private,
+                        case=case, scan=scan, report=report,
+                    ))
                 if update_attempted(scan) or (scan.returncode == 1 and not report.is_file()):
-                    raise RuntimeError(zap_failure_summary(case, scan, report))
+                    raise RuntimeError(capture_zap_runtime_diagnostic(
+                        docker=docker, container=scanner, zap_home=zap_home, private=private,
+                        case=case, scan=scan, report=report,
+                    ))
                 validate_private_workspace(private, report_required=True)
                 findings, _ = normalize_zap_report(report, port=8080,
                                                    maximum_bytes=config["maximum_raw_report_bytes"],

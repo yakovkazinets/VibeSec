@@ -16,6 +16,7 @@ The registry pull is the only intended external network activity. After pull and
 - Raw JSON is size-, shape-, field-, count-, URL-, and control-character validated before policy processing.
 - Parser/configuration failure is exit `3`; runtime or cleanup failure is exit `2`; neither is a clean scan.
 - Cleanup removes the scanner, target, internal network, generated plan, and private raw report. A cleanup failure changes the result to a tool failure.
+- Live accountability failure diagnostics inspect only the stopped current-run scanner. Bounded raw log data is parsed privately, never uploaded or printed, and its temporary copy is deleted before container and network cleanup.
 - Artifact validation rejects prohibited raw or sensitive fields and only the four sanitized artifacts are uploaded.
 
 ## Residual risk and exclusions

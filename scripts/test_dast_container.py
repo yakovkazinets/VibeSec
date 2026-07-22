@@ -20,9 +20,13 @@ import time
 
 SCRIPT_ROOT = Path(__file__).resolve().parent
 ROOT = SCRIPT_ROOT.parent
-sys.path.insert(0, str(SCRIPT_ROOT))
-from vibesec.dast import load_config, normalize_zap_report  # noqa: E402
-from vibesec.strict_json import loads_strict  # noqa: E402
+if __package__:
+    from .vibesec.dast import load_config, normalize_zap_report
+    from .vibesec.strict_json import loads_strict
+else:
+    sys.path.insert(0, str(SCRIPT_ROOT))
+    from vibesec.dast import load_config, normalize_zap_report  # type: ignore[no-redef]
+    from vibesec.strict_json import loads_strict  # type: ignore[no-redef]
 
 
 def run(command: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
@@ -35,6 +39,32 @@ def flags(config: dict[str, object], tmpfs: int) -> list[str]:
             "--cpus", str(config["container_cpu_limit"]), "--memory", f"{config['container_memory_megabytes']}m",
             "--pids-limit", str(config["container_pid_limit"]),
             "--tmpfs", f"/tmp:rw,noexec,nosuid,nodev,size={tmpfs}m"]
+
+
+def classify_zap_failure(stderr: str) -> str:
+    """Map bounded scanner stderr to a non-sensitive diagnostic category."""
+    text = stderr[:8192].casefold()
+    if any(marker in text for marker in ("config file not found", "config_file", "unable to open config", "/zap/wrk//zap/policy")):
+        return "config_file_unavailable"
+    if "report" in text and any(marker in text for marker in ("no such file", "cannot write", "can't write", "unable to write", "invalid path")):
+        return "report_path_invalid"
+    if any(marker in text for marker in ("failed to start zap", "zap startup", "zap daemon")):
+        return "zap_startup_failed"
+    if any(marker in text for marker in ("target unreachable", "failed to access url", "connection refused", "name or service not known")):
+        return "target_unreachable"
+    if any(marker in text for marker in ("permission denied", "read-only file system", "filesystem unavailable")):
+        return "filesystem_unavailable"
+    return "unknown_zap_exit"
+
+
+def zap_failure_summary(case: str, scan: subprocess.CompletedProcess[str], report: Path) -> str:
+    if case not in {"positive", "negative"}:
+        case = "unknown"
+    exists = report.is_file() and not report.is_symlink()
+    size = report.stat().st_size if exists else 0
+    category = classify_zap_failure(scan.stderr)
+    return (f"live ZAP scan failed: case={case} exit={scan.returncode} "
+            f"report_exists={str(exists).lower()} report_bytes={size} category={category}")
 
 
 def main() -> int:
@@ -94,13 +124,13 @@ def main() -> int:
                             *flags(config, config["zap_tmpfs_megabytes"]),
                             "--tmpfs", f"/home/zap:rw,noexec,nosuid,nodev,size={config['zap_tmpfs_megabytes']}m",
                             "--mount", f"type=bind,src={private},dst=/zap/wrk",
-                            "--mount", f"type=bind,src={policy},dst=/zap/policy/vibesec-zap-baseline.conf,readonly",
-                            zap, "zap-baseline.py", "-t", target_url, "-c", "/zap/policy/vibesec-zap-baseline.conf",
+                            "--mount", f"type=bind,src={policy},dst=/zap/wrk/vibesec-zap-baseline.conf,readonly",
+                            zap, "zap-baseline.py", "-t", target_url, "-c", "vibesec-zap-baseline.conf",
                             "-m", str(config["spider_duration_minutes"]), "-T", str(config["passive_scan_timeout_minutes"]),
-                            "-J", "/zap/wrk/zap-report.json", "-s", "-i", "--autooff"],
+                            "-J", "zap-report.json", "-s", "-i", "--autooff"],
                            config["total_scan_timeout_minutes"] * 60 + 60)
                 if scan.returncode not in {0, 1, 2}:
-                    raise RuntimeError(f"live ZAP {case} scan failed")
+                    raise RuntimeError(zap_failure_summary(case, scan, private / "zap-report.json"))
                 findings, _ = normalize_zap_report(private / "zap-report.json", port=8080,
                                                    maximum_bytes=config["maximum_raw_report_bytes"],
                                                    maximum_findings=config["maximum_normalized_findings"])

@@ -165,10 +165,10 @@ def main() -> int:
                        *security_flags(config, tmpfs=config["zap_tmpfs_megabytes"]),
                        "--tmpfs", f"/home/zap:rw,noexec,nosuid,nodev,size={config['zap_tmpfs_megabytes']}m",
                        "--mount", f"type=bind,src={private},dst=/zap/wrk",
-                       "--mount", f"type=bind,src={policy},dst=/zap/policy/vibesec-zap-baseline.conf,readonly",
-                       zap, "zap-baseline.py", "-t", target_url, "-c", "/zap/policy/vibesec-zap-baseline.conf",
+                       "--mount", f"type=bind,src={policy},dst=/zap/wrk/vibesec-zap-baseline.conf,readonly",
+                       zap, "zap-baseline.py", "-t", target_url, "-c", "vibesec-zap-baseline.conf",
                        "-m", str(config["spider_duration_minutes"]), "-T", str(config["passive_scan_timeout_minutes"]),
-                       "-J", "/zap/wrk/zap-report.json", "-s", "-i", "--autooff"]
+                       "-J", "zap-report.json", "-s", "-i", "--autooff"]
         zap_result = run(zap_command, timeout=config["total_scan_timeout_minutes"] * 60 + 60)
         if zap_result.returncode not in {0, 1, 2}:
             raise RuntimeError("ZAP baseline execution failed")

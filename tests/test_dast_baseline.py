@@ -10,6 +10,7 @@ from scripts.vibesec.dast import (
     DastError, load_config, normalize_zap_report, sanitize_url, trusted_event,
     validate_base_path, validate_image_reference, validate_port,
 )
+from scripts.test_dast_container import classify_zap_failure, zap_failure_summary
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +36,11 @@ if args[:1] == ["run"]:
  if "--detach" in args: print("container-id"); raise SystemExit(1 if mode == "target_fail" else 0)
  if "python3" in args: raise SystemExit(1 if mode in {"early_exit", "not_ready"} else 0)
  if "zap-baseline.py" in args:
+  config=args[args.index("-c")+1] if "-c" in args else ""
+  report=args[args.index("-J")+1] if "-J" in args else ""
+  policy_mount="dst=/zap/wrk/vibesec-zap-baseline.conf,readonly"
+  if config != "vibesec-zap-baseline.conf" or report != "zap-report.json" or not any(policy_mount in value for value in args):
+   print("packaged scan file argument contract failed",file=sys.stderr); raise SystemExit(3)
   if mode == "zap_fail": raise SystemExit(3)
   if mode != "missing_report":
    mount=next(value for value in args if value.startswith("type=bind,src=") and value.endswith(",dst=/zap/wrk"))
@@ -130,8 +136,8 @@ class DastBaselineTests(unittest.TestCase):
         with self.assertRaises(DastError):
             normalize_zap_report(oversized, port=8080, maximum_bytes=1000, maximum_findings=100)
 
-    def test_zap_warning_and_fail_exits_are_completed_scans(self):
-        for zap_exit in ("1", "2"):
+    def test_zap_success_warning_and_fail_exits_are_completed_scans(self):
+        for zap_exit in ("0", "1", "2"):
             with self.subTest(zap_exit=zap_exit):
                 completed, results = self.run_profile(zap_exit=zap_exit)
                 self.assertEqual(completed.returncode, 0, completed.stderr)
@@ -172,9 +178,72 @@ class DastBaselineTests(unittest.TestCase):
         target = next(command for command in commands if command[:1] == ["run"] and "--detach" in command)
         self.assertNotIn("--mount", target)
         scanner = next(command for command in commands if command[:1] == ["run"] and "zap-baseline.py" in command)
+        self.assertEqual(scanner[scanner.index("-c") + 1], "vibesec-zap-baseline.conf")
+        self.assertEqual(scanner[scanner.index("-J") + 1], "zap-report.json")
+        self.assertFalse(scanner[scanner.index("-c") + 1].startswith("/"))
+        self.assertFalse(scanner[scanner.index("-J") + 1].startswith("/"))
+        mounts = [value for index, value in enumerate(scanner) if index and scanner[index - 1] == "--mount"]
+        output_mount = next(value for value in mounts if value.endswith("dst=/zap/wrk"))
+        policy_mount = next(value for value in mounts if "dst=/zap/wrk/vibesec-zap-baseline.conf" in value)
+        self.assertNotIn("readonly", output_mount)
+        self.assertTrue(policy_mount.endswith(",readonly"))
+        self.assertIn(str(ROOT / "config/zap-baseline.conf"), policy_mount)
+        private = Path(next(part.split("=", 1)[1] for part in output_mount.split(",") if part.startswith("src=")))
+        self.assertFalse(private.exists(), "private raw-output directory survived cleanup")
         self.assertIn("-T", scanner)
         self.assertEqual(scanner[scanner.index("-T") + 1], "3")
         self.assertNotIn("-a", scanner)
+
+    def test_live_harness_diagnostics_are_bounded_and_sanitized(self):
+        marker = "MUST_NOT_APPEAR_IN_DIAGNOSTIC"
+        completed = subprocess.CompletedProcess([], 3, "", "unable to open config file " + marker)
+        report = self.work / "zap-report.json"
+        report.write_bytes(b"{}")
+        summary = zap_failure_summary("positive", completed, report)
+        self.assertEqual(
+            summary,
+            "live ZAP scan failed: case=positive exit=3 report_exists=true report_bytes=2 category=config_file_unavailable",
+        )
+        self.assertNotIn(marker, summary)
+        self.assertEqual(classify_zap_failure("permission denied " + marker), "filesystem_unavailable")
+        self.assertEqual(classify_zap_failure(marker * 1000), "unknown_zap_exit")
+
+    def test_live_harness_uses_packaged_scan_relative_file_contract(self):
+        harness = (ROOT / "scripts/test_dast_container.py").read_text(encoding="utf-8")
+        self.assertIn('"-c", "vibesec-zap-baseline.conf"', harness)
+        self.assertIn('"-J", "zap-report.json"', harness)
+        self.assertIn('dst=/zap/wrk/vibesec-zap-baseline.conf,readonly', harness)
+        self.assertIn('dst=/zap/wrk"', harness)
+        self.assertNotIn('"-c", "/zap/', harness)
+        self.assertNotIn('"-J", "/zap/', harness)
+
+    def test_fake_docker_rejects_absolute_packaged_scan_file_arguments(self):
+        private = self.work / "private"
+        private.mkdir()
+        environment = os.environ.copy()
+        environment.update({
+            "FAKE_DOCKER_LOG": str(self.log),
+            "FAKE_ZAP_REPORT": str(FIXTURE / "positive/raw.json"),
+            "FAKE_ZAP_EXIT": "2",
+        })
+        mounts = [
+            "--mount", f"type=bind,src={private},dst=/zap/wrk",
+            "--mount", f"type=bind,src={ROOT / 'config/zap-baseline.conf'},dst=/zap/wrk/vibesec-zap-baseline.conf,readonly",
+        ]
+        absolute = subprocess.run(
+            [str(self.docker), "run", *mounts, "pinned-zap", "zap-baseline.py",
+             "-c", "/zap/policy/vibesec-zap-baseline.conf", "-J", "/zap/wrk/zap-report.json"],
+            env=environment, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(absolute.returncode, 3)
+        self.assertIn("packaged scan file argument contract failed", absolute.stderr)
+        relative = subprocess.run(
+            [str(self.docker), "run", *mounts, "pinned-zap", "zap-baseline.py",
+             "-c", "vibesec-zap-baseline.conf", "-J", "zap-report.json"],
+            env=environment, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(relative.returncode, 2)
+        self.assertEqual((private / "zap-report.json").read_bytes(), (FIXTURE / "positive/raw.json").read_bytes())
 
     def test_untrusted_and_missing_configuration_never_invoke_docker(self):
         for event, image in (("pull_request", IMAGE), ("workflow_dispatch", "")):

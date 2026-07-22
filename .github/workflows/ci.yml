@@ -140,8 +140,34 @@ jobs:
           tests.test_standard_profile_integration tests.test_scan_exit tests.test_workflows tests.test_policy tests.test_results
           tests.test_consumer_adoption tests.test_adoption_docs tests.test_vibesec_self_scan
 
+  dast-accountability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted DAST fixtures without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install pinned validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Exercise passive DAST, isolation, and failure contracts
+        run: python3 -m unittest -v tests.test_dast_baseline
+
+  dast-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted DAST validators without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install pinned validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Validate DAST normalization and sanitized artifacts
+        run: python3 -m unittest -v tests.test_dast_baseline tests.test_security_accountability
+
   validate:
-    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts]
+    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-accountability, dast-artifacts]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -201,7 +227,7 @@ jobs:
       - name: Exercise local Opengrep rules
         run: python3 scripts/test_opengrep_rules.py .tools/bin/opengrep
       - name: Lint repository and starter workflows
-        run: .tools/bin/actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml
+        run: .tools/bin/actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml templates/github-actions/dast-baseline.yml
       - name: Run minimal profile in observation mode
         id: security
         continue-on-error: true

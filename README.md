@@ -1,5 +1,7 @@
 # VibeSec
 
+The [Passive DAST Baseline add-on](docs/dast-baseline.md) is deliberately outside the Minimal and Standard profiles. It is manual/scheduled, unauthenticated, passive-only, and limited to an explicitly configured immutable non-root image on an isolated internal Docker network. Review its [threat model](docs/dast-threat-model.md) before enabling it.
+
 VibeSec is an open-source application-security toolkit for vibe coders, solo developers, startups, and small teams. It combines a repository-aware coding-agent skill with a copyable GitHub Actions baseline.
 
 VibeSec cannot guarantee that an application is secure. Scanner coverage is incomplete, findings may be wrong, and a clean scan covers only the checks that completed successfully.
@@ -25,8 +27,8 @@ Review the code and configuration before using it, validate it against your own 
 - [Security/result model](docs/security-model.md) and [threat model](docs/threat-model.md)
 - [Security validation policy](docs/security-validation-policy.md), [capability matrix](docs/security-capability-matrix.md), and [self-hosted validation](docs/self-hosted-validation.md)
 
-Minimal uses Trivy filesystem, Gitleaks, and actionlint. Standard adds VibeSec-owned Opengrep rules, OSV-Scanner, Syft SBOMs, conditional isolated Checkov, explicit coverage reporting, and optional trusted-event scanning of an existing immutable image. Neither profile builds or executes application code, installs project dependencies, builds Dockerfiles, applies infrastructure, or performs DAST/fuzzing/runtime analysis.
-<!-- claimed-scanners: actionlint,checkov,gitleaks,opengrep,osv-scanner,syft,trivy -->
+Minimal uses Trivy filesystem, Gitleaks, and actionlint. Standard adds VibeSec-owned Opengrep rules, OSV-Scanner, Syft SBOMs, conditional isolated Checkov, explicit coverage reporting, and optional trusted-event scanning of an existing immutable image. Neither profile builds or executes application code, installs project dependencies, builds Dockerfiles, or applies infrastructure. A separate, opt-in DAST Baseline add-on runs only OWASP ZAP's passive baseline against an explicitly supplied immutable, non-root application image on a trusted event.
+<!-- claimed-scanners: actionlint,checkov,gitleaks,opengrep,osv-scanner,syft,trivy,zap-baseline -->
 
 Preview adoption without changing the application repository:
 

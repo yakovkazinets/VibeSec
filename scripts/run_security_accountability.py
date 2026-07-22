@@ -14,6 +14,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.detection import inventory  # noqa: E402
+from vibesec.dast import normalize_zap_report  # noqa: E402
 from vibesec.normalize import normalize_file  # noqa: E402
 from vibesec.policy import evaluate  # noqa: E402
 from vibesec.results import _validate_document  # noqa: E402
@@ -30,6 +31,7 @@ SCANNER_NORMALIZERS = {
     "standard.osv-dependencies": ("osv-scanner", "raw.json"),
     "standard.checkov-iac": ("checkov", "raw.json"),
     "standard.trivy-image": ("trivy-image", "raw.json"),
+    "dast.zap-passive-baseline": ("zap-baseline", "raw.json"),
 }
 PROHIBITED_OUTPUT = ("VIBESEC_" + "FAKE_SECRET_DO_NOT_USE_", "/home/runner/", "/Users/", "RUNNER_TOKEN", "registry credential")
 
@@ -66,7 +68,10 @@ def scanner_evidence(capability: dict[str, Any], expected: dict[str, Any]) -> di
     for case in ("positive", "negative"):
         raw = ROOT / capability[f"{case}_fixture"] / raw_name
         try:
-            findings = [item.to_dict() for item in normalize_file(tool, raw)]
+            if tool == "zap-baseline":
+                findings, _ = normalize_zap_report(raw, port=8080, maximum_bytes=5_000_000, maximum_findings=1000)
+            else:
+                findings = [item.to_dict() for item in normalize_file(tool, raw)]
         except ValueError as exc:
             raise AccountabilityError(f"{capability['id']} {case} normalization failed: {exc}") from exc
         identifiers = sorted(item["rule_id"] for item in findings)
@@ -82,7 +87,7 @@ def scanner_evidence(capability: dict[str, Any], expected: dict[str, Any]) -> di
         for finding in findings:
             if not required <= set(finding) or finding["tool"] != tool or finding["result_type"] != "finding":
                 raise AccountabilityError(f"{capability['id']} normalized fields or identity differ")
-            if finding["file"].startswith("/") or ".." in finding["file"].split("/"):
+            if (tool != "zap-baseline" and finding["file"].startswith("/")) or ".." in finding["file"].split("/"):
                 raise AccountabilityError(f"{capability['id']} produced an unsafe normalized path")
         serialized = json.dumps(findings, sort_keys=True)
         if any(marker in serialized for marker in PROHIBITED_OUTPUT):
@@ -137,6 +142,13 @@ def internal_evidence(capability: dict[str, Any], expected: dict[str, Any]) -> d
         bad = load_json(negative / "scenario.json")
         if good.get("minimal_profile") != "minimal" or good.get("standard_profile") != "standard" or bad.get("minimal_profile") != "standard":
             raise AccountabilityError("profile baseline fixture distinction failed")
+    elif identifier.startswith("dast."):
+        good = load_json(positive / "scenario.json")
+        bad = load_json(negative / "scenario.json")
+        if good != {"schema_version": 1, "safe": True, "event": "workflow_dispatch", "network": "internal_only", "active_scanning": False}:
+            raise AccountabilityError(f"{identifier} positive DAST scenario is malformed")
+        if bad.get("safe") is not False or bad.get("event") != "pull_request" or bad.get("active_scanning") is not True:
+            raise AccountabilityError(f"{identifier} negative DAST scenario is malformed")
     else:
         raise AccountabilityError(f"no fixture handler exists for {identifier}")
     return {

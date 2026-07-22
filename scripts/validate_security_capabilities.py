@@ -30,11 +30,11 @@ EXPECTED_FIELDS = {
 }
 CASE_FIELDS = {"expected_findings", "expected_finding_ids", "expected_count", "expected_coverage", "expected_exit_category"}
 FINDING_EXPECTATION_FIELDS = {"id", "path", "severity"}
-PROFILES = {"minimal", "standard"}
-CATEGORIES = {"secret_configuration", "secret", "ci", "policy", "sast", "sca", "sbom", "iac", "container", "inventory", "coverage", "trust_boundary"}
+PROFILES = {"minimal", "standard", "dast-baseline"}
+CATEGORIES = {"secret_configuration", "secret", "ci", "policy", "sast", "sca", "sbom", "iac", "container", "inventory", "coverage", "trust_boundary", "dast"}
 STATUSES = {"enforced", "conditionally_enforced", "documented_only", "deferred"}
 COVERAGE = {"ran", "not_applicable", "not_configured", "tool_error"}
-NON_SCANNER_TOOLS = {"cosign"}
+NON_SCANNER_TOOLS = {"cosign", "dast-fixture-python"}
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$")
 
 
@@ -94,10 +94,14 @@ def _validate_expected(path: Path, capability: dict[str, Any]) -> None:
         ):
             raise CapabilityError(f"fixture {case_name} finding expectations are invalid: {capability['id']}")
         for item in finding_expectations:
-            try:
-                safe_posix_path(item["path"])
-            except UnsafePath as exc:
-                raise CapabilityError(f"fixture expected finding path is unsafe: {capability['id']}: {exc}") from exc
+            if capability["profile"] == "dast-baseline":
+                if not item["path"].startswith("/") or ".." in item["path"].split("/") or "\\" in item["path"]:
+                    raise CapabilityError(f"fixture expected DAST path is unsafe: {capability['id']}")
+            else:
+                try:
+                    safe_posix_path(item["path"])
+                except UnsafePath as exc:
+                    raise CapabilityError(f"fixture expected finding path is unsafe: {capability['id']}: {exc}") from exc
         detailed_ids = sorted(item["id"] for item in finding_expectations)
         count = case["expected_count"]
         if not isinstance(count, int) or isinstance(count, bool) or not 0 <= count <= 1000 or count != len(identifiers) or detailed_ids != sorted(identifiers):

@@ -25,7 +25,8 @@ with log.open("a",encoding="utf-8") as stream: stream.write(json.dumps(args)+"\n
 mode=os.environ.get("FAKE_DAST_MODE", "success")
 if args[:1] == ["pull"]: raise SystemExit(1 if mode == "pull_fail" else 0)
 if args[:3] == ["image","inspect","--format"]:
- print(json.dumps("" if mode == "root" else "1000")); raise SystemExit(0)
+ users={"root":"", "root_name":"root:root", "root_uid":"0:0"}
+ print(json.dumps(users.get(mode,"1000"))); raise SystemExit(0)
 if args[:2] == ["network","create"]: raise SystemExit(1 if mode == "network_fail" else 0)
 if args[:2] == ["network","rm"]: raise SystemExit(1 if mode == "cleanup_fail" else 0)
 if args[:2] == ["inspect","--format"]: print("false" if mode == "early_exit" else "true"); raise SystemExit(0)
@@ -170,6 +171,10 @@ class DastBaselineTests(unittest.TestCase):
         self.assertNotIn("docker.sock", flattened)
         target = next(command for command in commands if command[:1] == ["run"] and "--detach" in command)
         self.assertNotIn("--mount", target)
+        scanner = next(command for command in commands if command[:1] == ["run"] and "zap-baseline.py" in command)
+        self.assertIn("-T", scanner)
+        self.assertEqual(scanner[scanner.index("-T") + 1], "3")
+        self.assertNotIn("-a", scanner)
 
     def test_untrusted_and_missing_configuration_never_invoke_docker(self):
         for event, image in (("pull_request", IMAGE), ("workflow_dispatch", "")):
@@ -181,7 +186,7 @@ class DastBaselineTests(unittest.TestCase):
             self.assertEqual(coverage["state"], "not_configured")
 
     def test_tool_invalid_and_cleanup_failures_are_not_clean(self):
-        for mode, expected in (("pull_fail", 2), ("root", 3), ("target_fail", 2), ("zap_fail", 2),
+        for mode, expected in (("pull_fail", 2), ("root", 3), ("root_name", 3), ("root_uid", 3), ("target_fail", 2), ("zap_fail", 2),
                                ("missing_report", 3), ("cleanup_fail", 2)):
             with self.subTest(mode=mode):
                 completed, results = self.run_profile(mode=mode)
@@ -190,6 +195,21 @@ class DastBaselineTests(unittest.TestCase):
                 self.assertEqual(coverage["state"], "tool_error")
                 normalized = json.loads((results / "normalized.json").read_text(encoding="utf-8"))
                 self.assertEqual(normalized["results"][0]["result_type"], "tool_error")
+
+    def test_sanitized_artifact_validator_accepts_only_final_contract(self):
+        completed, results = self.run_profile()
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        valid = subprocess.run(
+            [sys.executable, "scripts/validate_dast_artifacts.py", "--results", str(results), "--expect-state", "ran"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(valid.returncode, 0, valid.stderr)
+        (results / "raw-zap.json").write_text("{}\n", encoding="utf-8")
+        rejected = subprocess.run(
+            [sys.executable, "scripts/validate_dast_artifacts.py", "--results", str(results), "--expect-state", "ran"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(rejected.returncode, 3)
 
 
 if __name__ == "__main__":

@@ -125,7 +125,8 @@ def main() -> int:
             user = json.loads(inspected.stdout.strip())
         except json.JSONDecodeError as exc:
             raise DastError("application image user metadata is malformed") from exc
-        if not isinstance(user, str) or not user or user.casefold() == "root" or user.split(":", 1)[0] == "0":
+        principal = user.split(":", 1)[0].casefold() if isinstance(user, str) else ""
+        if not isinstance(user, str) or not user or principal in {"root", "0"}:
             raise DastError("application image declares a root or unspecified user")
         network_result = run([docker, "network", "create", "--internal", "--label", "org.vibesec.scope=dast-baseline", network], timeout=30)
         if network_result.returncode != 0:
@@ -154,6 +155,10 @@ def main() -> int:
             raise RuntimeError("application readiness timed out")
         temporary = tempfile.TemporaryDirectory(prefix="vibesec-zap-private-")
         private = Path(temporary.name)
+        # The pinned image runs as a non-root UID distinct from the hosted runner.
+        # This unique, runner-temporary directory contains only raw output, is never
+        # uploaded, and is recursively removed after strict normalization.
+        private.chmod(0o733)
         raw = private / "zap-report.json"
         policy = root / config["rule_disposition_file"]
         zap_command = [docker, "run", "--name", scanner, "--network", network,
@@ -162,7 +167,7 @@ def main() -> int:
                        "--mount", f"type=bind,src={private},dst=/zap/wrk",
                        "--mount", f"type=bind,src={policy},dst=/zap/policy/vibesec-zap-baseline.conf,readonly",
                        zap, "zap-baseline.py", "-t", target_url, "-c", "/zap/policy/vibesec-zap-baseline.conf",
-                       "-m", str(config["spider_duration_minutes"]), "-T", str(config["total_scan_timeout_minutes"]),
+                       "-m", str(config["spider_duration_minutes"]), "-T", str(config["passive_scan_timeout_minutes"]),
                        "-J", "/zap/wrk/zap-report.json", "-s", "-i", "--autooff"]
         zap_result = run(zap_command, timeout=config["total_scan_timeout_minutes"] * 60 + 60)
         if zap_result.returncode not in {0, 1, 2}:

@@ -74,6 +74,8 @@ def load_config(root: Path) -> dict[str, Any]:
         value = payload.get(field)
         if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
             raise DastError(f"trusted DAST {field} is outside its reviewed bound")
+    if payload["spider_duration_minutes"] + payload["passive_scan_timeout_minutes"] > payload["total_scan_timeout_minutes"]:
+        raise DastError("trusted DAST phase timeouts exceed the total scan timeout")
     validate_base_path(payload.get("default_base_path"))
     policy = root / payload["rule_disposition_file"]
     if policy.is_symlink() or not policy.is_file():

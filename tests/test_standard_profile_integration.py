@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -24,6 +25,7 @@ class StandardProfileIntegrationTests(unittest.TestCase):
         self.results = base / "results"
         self.target = base / "target"
         self.tools.mkdir()
+        (self.tools / "python3").symlink_to(sys.executable)
         (self.target / ".git").mkdir(parents=True)
         (self.target / ".github/workflows").mkdir(parents=True)
         (self.target / "main.py").write_text("print('fixture')\n", encoding="utf-8")
@@ -118,7 +120,8 @@ else: print('[{"filepath":".github/workflows/test.yml","line":3,"column":1,"end_
 ''')
         self.write_tool("docker", r'''#!/usr/bin/env python3
 import json, sys
-expected = __import__("os").environ["VIBESEC_EXPECTED_ROOT"]
+import os
+expected = os.environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("--network") + 1] == "none"
 assert sys.argv[sys.argv.index("--config-file") + 1] == "/vibesec/checkov-standard.yaml"
 assert sys.argv[sys.argv.index("--workdir") + 1] == "/tmp"
@@ -129,15 +132,25 @@ assert "--read-only" in sys.argv and "ALL" in sys.argv and "/workspace:ro" in jo
 assert expected + "/config/checkov-standard.yaml:/vibesec/checkov-standard.yaml:ro" in joined
 assert "HOME=/tmp/vibesec-home" in sys.argv and "XDG_CACHE_HOME=/tmp/vibesec-cache" in sys.argv
 assert "/var/run/docker.sock" not in joined and "terraform" not in sys.argv and "GITHUB_ACTIONS" not in sys.argv
-import os
+requested = sys.argv[sys.argv.index("--file") + 1]
+assert requested.startswith("/workspace/")
+assert sys.argv.count("--file") == 1
+log = os.getenv("FAKE_CHECKOV_LOG")
+if log:
+    with open(log, "a", encoding="utf-8") as stream: stream.write(requested + "\n")
 mode = os.getenv("FAKE_CHECKOV_MODE", "pass")
 if mode == "fail": raise SystemExit(7)
+if mode == "fail-main" and requested == "/workspace/main.tf": raise SystemExit(7)
 if mode == "usage": raise SystemExit(2)
 if mode == "stale":
     assert os.fstat(1).st_size == 0
     raise SystemExit(7)
 if mode == "malformed": print("{"); raise SystemExit(0)
-print(json.dumps({"results":{"failed_checks":[]}}))
+failed = []
+if mode == "finding":
+    failed = [{"check_id":"CKV_TEST","check_name":"Synthetic IaC finding","file_path":requested,"file_line_range":[1,1],"severity":"HIGH"}]
+print(json.dumps({"results":{"failed_checks":failed}}))
+if failed: raise SystemExit(1)
 ''')
 
     def write_tool(self, name: str, source: str) -> None:
@@ -151,9 +164,10 @@ print(json.dumps({"results":{"failed_checks":[]}}))
             if key not in {"GITHUB_ACTIONS", "GITHUB_EVENT_NAME"}
             and not key.startswith(("VIBESEC_", "FAKE_"))
         }
-        environment.update({"PATH": f"{self.tools}:{environment['PATH']}", "VIBESEC_EXPECTED_ROOT": str(ROOT), **overrides})
+        # A closed PATH proves missing-tool tests cannot reach host scanner binaries.
+        environment.update({"PATH": str(self.tools), "VIBESEC_EXPECTED_ROOT": str(ROOT), **overrides})
         return subprocess.run(
-            ["python3", "scripts/run_standard_profile.py", str(self.target), str(self.results), "--vibesec-root", str(ROOT), "--tool-dir", str(self.tools)],
+            [sys.executable, "scripts/run_standard_profile.py", str(self.target), str(self.results), "--vibesec-root", str(ROOT), "--tool-dir", str(self.tools)],
             cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
         )
 
@@ -316,13 +330,14 @@ print(json.dumps({"results":{"failed_checks":[]}}))
 
     def test_checkov_command_preserves_container_and_configuration_isolation(self):
         image = "bridgecrew/checkov@sha256:" + "a" * 64
-        argv = checkov_command(self.target, ROOT / "config/checkov-standard.yaml", image, ["main.tf"])
+        argv = checkov_command(self.target, ROOT / "config/checkov-standard.yaml", image, "main.tf")
         self.assertEqual(argv[argv.index("--network") + 1], "none")
         self.assertEqual(argv[argv.index("--config-file") + 1], CHECKOV_CONTAINER_CONFIG)
         self.assertEqual(argv[argv.index("--download-external-modules") + 1], "false")
         self.assertIn(f"{self.target}:/workspace:ro", argv)
         self.assertIn(f"{ROOT / 'config/checkov-standard.yaml'}:{CHECKOV_CONTAINER_CONFIG}:ro", argv)
         self.assertEqual(argv[argv.index("--file") + 1], "/workspace/main.tf")
+        self.assertEqual(argv.count("--file"), 1)
         self.assertNotIn("--directory", argv)
         self.assertNotIn("/dev/null", argv)
 
@@ -341,6 +356,33 @@ print(json.dumps({"results":{"failed_checks":[]}}))
         self.assertEqual(next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")["state"], "tool_error")
         self.assertFalse(self.load_json("policy-result.json")["clean"])
 
+    def test_checkov_scans_each_file_and_merges_deterministic_relative_findings(self):
+        invocation_log = self.target.parent / "checkov-invocations.txt"
+        completed = self.run_profile(FAKE_CHECKOV_MODE="finding", FAKE_CHECKOV_LOG=str(invocation_log))
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(
+            invocation_log.read_text(encoding="utf-8").splitlines(),
+            ["/workspace/.github/workflows/test.yml", "/workspace/main.tf"],
+        )
+        findings = [
+            item for item in self.load_json("normalized.json")["results"]
+            if item["tool"] == "checkov" and item["result_type"] == "finding"
+        ]
+        self.assertEqual([item["file"] for item in findings], [".github/workflows/test.yml", "main.tf"])
+        self.assertEqual(len({item["fingerprint"] for item in findings}), 2)
+        self.assertNotIn(str(self.target), json.dumps(findings))
+        raw = self.load_json("raw/checkov.json")
+        self.assertEqual(len(raw["results"]["failed_checks"]), 2)
+
+    def test_one_failed_checkov_file_discards_the_partial_capability(self):
+        completed = self.run_profile(FAKE_CHECKOV_MODE="fail-main")
+        self.assertEqual(completed.returncode, 2, completed.stderr)
+        self.assertFalse((self.results / "raw/checkov.json").exists())
+        checkov_results = [item for item in self.load_json("normalized.json")["results"] if item["tool"] == "checkov"]
+        self.assertEqual([item["result_type"] for item in checkov_results], ["tool_error"])
+        coverage = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")
+        self.assertEqual(coverage["state"], "tool_error")
+
     def test_checkov_cli_exit_two_is_a_non_clean_tool_error(self):
         completed = self.run_profile(FAKE_CHECKOV_MODE="usage")
         self.assertEqual(completed.returncode, 2)
@@ -355,7 +397,7 @@ print(json.dumps({"results":{"failed_checks":[]}}))
         stale.write_text("stale-sensitive-content", encoding="utf-8")
         completed = self.run_profile(FAKE_CHECKOV_MODE="stale")
         self.assertEqual(completed.returncode, 2)
-        self.assertEqual(stale.read_bytes(), b"")
+        self.assertFalse(stale.exists())
         self.assertNotIn("stale-sensitive-content", json.dumps(self.load_json("normalized.json")))
 
     def test_checkov_negative_smoke_does_not_treat_missing_json_as_clean(self):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke-test the immutable Checkov container against inert IaC fixtures."""
+"""Smoke-test the immutable Checkov container through production orchestration."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ import tempfile
 
 SCRIPT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_ROOT))
-from run_standard_profile import checkov_command
-from vibesec.normalize import normalize_file
+from run_standard_profile import run_checkov_files
 
 
 ROOT = SCRIPT_ROOT.parent
+FIXTURE_ROOT = ROOT / "tests/security-fixtures/checkov-iac"
 CHECK_ID = "CKV_AWS_24"
 
 
@@ -24,42 +24,58 @@ def fail(reason: str) -> int:
     return 2
 
 
-def scan(fixture: str, expected_exit: int) -> tuple[bool, list[str]] | None:
+def scan_files(target: Path, files: list[str]) -> tuple[bool, list[dict[str, object]]] | None:
     manifest = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))["checkov"]
     image = f'{manifest["image"]}@{manifest["digest"]}'
     config = ROOT / "config/checkov-standard.yaml"
-    target = ROOT / f"tests/security-fixtures/checkov-iac/{fixture}"
     with tempfile.TemporaryDirectory() as temporary:
         output = Path(temporary) / "checkov.json"
-        try:
-            with output.open("xb") as stream:
-                completed = subprocess.run(
-                    checkov_command(target, config, image, ["main.tf"], "--check", CHECK_ID),
-                    cwd=ROOT, stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.DEVNULL,
-                    timeout=300, check=False,
-                )
-        except FileNotFoundError:
+        findings, error, invalid_input = run_checkov_files(
+            target, config, image, files, output,
+            cwd=ROOT, env=dict(__import__("os").environ), extra_arguments=("--check", CHECK_ID),
+        )
+        if error == "Docker is unavailable":
             return None
-        except (OSError, subprocess.TimeoutExpired):
+        if error or invalid_input:
             return False, []
-        if completed.returncode != expected_exit:
-            return False, []
-        try:
-            return True, [finding.rule_id for finding in normalize_file("checkov", output)]
-        except ValueError:
-            return False, []
+        return True, [finding.to_dict() for finding in findings]
+
+
+def scan(fixture: str, expected_exit: int) -> tuple[bool, list[str]] | None:
+    """Compatibility helper used by focused failure-path tests."""
+    result = scan_files(FIXTURE_ROOT / fixture, ["main.tf"])
+    if result is None:
+        return None
+    valid, findings = result
+    expected_findings = [CHECK_ID] if expected_exit == 1 else []
+    return valid and [item["rule_id"] for item in findings] == expected_findings, [
+        str(item["rule_id"]) for item in findings
+    ]
 
 
 def main() -> int:
-    positive = scan("positive", 1)
+    positive = scan_files(FIXTURE_ROOT / "positive", ["main.tf"])
     if positive is None:
         return fail("Docker is unavailable")
-    if positive != (True, [CHECK_ID]):
+    if not positive[0] or [item["rule_id"] for item in positive[1]] != [CHECK_ID]:
         return fail("positive fixture did not produce the expected pinned Checkov finding")
-    negative = scan("negative", 0)
+
+    negative = scan_files(FIXTURE_ROOT / "negative", ["main.tf"])
     if negative != (True, []):
         return fail("negative fixture was not a clean valid pinned Checkov scan")
-    print("validated pinned Checkov positive and negative fixtures")
+
+    multi = scan_files(FIXTURE_ROOT, ["positive/main.tf", "negative/main.tf"])
+    if multi is None or not multi[0]:
+        return fail("multi-file fixture did not complete through production orchestration")
+    findings = multi[1]
+    if [item["rule_id"] for item in findings] != [CHECK_ID]:
+        return fail("multi-file fixture did not produce one deterministic finding")
+    if findings[0]["file"] != "positive/main.tf" or str(FIXTURE_ROOT) in json.dumps(findings):
+        return fail("multi-file fixture exposed a non-relative path")
+    if len({item["fingerprint"] for item in findings}) != len(findings):
+        return fail("multi-file fixture produced duplicate findings")
+
+    print("validated pinned Checkov positive, negative, and production multi-file orchestration")
     return 0
 
 

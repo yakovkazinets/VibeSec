@@ -57,17 +57,16 @@ def command(binary: Path | str, *arguments: str | Path) -> list[str]:
     return [str(binary), *map(str, arguments)]
 
 
-def checkov_command(root: Path, config: Path, image: str, files: list[str],
+def checkov_command(root: Path, config: Path, image: str, relative_file: str,
                     *extra_arguments: str) -> list[str]:
-    """Build the isolated pinned Checkov container command."""
-    container_files = [f"/workspace/{relative}" for relative in files]
+    """Build an isolated pinned Checkov command for exactly one repository file."""
     return command(
         "docker", "run", "--rm", "--network", "none", "--read-only",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
         "--tmpfs", "/tmp:rw,noexec,nosuid,size=128m", "--workdir", "/tmp",
         "--env", "HOME=/tmp/vibesec-home", "--env", "XDG_CACHE_HOME=/tmp/vibesec-cache",
         "--volume", f"{root}:/workspace:ro", "--volume", f"{config}:{CHECKOV_CONTAINER_CONFIG}:ro",
-        image, "--config-file", CHECKOV_CONTAINER_CONFIG, "--file", *container_files,
+        image, "--config-file", CHECKOV_CONTAINER_CONFIG, "--file", f"/workspace/{relative_file}",
         "--output", "json", "--compact", "--quiet", "--download-external-modules", "false",
         *extra_arguments,
     )
@@ -121,6 +120,66 @@ def run(scanner: str, argv: list[str], raw_path: Path | None, *, cwd: Path,
     if raw_path is not None and (not raw_path.is_file() or raw_path.is_symlink()):
         return f"{scanner} did not produce a regular expected output"
     return None
+
+
+def run_checkov_files(root: Path, config: Path, image: str, files: list[str],
+                      raw_path: Path, *, cwd: Path, env: dict[str, str],
+                      extra_arguments: tuple[str, ...] = ()) -> tuple[list[Finding], str | None, bool]:
+    """Scan deterministic files independently and publish one validated canonical result.
+
+    The final boolean distinguishes malformed scanner output (invalid input) from
+    an execution failure (tool error). No partial result is published on either.
+    """
+    try:
+        raw_path.unlink(missing_ok=True)
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return [], f"checkov could not clear its output: {type(exc).__name__}", False
+
+    findings: list[Finding] = []
+    ordered_files = sorted(set(files))
+    try:
+        with tempfile.TemporaryDirectory(prefix=".checkov-", dir=raw_path.parent) as temporary:
+            temporary_root = Path(temporary)
+            for index, relative_file in enumerate(ordered_files):
+                output = temporary_root / f"{index:06d}.json"
+                error = run(
+                    "checkov",
+                    checkov_command(root, config, image, relative_file, *extra_arguments),
+                    output, cwd=cwd, env=env, stdout_output=True,
+                )
+                if error:
+                    return [], error, False
+                try:
+                    findings.extend(normalize_file("checkov", output))
+                except ValueError:
+                    return [], "checkov output failed structural validation", True
+    except OSError as exc:
+        return [], f"checkov could not manage private output: {type(exc).__name__}", False
+
+    unique = {finding.fingerprint: finding for finding in findings}
+    ordered_findings = sorted(
+        unique.values(),
+        key=lambda item: (item.file, item.line or 0, item.rule_id, item.fingerprint),
+    )
+    failed_checks: list[dict[str, Any]] = []
+    for finding in ordered_findings:
+        item: dict[str, Any] = {
+            "check_id": finding.rule_id,
+            "check_name": finding.description,
+            "file_path": finding.file,
+            "severity": finding.severity,
+        }
+        if finding.line is not None:
+            item["file_line_range"] = [finding.line, finding.line]
+        failed_checks.append(item)
+    try:
+        atomic_json(raw_path, {"results": {"failed_checks": failed_checks}})
+        canonical = normalize_file("checkov", raw_path)
+    except (OSError, ValueError):
+        raw_path.unlink(missing_ok=True)
+        return [], "checkov aggregate failed structural validation", True
+    return canonical, None, False
 
 
 def tool_error(tool: str, message: str) -> dict[str, Any]:
@@ -313,9 +372,22 @@ def main() -> int:
     checkov_output = raw / "checkov.json"
     if iac_files:
         image = f'{checkov_manifest["image"]}@{checkov_manifest["digest"]}'
-        execute("checkov", "detected infrastructure as code", checkov_command(
-            root, checkov_config, image, iac_files), checkov_output, artifacts=iac_files,
-            normalizer="checkov", stdout=True, reason="immutable Checkov container scanned detected IaC in an isolated runtime")
+        checkov_findings, checkov_error, checkov_input_failure = run_checkov_files(
+            root, checkov_config, image, iac_files, checkov_output,
+            cwd=root, env=environment,
+        )
+        if checkov_error:
+            input_failure = input_failure or checkov_input_failure
+            category = "invalid_input" if checkov_input_failure else "tool_error"
+            diagnostic("checkov", category, checkov_error, "raw/checkov.json")
+            normalized.append(tool_error("checkov", checkov_error))
+            record("checkov", "detected infrastructure as code", "tool_error", checkov_error,
+                   iac_files, [], "none")
+        else:
+            normalized.extend(item.to_dict() for item in checkov_findings)
+            record("checkov", "detected infrastructure as code", "ran",
+                   "immutable Checkov container scanned each detected IaC file in an isolated runtime",
+                   iac_files, ["raw/checkov.json"], "none")
     else:
         record("checkov", "detected infrastructure as code", "not_applicable", "no supported IaC files detected", [], [], "none")
 

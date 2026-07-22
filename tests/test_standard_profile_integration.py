@@ -9,7 +9,8 @@ import zipfile
 from datetime import date
 from unittest.mock import patch
 
-from scripts.run_standard_profile import run as run_scanner
+from scripts.run_standard_profile import CHECKOV_CONTAINER_CONFIG, checkov_command, run as run_scanner
+from scripts.test_checkov_container import scan as smoke_scan
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,6 +34,10 @@ class StandardProfileIntegrationTests(unittest.TestCase):
         (self.target / ".gitleaks.toml").write_text("[[rules]]\nid='disable'\n", encoding="utf-8")
         (self.target / ".semgrepignore").write_text("**\n", encoding="utf-8")
         (self.target / ".syft.yaml").write_text("enrich: [all]\n", encoding="utf-8")
+        (self.target / ".checkov.yml").write_text(
+            "skip-check: [CKV_AWS_24]\nskip-framework: [terraform]\n", encoding="utf-8")
+        (self.target / ".checkov.yaml").write_text(
+            "bc-api-key: target-controlled-not-a-real-key\ndownload-external-modules: true\n", encoding="utf-8")
         expected = str(ROOT)
         self.write_tool("opengrep", r'''#!/usr/bin/env python3
 import json, os, sys
@@ -113,12 +118,24 @@ else: print('[{"filepath":".github/workflows/test.yml","line":3,"column":1,"end_
 ''')
         self.write_tool("docker", r'''#!/usr/bin/env python3
 import json, sys
+expected = __import__("os").environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("--network") + 1] == "none"
-assert sys.argv[sys.argv.index("--config-file") + 1] == "/dev/null"
-assert "--read-only" in sys.argv and "ALL" in sys.argv and "/workspace:ro" in " ".join(sys.argv)
+assert sys.argv[sys.argv.index("--config-file") + 1] == "/vibesec/checkov-standard.yaml"
+assert sys.argv[sys.argv.index("--workdir") + 1] == "/tmp"
+assert sys.argv[sys.argv.index("--download-external-modules") + 1] == "false"
+assert "--file" in sys.argv and "--directory" not in sys.argv
+joined = " ".join(sys.argv)
+assert "--read-only" in sys.argv and "ALL" in sys.argv and "/workspace:ro" in joined
+assert expected + "/config/checkov-standard.yaml:/vibesec/checkov-standard.yaml:ro" in joined
+assert "HOME=/tmp/vibesec-home" in sys.argv and "XDG_CACHE_HOME=/tmp/vibesec-cache" in sys.argv
+assert "/var/run/docker.sock" not in joined and "terraform" not in sys.argv and "GITHUB_ACTIONS" not in sys.argv
 import os
 mode = os.getenv("FAKE_CHECKOV_MODE", "pass")
 if mode == "fail": raise SystemExit(7)
+if mode == "usage": raise SystemExit(2)
+if mode == "stale":
+    assert os.fstat(1).st_size == 0
+    raise SystemExit(7)
 if mode == "malformed": print("{"); raise SystemExit(0)
 print(json.dumps({"results":{"failed_checks":[]}}))
 ''')
@@ -263,7 +280,7 @@ print(json.dumps({"results":{"failed_checks":[]}}))
             for tool in ("opengrep", "osv-scanner", "syft", "checkov", "trivy", "gitleaks", "actionlint", "trivy-image"):
                 with self.subTest(tool=tool):
                     error = run_scanner(tool, ["fixture"], None, cwd=self.target, env={})
-                    self.assertIn("TimeoutExpired", error or "")
+                    self.assertEqual(error, f"{tool} timed out")
 
     def test_osv_finding_exit_is_not_misclassified_as_tool_failure(self):
         completed = self.run_profile(FAKE_OSV_MODE="finding", VIBESEC_ENFORCEMENT="all")
@@ -296,6 +313,55 @@ print(json.dumps({"results":{"failed_checks":[]}}))
         self.assertIn("artifact=raw/actionlint.txt", completed.stderr)
         self.assertNotIn("not actionlint output", completed.stderr)
         self.assertNotIn(str(self.target.parent), completed.stderr)
+
+    def test_checkov_command_preserves_container_and_configuration_isolation(self):
+        image = "bridgecrew/checkov@sha256:" + "a" * 64
+        argv = checkov_command(self.target, ROOT / "config/checkov-standard.yaml", image, ["main.tf"])
+        self.assertEqual(argv[argv.index("--network") + 1], "none")
+        self.assertEqual(argv[argv.index("--config-file") + 1], CHECKOV_CONTAINER_CONFIG)
+        self.assertEqual(argv[argv.index("--download-external-modules") + 1], "false")
+        self.assertIn(f"{self.target}:/workspace:ro", argv)
+        self.assertIn(f"{ROOT / 'config/checkov-standard.yaml'}:{CHECKOV_CONTAINER_CONFIG}:ro", argv)
+        self.assertEqual(argv[argv.index("--file") + 1], "/workspace/main.tf")
+        self.assertNotIn("--directory", argv)
+        self.assertNotIn("/dev/null", argv)
+
+    def test_target_checkov_configuration_cannot_change_coverage(self):
+        completed = self.run_profile(GITHUB_ACTIONS="true", GITHUB_EVENT_NAME="pull_request")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        entry = next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")
+        self.assertEqual(entry["state"], "ran")
+
+    def test_checkov_docker_unavailable_is_a_non_clean_tool_error(self):
+        docker = self.tools / "docker"
+        docker.unlink()
+        completed = self.run_profile()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("component=checkov category=tool_error reason=Docker is unavailable", completed.stderr)
+        self.assertEqual(next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")["state"], "tool_error")
+        self.assertFalse(self.load_json("policy-result.json")["clean"])
+
+    def test_checkov_cli_exit_two_is_a_non_clean_tool_error(self):
+        completed = self.run_profile(FAKE_CHECKOV_MODE="usage")
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("Checkov CLI or image execution exited with status 2", completed.stderr)
+        self.assertEqual(next(item for item in self.load_json("coverage.json")["tools"] if item["tool"] == "checkov")["state"], "tool_error")
+        self.assertFalse(self.load_json("policy-result.json")["clean"])
+
+    def test_checkov_stale_raw_output_is_removed_before_failed_execution(self):
+        raw = self.results / "raw"
+        raw.mkdir(parents=True)
+        stale = raw / "checkov.json"
+        stale.write_text("stale-sensitive-content", encoding="utf-8")
+        completed = self.run_profile(FAKE_CHECKOV_MODE="stale")
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(stale.read_bytes(), b"")
+        self.assertNotIn("stale-sensitive-content", json.dumps(self.load_json("normalized.json")))
+
+    def test_checkov_negative_smoke_does_not_treat_missing_json_as_clean(self):
+        completed = subprocess.CompletedProcess(["docker"], 0)
+        with patch("scripts.test_checkov_container.subprocess.run", return_value=completed):
+            self.assertEqual(smoke_scan("negative", 0), (False, []))
 
     def test_security_finding_returns_one_in_enforce_all_mode(self):
         completed = self.run_profile(FAKE_OPENGREP_MODE="finding", VIBESEC_ENFORCEMENT="all")

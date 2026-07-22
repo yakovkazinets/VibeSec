@@ -52,17 +52,35 @@ jobs:
         run: |
           scripts/install_tools.sh . .tools/bin
           scripts/install_standard_tools.sh . .tools/bin
+      - name: Exercise pinned Checkov container fixtures
+        run: python3 scripts/test_checkov_container.py
       - name: Run Standard against VibeSec
+        id: standard
         env:
           VIBESEC_ENFORCEMENT: observe
           VIBESEC_MIN_SEVERITY: high
-        run: python3 scripts/run_standard_profile.py . self-scan-standard --vibesec-root . --tool-dir .tools/bin
+        run: |
+          set +e
+          python3 scripts/run_standard_profile.py . self-scan-standard --vibesec-root . --tool-dir .tools/bin
+          scan_exit=$?
+          set -e
+          echo "exit_code=${scan_exit}" >> "$GITHUB_OUTPUT"
       - name: Validate Standard self-scan artifacts and exact states
+        if: always() && steps.standard.outcome != 'skipped'
         run: >-
           python3 scripts/validate_security_artifacts.py --profile standard --results self-scan-standard
           --expect-state opengrep=ran --expect-state osv-scanner=ran --expect-state syft=ran
           --expect-state checkov=ran --expect-state trivy=ran --expect-state gitleaks=ran
           --expect-state actionlint=ran --expect-state trivy-image=not_configured
+      - name: Preserve Standard scan exit contract
+        if: always() && steps.standard.outcome != 'skipped'
+        env:
+          STANDARD_SCAN_EXIT: ${{ steps.standard.outputs.exit_code }}
+        run: |
+          case "$STANDARD_SCAN_EXIT" in
+            0|1|2|3) exit "$STANDARD_SCAN_EXIT" ;;
+            *) exit 3 ;;
+          esac
 
   scanner-accountability:
     runs-on: ubuntu-latest

@@ -91,7 +91,7 @@ def validate_references() -> None:
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
         "scripts/install_standard_tools.sh", "scripts/run_standard_profile.py", "scripts/detect_repository.py",
         "scripts/validate_sbom.py", "scripts/validate_opengrep_rules.py",
-        "scripts/test_opengrep_rules.py",
+        "scripts/test_opengrep_rules.py", "scripts/test_checkov_container.py",
         "scripts/append_tool_errors.py", "scripts/policy_gate.py", "scripts/validate_skill.py",
         "scripts/init_vibesec.py", "scripts/preflight.py", "config/adoption-files.json",
         "VERSION", "scripts/build_consumer_bundle.py", "scripts/verify_consumer_bundle.py",

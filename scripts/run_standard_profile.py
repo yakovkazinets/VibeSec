@@ -26,6 +26,7 @@ IMAGE_DIGEST = re.compile(r"^[A-Za-z0-9._/-]+@sha256:[0-9a-f]{64}$")
 TRUSTED_GITHUB_EVENTS = {"push", "schedule", "workflow_dispatch"}
 ACTIONLINT_JSON_FORMAT = "{{json .}}"
 DIAGNOSTIC_DOCS = "docs/self-hosted-validation.md"
+CHECKOV_CONTAINER_CONFIG = "/vibesec/checkov-standard.yaml"
 KNOWN_OUTPUTS = (
     "normalized.json", "coverage.json", "inventory.json", "report.md", "policy-result.json",
     "sbom.cyclonedx.json", "sbom.spdx.json",
@@ -54,6 +55,22 @@ def atomic_json(path: Path, payload: Any) -> None:
 
 def command(binary: Path | str, *arguments: str | Path) -> list[str]:
     return [str(binary), *map(str, arguments)]
+
+
+def checkov_command(root: Path, config: Path, image: str, files: list[str],
+                    *extra_arguments: str) -> list[str]:
+    """Build the isolated pinned Checkov container command."""
+    container_files = [f"/workspace/{relative}" for relative in files]
+    return command(
+        "docker", "run", "--rm", "--network", "none", "--read-only",
+        "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+        "--tmpfs", "/tmp:rw,noexec,nosuid,size=128m", "--workdir", "/tmp",
+        "--env", "HOME=/tmp/vibesec-home", "--env", "XDG_CACHE_HOME=/tmp/vibesec-cache",
+        "--volume", f"{root}:/workspace:ro", "--volume", f"{config}:{CHECKOV_CONTAINER_CONFIG}:ro",
+        image, "--config-file", CHECKOV_CONTAINER_CONFIG, "--file", *container_files,
+        "--output", "json", "--compact", "--quiet", "--download-external-modules", "false",
+        *extra_arguments,
+    )
 
 
 def diagnostic(component: str, category: str, reason: str, artifact: str | None = None) -> None:
@@ -88,10 +105,18 @@ def run(scanner: str, argv: list[str], raw_path: Path | None, *, cwd: Path,
                 argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=900, check=False,
             )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except FileNotFoundError:
+        if scanner == "checkov":
+            return "Docker is unavailable"
+        return f"{scanner} executable is unavailable"
+    except subprocess.TimeoutExpired:
+        return f"{scanner} timed out"
+    except OSError as exc:
         return f"{scanner} could not complete: {type(exc).__name__}"
     accepted = {0, 1} if scanner in {"gitleaks", "actionlint", "checkov", "osv-scanner"} else {0}
     if completed.returncode not in accepted:
+        if scanner == "checkov" and completed.returncode == 2:
+            return "Checkov CLI or image execution exited with status 2"
         return f"{scanner} exited with status {completed.returncode}"
     if raw_path is not None and (not raw_path.is_file() or raw_path.is_symlink()):
         return f"{scanner} did not produce a regular expected output"
@@ -133,6 +158,9 @@ def main() -> int:
         checkov_manifest = tool_manifest["checkov"]
         if not isinstance(checkov_manifest.get("image"), str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(checkov_manifest.get("digest", ""))):
             raise ValueError("Checkov must use an immutable SHA-256 image digest")
+        checkov_config = vibesec_root / "config/checkov-standard.yaml"
+        if checkov_config.is_symlink() or checkov_config.read_bytes() != b"{}\n":
+            raise ValueError("trusted Checkov configuration must be the reviewed empty mapping")
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         print(f"invalid tool manifest: {exc}", file=sys.stderr)
         return 3
@@ -285,12 +313,8 @@ def main() -> int:
     checkov_output = raw / "checkov.json"
     if iac_files:
         image = f'{checkov_manifest["image"]}@{checkov_manifest["digest"]}'
-        execute("checkov", "detected infrastructure as code", command(
-            "docker", "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
-            "--security-opt", "no-new-privileges", "--tmpfs", "/tmp:rw,noexec,nosuid,size=128m",
-            "--volume", f"{root}:/workspace:ro", image, "--config-file", "/dev/null",
-            "--directory", "/workspace", "--output", "json", "--compact", "--quiet",
-            "--download-external-modules", "false"), checkov_output, artifacts=iac_files,
+        execute("checkov", "detected infrastructure as code", checkov_command(
+            root, checkov_config, image, iac_files), checkov_output, artifacts=iac_files,
             normalizer="checkov", stdout=True, reason="immutable Checkov container scanned detected IaC in an isolated runtime")
     else:
         record("checkov", "detected infrastructure as code", "not_applicable", "no supported IaC files detected", [], [], "none")

@@ -74,6 +74,13 @@ class WorkflowSecurityTests(unittest.TestCase):
         self.assertIn("actionlint -no-color .github/workflows/ci.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml", text)
         self.assertIn("python3 scripts/test_opengrep_rules.py .tools/bin/opengrep", text)
 
+    def test_standard_self_scan_exercises_checkov_and_always_validates_evidence(self):
+        text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("python3 scripts/test_checkov_container.py", text)
+        self.assertIn("if: always() && steps.standard.outcome != 'skipped'", text)
+        self.assertIn("Preserve Standard scan exit contract", text)
+        self.assertNotIn("continue-on-error: true", text.split("  self-scan-standard:", 1)[1].split("\n  scanner-accountability:", 1)[0])
+
     def test_ci_validates_the_bundled_skill(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn("pip install --disable-pip-version-check --requirement requirements.txt", text)

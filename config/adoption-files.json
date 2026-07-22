@@ -79,6 +79,7 @@
     "standard": {
       "support": [
         "config/actionlint-standard.yaml",
+        "config/checkov-standard.yaml",
         "config/gitleaks-standard-ignore.txt",
         "config/gitleaks-standard.toml",
         "config/opengrep-standard.ignore",

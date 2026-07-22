@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -14,6 +15,7 @@ SCRIPT = ROOT / "scripts/init_vibesec.py"
 SPEC = importlib.util.spec_from_file_location("init_vibesec", SCRIPT)
 assert SPEC and SPEC.loader
 INIT = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = INIT
 SPEC.loader.exec_module(INIT)
 
 
@@ -57,8 +59,9 @@ class InitVibeSecTests(unittest.TestCase):
         self.assertEqual(baseline["profile"], "minimal")
         manifest = json.loads((self.target / ".vibesec/install-minimal-all.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["profile"], "minimal")
-        self.assertFalse(manifest["network_used_by_initializer"])
-        self.assertIn(".vibesec/install-minimal-all.json", manifest["installed_files"])
+        self.assertEqual(manifest["initializer_network_behavior"], "none")
+        self.assertEqual(manifest["development_version"], "0.3.0-dev")
+        self.assertTrue(all(set(item) == {"path", "sha256", "mode"} for item in manifest["installed_files"]))
 
     def test_standard_support_then_workflow_write(self):
         support, support_payload = self.run_init("standard", write=True)

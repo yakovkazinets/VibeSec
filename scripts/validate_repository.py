@@ -16,7 +16,7 @@ from vibesec.dast import load_config  # noqa: E402
 from vibesec.strict_json import loads_strict  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
 from vibesec.zap_automation import (  # noqa: E402
-    JOB_TYPES, REPORT_FILENAME, REPORT_TEMPLATE,
+    CONTAINER_ZAP_HOME, JOB_TYPES, REPORT_FILENAME, REPORT_TEMPLATE,
     RUNTIME_ADDON_OPTIONS, build_passive_plan, trusted_zap_command,
     validate_passive_plan,
 )
@@ -134,8 +134,11 @@ def validate_references() -> None:
 def validate_dast_command_contract() -> None:
     config = load_config(ROOT)
     command = trusted_zap_command()
-    if command != ["zap.sh", "-cmd", "-silent", "-autorun", "/zap/wrk/vibesec-zap-plan.yaml"]:
+    if command != ["zap.sh", "-cmd", "-silent", "-dir", CONTAINER_ZAP_HOME,
+                   "-autorun", "/zap/wrk/vibesec-zap-plan.yaml"]:
         raise ValueError("DAST command must contain only the reviewed Automation Framework arguments")
+    if command.count("-dir") != 1 or command[command.index("-dir") + 1] != "/zap/vibesec-home":
+        raise ValueError("DAST command must use exactly one explicit ephemeral ZAP home")
     if RUNTIME_ADDON_OPTIONS.intersection(command) or any("proxy" in item.casefold() for item in command):
         raise ValueError("DAST command must not update add-ons or configure a proxy")
     plan = build_passive_plan(

@@ -6,8 +6,6 @@ from pathlib import Path
 import re
 from typing import Any
 
-from .dast import DastError
-
 ERROR_CODES = {
     "automation_job_error",
     "target_unreachable",
@@ -24,7 +22,6 @@ ERROR_CODES = {
 JOB_TYPES = ("spider", "passiveScan-wait", "report", "exitStatus")
 MAX_DIAGNOSTIC_CHARS = 512
 MAX_LOG_BYTES = 262_144
-SAFE_HOME = re.compile(r"^/[A-Za-z0-9._/-]{1,128}$")
 URL = re.compile(r"\b(?:https?|file)://\S+", re.IGNORECASE)
 HOST_PATH = re.compile(r"(?<![A-Za-z0-9_.-])(?:/[A-Za-z0-9._-]+){2,}")
 WINDOWS_PATH = re.compile(r"\b[A-Za-z]:\\(?:[^\s\\]+\\)+[^\s\\]*")
@@ -40,22 +37,6 @@ ERROR_LINE = re.compile(
     r"outofmemory|killed|thread|template|add-on|addon",
     re.IGNORECASE,
 )
-
-
-def verified_zap_image_config(payload: Any) -> tuple[str, str]:
-    """Return the pinned image's declared non-root user and verified HOME."""
-    if not isinstance(payload, dict):
-        raise DastError("pinned ZAP image configuration is malformed")
-    user = payload.get("User")
-    environment = payload.get("Env")
-    if not isinstance(user, str) or not user or user.split(":", 1)[0].casefold() in {"0", "root"}:
-        raise DastError("pinned ZAP image does not declare a non-root user")
-    if not isinstance(environment, list) or any(not isinstance(item, str) for item in environment):
-        raise DastError("pinned ZAP image environment is malformed")
-    homes = [item.partition("=")[2] for item in environment if item.startswith("HOME=")]
-    if len(homes) != 1 or not SAFE_HOME.fullmatch(homes[0]) or ".." in Path(homes[0]).parts:
-        raise DastError("pinned ZAP image HOME is missing or unsafe")
-    return user, homes[0]
 
 
 def read_private_log_tail(path: Path) -> str:
@@ -86,9 +67,11 @@ def _flags(text: str, state: dict[str, Any]) -> dict[str, bool]:
         "filesystem": any(marker in lowered for marker in (
             "permission denied", "accessdeniedexception", "read-only file system", "not writable",
         )),
-        "home": "/home/zap" in lowered and any(marker in lowered for marker in (
-            "permission denied", "accessdeniedexception", "read-only file system", "not writable",
-        )),
+        "home": "unable to create home directory" in lowered or (
+            "/zap/vibesec-home" in lowered and any(marker in lowered for marker in (
+                "permission denied", "accessdeniedexception", "read-only file system", "not writable",
+            ))
+        ),
         "target": any(marker in lowered for marker in (
             "target unreachable", "failed to access url", "connection refused", "unknown host",
             "name or service not known", "temporary failure in name resolution", "no route to host",

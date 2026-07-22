@@ -17,6 +17,7 @@ PLAN_FILENAME = "vibesec-zap-plan.yaml"
 REPORT_FILENAME = "zap-report.json"
 CONTAINER_WORKDIR = "/zap/wrk"
 CONTAINER_PLAN = f"{CONTAINER_WORKDIR}/{PLAN_FILENAME}"
+CONTAINER_ZAP_HOME = "/zap/vibesec-home"
 REPORT_TEMPLATE = "traditional-json"
 JOB_TYPES = ("spider", "passiveScan-wait", "report", "exitStatus")
 COMMAND_OPERATIONS = {"autorun": "-autorun", "autocheck": "-autocheck"}
@@ -156,7 +157,7 @@ def trusted_zap_command(operation: str = "autorun") -> list[str]:
     flag = COMMAND_OPERATIONS.get(operation)
     if flag is None:
         raise DastError("unsupported trusted ZAP automation operation")
-    command = ["zap.sh", "-cmd", "-silent", flag, CONTAINER_PLAN]
+    command = ["zap.sh", "-cmd", "-silent", "-dir", CONTAINER_ZAP_HOME, flag, CONTAINER_PLAN]
     if RUNTIME_ADDON_OPTIONS.intersection(command):
         raise DastError("trusted ZAP command attempts a runtime add-on change")
     return command
@@ -176,6 +177,9 @@ def trusted_zap_container_command(*, docker: str, container_name: str, network: 
     tmpfs = config["zap_tmpfs_megabytes"]
     if isinstance(tmpfs, bool) or not isinstance(tmpfs, int) or not 64 <= tmpfs <= 2048:
         raise DastError("trusted ZAP tmpfs bound is invalid")
+    home_tmpfs = config["zap_home_tmpfs_megabytes"]
+    if isinstance(home_tmpfs, bool) or not isinstance(home_tmpfs, int) or not 128 <= home_tmpfs <= 1024:
+        raise DastError("trusted ZAP home tmpfs bound is invalid")
     return [
         docker, "run", "--name", container_name, "--network", network,
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
@@ -184,7 +188,7 @@ def trusted_zap_container_command(*, docker: str, container_name: str, network: 
         "--pids-limit", str(config["container_pid_limit"]),
         "--user", f"{uid}:{gid}",
         "--tmpfs", f"/tmp:rw,noexec,nosuid,nodev,size={tmpfs}m",
-        "--tmpfs", f"/home/zap:rw,noexec,nosuid,nodev,size={tmpfs}m,uid={uid},gid={gid},mode=0700",
+        "--tmpfs", f"{CONTAINER_ZAP_HOME}:rw,noexec,nosuid,nodev,size={home_tmpfs}m,uid={uid},gid={gid},mode=0700",
         "--mount", f"type=bind,src={workspace},dst={CONTAINER_WORKDIR}",
         image, *trusted_zap_command(operation),
     ]

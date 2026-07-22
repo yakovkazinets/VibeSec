@@ -24,24 +24,22 @@ if __package__:
     from .vibesec.dast import load_config, normalize_zap_report
     from .vibesec.strict_json import loads_strict
     from .vibesec.zap_automation import (
-        PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
+        CONTAINER_ZAP_HOME, PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
         validate_private_workspace, write_passive_plan,
     )
     from .vibesec.zap_diagnostics import (
         read_private_log_tail, render_zap_runtime_diagnostic,
-        verified_zap_image_config,
     )
 else:
     sys.path.insert(0, str(SCRIPT_ROOT))
     from vibesec.dast import load_config, normalize_zap_report  # type: ignore[no-redef]
     from vibesec.strict_json import loads_strict  # type: ignore[no-redef]
     from vibesec.zap_automation import (  # type: ignore[no-redef]
-        PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
+        CONTAINER_ZAP_HOME, PLAN_FILENAME, REPORT_FILENAME, trusted_zap_container_command,
         validate_private_workspace, write_passive_plan,
     )
     from vibesec.zap_diagnostics import (  # type: ignore[no-redef]
         read_private_log_tail, render_zap_runtime_diagnostic,
-        verified_zap_image_config,
     )
 
 
@@ -65,18 +63,7 @@ def update_attempted(completed: subprocess.CompletedProcess[str]) -> bool:
     ))
 
 
-def inspect_zap_image(docker: str, image: str) -> tuple[str, str]:
-    inspected = run([docker, "image", "inspect", "--format", "{{json .Config}}", image], 30)
-    if inspected.returncode != 0:
-        raise RuntimeError("pinned ZAP image configuration inspection failed")
-    try:
-        payload = loads_strict(inspected.stdout.encode("utf-8"), maximum_bytes=32_768)
-        return verified_zap_image_config(payload)
-    except (UnicodeError, ValueError) as exc:
-        raise RuntimeError("pinned ZAP image configuration is invalid") from exc
-
-
-def capture_zap_runtime_diagnostic(*, docker: str, container: str, zap_home: str,
+def capture_zap_runtime_diagnostic(*, docker: str, container: str,
                                    private: Path, case: str,
                                    scan: subprocess.CompletedProcess[str], report: Path) -> str:
     """Inspect a stopped scanner without exposing or retaining its raw logs."""
@@ -95,7 +82,7 @@ def capture_zap_runtime_diagnostic(*, docker: str, container: str, zap_home: str
     copied_log = private / ".vibesec-zap-runtime.log"
     copied_log.unlink(missing_ok=True)
     try:
-        copied = run([docker, "cp", f"{container}:{zap_home}/.ZAP/zap.log", str(copied_log)], 30)
+        copied = run([docker, "cp", f"{container}:{CONTAINER_ZAP_HOME}/zap.log", str(copied_log)], 30)
         if copied.returncode == 0:
             runtime_parts.append(read_private_log_tail(copied_log))
         else:
@@ -124,16 +111,12 @@ def main() -> int:
         if run([docker, "pull", image], 300).returncode != 0:
             print("live DAST fixture image pull failed", file=sys.stderr)
             return 2
-    try:
-        _, zap_home = inspect_zap_image(docker, zap)
-    except RuntimeError as exc:
-        print(f"live DAST fixture failed: {exc}", file=sys.stderr)
-        return 2
     suffix = secrets.token_hex(8)
     network = f"vibesec-dast-live-net-{suffix}"
     target = f"vibesec-dast-live-target-{suffix}"
     scanners: list[str] = []
     network_created = target_created = False
+    success_evidence = ""
     try:
         if run([docker, "network", "create", "--internal", "--label", "org.vibesec.scope=dast-live-test", network], 30).returncode != 0:
             raise RuntimeError("live fixture internal network creation failed")
@@ -159,6 +142,7 @@ def main() -> int:
             time.sleep(1)
         observed: dict[str, list[str]] = {}
         exits: dict[str, int] = {}
+        report_sizes: dict[str, int] = {}
         for case in ("positive", "negative"):
             checker = f"vibesec-dast-live-check-{case}-{suffix}"
             scanner = f"vibesec-dast-live-zap-{case}-{suffix}"
@@ -180,7 +164,7 @@ def main() -> int:
                 ), 60)
                 if check.returncode != 0 or update_attempted(check):
                     raise RuntimeError(capture_zap_runtime_diagnostic(
-                        docker=docker, container=checker, zap_home=zap_home, private=private,
+                        docker=docker, container=checker, private=private,
                         case=case, scan=check, report=report,
                     ))
                 validate_private_workspace(private, report_required=False)
@@ -194,15 +178,16 @@ def main() -> int:
                 ), config["total_scan_timeout_minutes"] * 60 + 60)
                 if scan.returncode not in {0, 1, 2}:
                     raise RuntimeError(capture_zap_runtime_diagnostic(
-                        docker=docker, container=scanner, zap_home=zap_home, private=private,
+                        docker=docker, container=scanner, private=private,
                         case=case, scan=scan, report=report,
                     ))
                 if update_attempted(scan) or (scan.returncode == 1 and not report.is_file()):
                     raise RuntimeError(capture_zap_runtime_diagnostic(
-                        docker=docker, container=scanner, zap_home=zap_home, private=private,
+                        docker=docker, container=scanner, private=private,
                         case=case, scan=scan, report=report,
                     ))
                 validate_private_workspace(private, report_required=True)
+                report_sizes[case] = report.stat().st_size
                 findings, _ = normalize_zap_report(report, port=8080,
                                                    maximum_bytes=config["maximum_raw_report_bytes"],
                                                    maximum_findings=config["maximum_normalized_findings"])
@@ -219,7 +204,11 @@ def main() -> int:
             raise RuntimeError(f"live DAST evidence differs: {json.dumps(observed, sort_keys=True)}")
         if set(exits.values()) - {0, 1, 2}:
             raise RuntimeError("live DAST produced an undocumented Automation Framework exit")
-        print("live DAST container fixture passed: positive=10020 negative=clean")
+        success_evidence = (
+            f"live DAST evidence: positive_exit={exits['positive']} positive_report_bytes={report_sizes['positive']} "
+            f"negative_exit={exits['negative']} negative_report_bytes={report_sizes['negative']} "
+            "home=ephemeral_tmpfs private_files_deleted=true"
+        )
         result = 0
     except (OSError, RuntimeError, subprocess.TimeoutExpired, ValueError) as exc:
         print(f"live DAST container fixture failed: {exc}", file=sys.stderr)
@@ -238,6 +227,9 @@ def main() -> int:
         if cleanup_failed:
             print("live DAST container fixture failed: current-run resource cleanup failed", file=sys.stderr)
             result = 2
+    if result == 0:
+        print(success_evidence + " cleanup=true")
+        print("live DAST container fixture passed: positive=10020 negative=clean")
     return result
 
 

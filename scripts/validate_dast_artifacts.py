@@ -34,6 +34,8 @@ def validate(results: Path, expected_state: str) -> None:
              "application_source_built": False, "project_dependencies_installed": False,
              "scanner_mode": "automation_framework", "report_template": "traditional-json",
              "runtime_addon_updates": False,
+             "zap_home_mode": "ephemeral_tmpfs", "zap_home_path": "/zap/vibesec-home",
+             "zap_home_tmpfs_megabytes": 256,
              "automation_plan_jobs": ["spider", "passiveScan-wait", "report", "exitStatus"]}
     if any(coverage.get(key) != value for key, value in fixed.items()):
         raise DastError("DAST coverage isolation declarations differ")

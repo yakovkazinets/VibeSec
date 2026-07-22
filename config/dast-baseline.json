@@ -15,6 +15,7 @@
   "container_pid_limit": 256,
   "application_tmpfs_megabytes": 64,
   "zap_tmpfs_megabytes": 512,
+  "zap_home_tmpfs_megabytes": 256,
   "rule_disposition_file": "config/zap-baseline.conf",
   "output_schema_version": 1
 }

@@ -10,7 +10,7 @@ The registry pull is the only intended external network activity. After pull and
 
 - Only scheduled or manually dispatched trusted events can start the target.
 - Both target and scanner references are digest-pinned; the target must declare a non-root user.
-- The Automation Framework command is fixed to `zap.sh -cmd -silent -autorun /zap/wrk/vibesec-zap-plan.yaml`; the plan contains no add-ons job, and callers cannot extend either command or plan.
+- The Automation Framework command is fixed to `zap.sh -cmd -silent -dir /zap/vibesec-home -autorun /zap/wrk/vibesec-zap-plan.yaml`; the explicit home is a bounded per-container tmpfs, the plan contains no add-ons job, and callers cannot extend either command or plan.
 - The exact plan permits only one internal context followed by traditional spider, passive wait, traditional JSON report, and trusted exit-status jobs. Active, AJAX/client, import, API, authentication, requestor, replacer, and script jobs fail validation.
 - The origin is exactly `http://target:<configured-port>` and normalized findings may contain only safe paths from that origin.
 - Raw JSON is size-, shape-, field-, count-, URL-, and control-character validated before policy processing.

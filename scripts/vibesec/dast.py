@@ -27,6 +27,7 @@ CONFIG_FIELDS = {
     "total_scan_timeout_minutes", "maximum_normalized_findings", "maximum_raw_report_bytes",
     "maximum_response_bytes", "container_cpu_limit", "container_memory_megabytes",
     "container_pid_limit", "application_tmpfs_megabytes", "zap_tmpfs_megabytes",
+    "zap_home_tmpfs_megabytes",
     "rule_disposition_file", "output_schema_version",
 }
 RISK = {"0": "low", "Informational": "low", "1": "low", "Low": "low", "2": "medium", "Medium": "medium", "3": "high", "High": "high"}
@@ -68,7 +69,7 @@ def load_config(root: Path) -> dict[str, Any]:
         "maximum_raw_report_bytes": (1024, 25_000_000), "maximum_response_bytes": (1024, 2_000_000),
         "container_cpu_limit": (1, 4), "container_memory_megabytes": (128, 4096),
         "container_pid_limit": (32, 1024), "application_tmpfs_megabytes": (8, 512),
-        "zap_tmpfs_megabytes": (64, 2048),
+        "zap_tmpfs_megabytes": (64, 2048), "zap_home_tmpfs_megabytes": (128, 1024),
     }
     for field, (minimum, maximum) in bounds.items():
         value = payload.get(field)
@@ -240,6 +241,7 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
     if category is None:
         raise DastError("DAST exit code is outside the reviewed contract")
     tools = loads_strict((root / "config/tools.json").read_bytes())
+    dast_config = load_config(root)
     scanner = tools["zap-baseline"]
     coverage = {
         "schema_version": 1, "profile": "dast-baseline", "tool": "zap-baseline",
@@ -250,6 +252,8 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
         "ajax_spider": False, "authentication": False, "external_egress": False,
         "scanner_mode": "automation_framework", "automation_plan_jobs": ["spider", "passiveScan-wait", "report", "exitStatus"],
         "report_template": "traditional-json", "runtime_addon_updates": False,
+        "zap_home_mode": "ephemeral_tmpfs", "zap_home_path": "/zap/vibesec-home",
+        "zap_home_tmpfs_megabytes": dast_config["zap_home_tmpfs_megabytes"],
         "application_code_executed": state in {"ran", "tool_error"} and digest is not None,
         "application_source_built": False, "project_dependencies_installed": False,
         "state": state, "reason": reason, "output_artifacts": ["normalized.json", "report.md", "coverage.json", "policy-result.json"],

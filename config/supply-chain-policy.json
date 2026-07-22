@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source_repository": "https://github.com/yakovkazinets/VibeSec",
+  "release_branch": "refs/heads/main",
+  "workflow_identity": "https://github.com/yakovkazinets/VibeSec/.github/workflows/release-candidate.yml@refs/heads/main",
+  "certificate_oidc_issuer": "https://token.actions.githubusercontent.com",
+  "signature_subject": "SHA256SUMS",
+  "signature_bundle": "SHA256SUMS.sigstore.json",
+  "required_artifacts": [
+    "vibesec-consumer-bundle.zip",
+    "sbom.cyclonedx.json",
+    "sbom.spdx.json",
+    "provenance.intoto.jsonl",
+    "release-manifest.json",
+    "SHA256SUMS",
+    "SHA256SUMS.sigstore.json"
+  ],
+  "normal_scans_require_network_signing": false,
+  "claimed_slsa_level": null
+}

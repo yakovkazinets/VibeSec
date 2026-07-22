@@ -63,7 +63,7 @@
     "url": "https://github.com/sigstore/cosign/releases/download/v3.1.2/cosign-linux-amd64",
     "version": "3.1.2",
     "license": "Apache-2.0",
-    "verification_date": "2026-07-21",
+    "verification_date": "2026-07-22",
     "official_repository": "https://github.com/sigstore/cosign"
   },
   "checkov": {

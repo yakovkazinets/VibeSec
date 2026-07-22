@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yakovkazinets/VibeSec/schemas/provenance-v1.json",
+  "title": "VibeSec SLSA-aligned provenance statement v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["_type", "subject", "predicateType", "predicate"],
+  "properties": {
+    "_type": {"const": "https://in-toto.io/Statement/v1"},
+    "subject": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "digest"],
+        "properties": {
+          "name": {"type": "string", "maxLength": 128},
+          "digest": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sha256"],
+            "properties": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+          }
+        }
+      }
+    },
+    "predicateType": {"const": "https://slsa.dev/provenance/v1"},
+    "predicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["buildDefinition", "runDetails"],
+      "properties": {
+        "buildDefinition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["buildType", "externalParameters", "internalParameters", "resolvedDependencies"],
+          "properties": {
+            "buildType": {"const": "https://github.com/yakovkazinets/VibeSec/buildtypes/release-candidate/v1"},
+            "externalParameters": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "version"],
+              "properties": {
+                "source": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["repository", "commit"],
+                  "properties": {
+                    "repository": {"const": "https://github.com/yakovkazinets/VibeSec"},
+                    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+                  }
+                },
+                "version": {"type": "string", "maxLength": 64}
+              }
+            },
+            "internalParameters": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["creation_mode"],
+              "properties": {"creation_mode": {"enum": ["local-preparation", "trusted-github-workflow"]}}
+            },
+            "resolvedDependencies": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["uri"],
+                "properties": {"uri": {"type": "string", "pattern": "^pkg:generic/[a-z0-9-]+@[^/]{1,64}$"}}
+              }
+            }
+          }
+        },
+        "runDetails": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["builder", "metadata"],
+          "properties": {
+            "builder": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id"],
+              "properties": {"id": {"type": "string", "maxLength": 256}}
+            },
+            "metadata": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["invocationId"],
+              "properties": {"invocationId": {"type": "string", "maxLength": 200}}
+            }
+          }
+        }
+      }
+    }
+  }
+}

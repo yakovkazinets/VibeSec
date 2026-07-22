@@ -3,6 +3,7 @@
   "common": [
     "VERSION",
     "config/adoption-files.json",
+    "config/github-actions.json",
     "config/tools.json",
     "policy/severity-thresholds.yml",
     "policy/suppressions.yml",
@@ -17,6 +18,7 @@
     "scripts/vibesec/capabilities.py",
     "scripts/vibesec/coverage.py",
     "scripts/vibesec/exit_codes.py",
+    "scripts/vibesec/github_actions.py",
     "scripts/vibesec/installation.py",
     "scripts/vibesec/manifest.py",
     "scripts/vibesec/model.py",
@@ -39,6 +41,7 @@
     "docs/distribution.md",
     "docs/dast-baseline.md",
     "docs/dast-threat-model.md",
+    "docs/github-actions-runtime.md",
     "docs/installation-verification.md",
     "docs/profile-selection.md",
     "docs/project-capabilities.md",

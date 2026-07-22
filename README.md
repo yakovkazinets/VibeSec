@@ -27,6 +27,9 @@ Review the code and configuration before using it, validate it against your own 
 - [Sanitized sample reports](examples/reports/README.md)
 - [Security/result model](docs/security-model.md) and [threat model](docs/threat-model.md)
 - [Security validation policy](docs/security-validation-policy.md), [capability matrix](docs/security-capability-matrix.md), and [self-hosted validation](docs/self-hosted-validation.md)
+- [GitHub Actions Node 24 runtime and immutable pin policy](docs/github-actions-runtime.md)
+
+Supplied workflows target GitHub.com and require Actions Runner 2.327.1 or newer on self-hosted runners. Their reviewed JavaScript actions embed Node 24 and use full commit SHAs; Node 20 is end-of-life and unsupported, and no fallback is provided. VibeSec itself requires no npm or Node application runtime. Node 26 remains a future compatibility target rather than a requirement. See the runtime policy for the separate GHES limitation.
 
 Minimal uses Trivy filesystem, Gitleaks, and actionlint. Standard adds VibeSec-owned Opengrep rules, OSV-Scanner, Syft SBOMs, conditional isolated Checkov, explicit coverage reporting, and optional trusted-event scanning of an existing immutable image. Neither profile builds or executes application code, installs project dependencies, builds Dockerfiles, or applies infrastructure. A separate, opt-in DAST Baseline add-on runs only OWASP ZAP's passive baseline against an explicitly supplied immutable, non-root application image on a trusted event.
 <!-- claimed-scanners: actionlint,checkov,gitleaks,opengrep,osv-scanner,syft,trivy,zap-baseline -->

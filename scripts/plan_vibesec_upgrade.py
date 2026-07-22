@@ -25,6 +25,10 @@ CLASSIFICATIONS = {
     "conflict", "unsafe_path",
     "capability_preserve",
 }
+RECOVERABLE_ACTION_ERRORS = (
+    "workflow action does not match the approved immutable pin:",
+    "workflow action review comment is missing or inconsistent:",
+)
 
 
 def desired_files(bundle: VerifiedBundle, state: InstallationState) -> dict[str, dict[str, Any]]:
@@ -165,7 +169,11 @@ def main() -> int:
         return VERIFICATION_FAILED
     try:
         state = verify_installation(args.target)
-        if state.status in {"partial", "conflict", "invalid"}:
+        recoverable_action_migration = (
+            state.status == "invalid" and bool(state.errors)
+            and all(error.startswith(RECOVERABLE_ACTION_ERRORS) for error in state.errors)
+        )
+        if state.status in {"partial", "conflict"} or state.status == "invalid" and not recoverable_action_migration:
             emit(envelope("plan_vibesec_upgrade", tool_version, "invalid_installation", result=state.result(), errors=state.errors, warnings=state.warnings), as_json=args.json)
             return VERIFICATION_FAILED
         plan = classify_plan(state, bundle)
@@ -173,7 +181,8 @@ def main() -> int:
         status = "review_required" if blocking else "no_changes" if set(plan["summary"]) <= {"unchanged", "baseline_preserve", "suppression_preserve", "capability_preserve"} else "planned"
         payload = envelope(
             "plan_vibesec_upgrade", tool_version, status, result=plan,
-            warnings=["Manual review is required; no files were modified."] if blocking else [],
+            warnings=(["Manual review is required; no files were modified."] if blocking else [])
+            + (["Known workflow action drift is recoverable only through the proposed reviewed migration."] if recoverable_action_migration else []),
             information=["This command has no apply mode and made no changes."],
         )
         emit(payload, as_json=args.json)

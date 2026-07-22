@@ -251,6 +251,26 @@ class DistributionLifecycleTests(unittest.TestCase):
         self.assertEqual(payload["status"], "invalid_bundle")
         self.assertEqual(before, after)
 
+    def test_doctor_and_upgrade_plan_identify_known_node20_workflow_pin(self):
+        target = self.target("old-action-pin")
+        self.assertEqual(self.init(target)[0].returncode, 0)
+        workflow = target / ".github/workflows/vibesec-minimal.yml"
+        workflow.write_text(
+            workflow.read_text(encoding="utf-8").replace(
+                "de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+                "11bd71901bbe5b1630ceea73d27597364c9af683",
+            ),
+            encoding="utf-8",
+        )
+        doctor, diagnosis = self.command_json("scripts/vibesec_doctor.py", "--target", target)
+        self.assertEqual(doctor.returncode, 2)
+        codes = {item["code"] for item in diagnosis["result"]["diagnostics"]}
+        self.assertIn("GITHUB_ACTION_NODE20_PIN", codes)
+        planned, payload = self.command_json("scripts/plan_vibesec_upgrade.py", "--target", target, "--bundle", self.bundle)
+        self.assertEqual(planned.returncode, 1)
+        self.assertIn(".github/workflows/vibesec-minimal.yml", payload["result"]["workflow_pin_changes"])
+        self.assertTrue(payload["result"]["read_only"])
+
 
 if __name__ == "__main__":
     unittest.main()

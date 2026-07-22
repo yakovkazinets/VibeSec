@@ -32,17 +32,18 @@ ALLOWED_SOURCE_ROOTS = {"VERSION", "CHANGELOG.md", "LICENSE", "README.md", "SECU
 PROHIBITED_PARTS = {".git", ".tools", ".venv", "__pycache__", "dist", "fixtures", "node_modules", "results", "tests", "venv"}
 PROHIBITED_SUFFIXES = {".db", ".gz", ".log", ".pyc", ".tar", ".zip"}
 REQUIRED_CONSUMER_PATHS = {
-    "VERSION", "config/adoption-files.json", "config/tools.json",
+    "VERSION", "config/adoption-files.json", "config/tools.json", "config/github-actions.json",
     "policy/baseline.json", "policy/standard-baseline.json", "policy/suppressions.yml",
     "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py",
     "scripts/vibesec/capabilities.py",
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
     "scripts/plan_vibesec_upgrade.py", "scripts/vibesec/bundle.py",
+    "scripts/vibesec/github_actions.py",
     "scripts/validate_project_capabilities.py",
     "templates/github-actions/security-baseline.yml", "templates/github-actions/security-standard.yml",
     "templates/github-actions/dast-baseline.yml", "scripts/run_dast_baseline.py",
     "config/zap-passive-plan-schema.json", "scripts/vibesec/zap_automation.py",
-    "docs/distribution.md", "docs/dast-baseline.md", "docs/dast-threat-model.md", "docs/installation-verification.md", "docs/doctor.md", "docs/upgrading.md",
+    "docs/distribution.md", "docs/dast-baseline.md", "docs/dast-threat-model.md", "docs/github-actions-runtime.md", "docs/installation-verification.md", "docs/doctor.md", "docs/upgrading.md",
 }
 REQUIRED_EXECUTABLES = {
     "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py", "scripts/run_dast_baseline.py", "scripts/validate_dast_artifacts.py",

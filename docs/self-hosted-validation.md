@@ -6,6 +6,8 @@ On a live fixture failure only, accountability inspects the stopped current-run 
 
 VibeSec scans its own repository so advertised controls have current execution evidence. This is separate from implementation unit tests: unit tests verify code branches with controlled fake scanners, scanner accountability validates maintained positive/negative fixtures and normalization, and repository self-scans run the pinned profiles over VibeSec itself.
 
+The GitHub Action runtime baseline is Node 24. Self-hosted Actions Runner 2.327.1 or newer is mandatory; outdated runners fail before the action can run and must be upgraded. The checkout v6 Docker-container authenticated-Git exception requires 2.329.0, but VibeSec sets `persist-credentials: false` and does not use that flow. GitHub-hosted runners satisfy the baseline. Node 20 fallback is unsupported, Node 26 is not required, and VibeSec owns no executable Node code to place in a Node matrix. Supplied artifact workflows target GitHub.com rather than GHES; see [the reviewed action inventory](github-actions-runtime.md).
+
 ## Enforced scanners and expected states
 
 The Minimal self-scan expects Trivy filesystem, Gitleaks, and actionlint to be `ran`. The Standard self-scan expects Opengrep, OSV-Scanner, Syft, Checkov, Trivy filesystem, Gitleaks, and actionlint to be `ran`. VibeSec declares IaC and GitHub Actions true, so those scanners are applicable. It declares container image false, so prebuilt-image scanning is exactly `not_applicable` on every event; scanner fixtures do not mean VibeSec produces an application image.

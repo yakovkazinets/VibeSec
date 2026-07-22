@@ -13,6 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.bundle import validate_catalog  # noqa: E402
 from vibesec.dast import load_config  # noqa: E402
+from vibesec.github_actions import (  # noqa: E402
+    GitHubActionsError, audit_tracked_files, load_inventory,
+)
 from vibesec.strict_json import loads_strict  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
 from vibesec.zap_automation import (  # noqa: E402
@@ -115,8 +118,10 @@ def validate_references() -> None:
         "scripts/validate_security_artifacts.py", "config/security-capabilities.json", "config/self-scan-scope.json",
         "scripts/run_dast_baseline.py", "scripts/test_dast_container.py", "scripts/validate_dast_artifacts.py",
         "scripts/vibesec/dast.py", "scripts/vibesec/zap_automation.py", "scripts/vibesec/zap_diagnostics.py",
+        "config/github-actions.json", "scripts/vibesec/github_actions.py",
         "config/zap-passive-plan-schema.json",
         "config/environment-variables.json", "docs/quickstart.md", "docs/profile-selection.md",
+        "docs/github-actions-runtime.md",
         "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md", "docs/distribution.md",
         "docs/installation-verification.md", "docs/doctor.md", "docs/dast-baseline.md", "docs/dast-threat-model.md",
         "docs/security-validation-policy.md", "docs/security-capability-matrix.md", "docs/self-hosted-validation.md",
@@ -209,6 +214,32 @@ def validate_adoption_metadata() -> None:
         raise ValueError("configuration documentation is missing a supported VIBESEC variable")
 
 
+def validate_github_actions_documentation() -> None:
+    required = (
+        "README.md", "CHANGELOG.md", "docs/quickstart.md", "docs/configuration.md",
+        "docs/distribution.md", "docs/installation-verification.md", "docs/doctor.md",
+        "docs/upgrading.md", "docs/self-hosted-validation.md", "docs/github-actions-runtime.md",
+        "skills/appsec-guardian/SKILL.md",
+    )
+    for relative in required:
+        text = (ROOT / relative).read_text(encoding="utf-8")
+        if "Node 24" not in text:
+            raise ValueError(f"Node 24 action runtime documentation is missing from {relative}")
+    runtime = (ROOT / "docs/github-actions-runtime.md").read_text(encoding="utf-8")
+    markers = (
+        "2.327.1", "Node 20", "Node 26", "GitHub.com", "GHES",
+        "de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+        "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true",
+    )
+    if any(marker not in runtime for marker in markers):
+        raise ValueError("GitHub Actions runtime documentation is incomplete")
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts]"
+    if expected not in ci or ci.count("\n  validate:\n") != 1:
+        raise ValueError("validate must remain the single required aggregate CI job")
+
+
 def main() -> int:
     try:
         validate_tools()
@@ -216,8 +247,13 @@ def main() -> int:
         validate_references()
         validate_dast_command_contract()
         validate_adoption_metadata()
+        validate_github_actions_documentation()
+        inventory = load_inventory(ROOT / "config/github-actions.json")
+        action_errors = audit_tracked_files(ROOT, inventory)
+        if action_errors:
+            raise ValueError("; ".join(action_errors))
         validate_matrix()
-    except (OSError, ValueError) as exc:
+    except (GitHubActionsError, OSError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 3
     print("repository configuration is valid")

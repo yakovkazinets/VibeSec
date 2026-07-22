@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a portable local `vibesec` CLI, deterministic native/container/auto selection, an explicit Linux/macOS support matrix, and fail-closed reporting for unavailable complete profile modes.
+- Add strict local-only scanner extensions with versioned manifests, namespaced capabilities, restricted permissions, atomic dry-run-first lifecycle management, digest inventories, subprocess adapters, bounded artifacts/diagnostics, a harmless reference extension, and extension-aware distribution and accountability.
 - Add strict release manifests, deterministic checksums, SLSA-aligned provenance, SBOM linkage, keyless Cosign signing preparation, offline posture validation, a manual trusted release-candidate workflow, consumer verification guidance, and tampering accountability without publishing a release.
 - Expand framework-aware Opengrep coverage for Express, Next.js, React, Flask, Django, FastAPI, and Spring with exact positive/negative fixture accountability.
 - Add deterministic finding grouping, provenance, explainable priority, optional backward-compatible group policy, schemas, reports, and consumer lifecycle support.

@@ -13,7 +13,7 @@ from typing import Sequence
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED  # noqa: E402
-from vibesec.output import emit, envelope, safe_text  # noqa: E402
+from vibesec.output import emit, envelope  # noqa: E402
 from vibesec.portable import PortableExecutionError, load_support, platform_id, select_execution_mode  # noqa: E402
 from vibesec.version import VersionError, read_version  # noqa: E402
 
@@ -25,9 +25,10 @@ def _bounded(value: str) -> str:
     return encoded.decode("utf-8", errors="replace")
 
 
-def _run(command: Sequence[str], *, environment: dict[str, str] | None = None) -> tuple[int, str, str]:
+def _run(command: Sequence[str], *, environment: dict[str, str] | None = None,
+         working_directory: Path = ROOT) -> tuple[int, str, str]:
     completed = subprocess.run(
-        list(command), cwd=ROOT, env=environment, stdin=subprocess.DEVNULL,
+        list(command), cwd=working_directory, env=environment, stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30 * 60, check=False,
     )
     code = completed.returncode if completed.returncode in {0, 1, 2, 3} else VERIFICATION_FAILED
@@ -58,15 +59,15 @@ def _scan(args: argparse.Namespace, version: str) -> int:
             raise PortableExecutionError("container profile runner is not available in this release")
         environment = dict(os.environ)
         environment["VIBESEC_TOOL_DIR"] = str(tool_dir)
-        command = (["bash", str(ROOT / "scripts/run_minimal_profile.sh"), str(target), str(results)]
+        command = (["bash", str(ROOT / "scripts/run_minimal_profile.sh"), str(target), str(results), str(ROOT)]
                    if args.profile == "minimal" else
                    [sys.executable, str(ROOT / "scripts/run_standard_profile.py"), str(target), str(results),
                     "--vibesec-root", str(ROOT), "--tool-dir", str(tool_dir)])
-        code, stdout, stderr = _run(command, environment=environment)
+        code, _stdout, _stderr = _run(command, environment=environment, working_directory=target)
         status = "success" if code == 0 else "policy_violation" if code == 1 else "tool_error" if code == 2 else "invalid_input"
         emit(envelope(
             "scan", version, status, result={**decision.result(), "target": str(target), "results": str(results), "exit_code": code},
-            errors=[safe_text(stderr)] if stderr and code else [], information=[safe_text(stdout)] if stdout and not code else [],
+            errors=([f"scanner orchestration returned exit code {code}; inspect only the sanitized result artifacts"] if code else []),
         ), as_json=args.json)
         return code
     except (OSError, PortableExecutionError) as exc:
@@ -105,6 +106,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "init":
+        try:
+            return _passthrough("init_vibesec.py", sys.argv[2:])
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            emit(envelope("init", "unknown", "infrastructure_failure", errors=[type(exc).__name__]), as_json=False)
+            return INFRASTRUCTURE_FAILURE
     args = build_parser().parse_args()
     try:
         version = read_version(ROOT)

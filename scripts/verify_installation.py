@@ -9,6 +9,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED, WARNINGS  # noqa: E402
+from vibesec.extensions import ExtensionError, verify_extensions  # noqa: E402
 from vibesec.installation import InstallationError, verify_installation  # noqa: E402
 from vibesec.output import emit, envelope  # noqa: E402
 from vibesec.version import VersionError, read_version  # noqa: E402
@@ -27,17 +28,22 @@ def main() -> int:
         tool_version = "unknown"
     try:
         state = verify_installation(args.target)
+        extension_state = verify_extensions(state.target)
+        result = state.result()
+        result["extension_verification"] = extension_state
+        status = "invalid" if extension_state["status"] != "valid" else state.status
+        errors = [*state.errors, *extension_state["errors"]]
         payload = envelope(
-            "verify_installation", tool_version, state.status, result=state.result(),
-            errors=state.errors, warnings=state.warnings, information=state.information,
+            "verify_installation", tool_version, status, result=result,
+            errors=errors, warnings=state.warnings, information=state.information,
         )
         emit(payload, as_json=args.json)
-        if state.status == "valid":
+        if status == "valid":
             return SUCCESS
-        if state.status in {"valid_with_local_changes", "unverifiable_legacy_installation"}:
+        if status in {"valid_with_local_changes", "unverifiable_legacy_installation"}:
             return WARNINGS
         return VERIFICATION_FAILED
-    except InstallationError as exc:
+    except (ExtensionError, InstallationError) as exc:
         emit(envelope("verify_installation", tool_version, "invalid", errors=[str(exc)]), as_json=args.json)
         return INVALID_INPUT
     except OSError as exc:

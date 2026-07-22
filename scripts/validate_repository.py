@@ -15,8 +15,10 @@ from vibesec.bundle import validate_catalog  # noqa: E402
 from vibesec.api_security import load_config as load_api_config  # noqa: E402
 from vibesec.dast import load_config  # noqa: E402
 from vibesec.github_actions import (  # noqa: E402
-    GitHubActionsError, audit_tracked_files, load_inventory,
+    GitHubActionsError, audit_tracked_files, load_inventory as load_action_inventory,
 )
+from vibesec.extensions import collect_source  # noqa: E402
+from vibesec.portable import load_support  # noqa: E402
 from vibesec.strict_json import loads_strict  # noqa: E402
 from vibesec.schemathesis_runtime import trusted_schemathesis_command  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
@@ -156,6 +158,10 @@ def validate_references() -> None:
         "docs/software-supply-chain-assurance.md", "docs/release-signing.md", "docs/provenance.md", "docs/release-threat-model.md",
         "scripts/install_release_tools.sh", "scripts/prepare_release_artifacts.py", "scripts/sign_release_artifacts.py", "scripts/verify_release_artifacts.py", "scripts/validate_supply_chain_posture.py",
         "scripts/vibesec/supply_chain.py", "config/release-manifest-schema.json", "config/provenance-schema.json", "config/supply-chain-policy.json",
+        "vibesec", "scripts/manage_extensions.py", "scripts/vibesec/portable.py", "scripts/vibesec/extensions.py",
+        "config/portable-execution.json", "config/extension-manifest-schema.json",
+        "extensions/examples/repository-metadata/vibesec-extension.json", "extensions/examples/repository-metadata/adapter.py",
+        "docs/local-execution.md", "docs/platform-support.md", "docs/extensions.md", "docs/extension-security-model.md", "docs/extension-authoring.md",
         "docs/finding-intelligence.md", "docs/framework-sast-coverage.md",
         "docs/security-validation-policy.md", "docs/security-capability-matrix.md", "docs/self-hosted-validation.md",
         "examples/reports/README.md",
@@ -286,7 +292,7 @@ def validate_github_actions_documentation() -> None:
     if any(marker not in runtime for marker in markers):
         raise ValueError("GitHub Actions runtime documentation is incomplete")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]"
+    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts]"
     if expected not in ci or ci.count("\n  validate:\n") != 1:
         raise ValueError("validate must remain the single required aggregate CI job")
 
@@ -321,6 +327,25 @@ def validate_supply_chain_configuration() -> None:
             raise ValueError(f"{relative} must be a closed object schema")
 
 
+def validate_portable_extension_platform() -> None:
+    support = load_support(ROOT / "config/portable-execution.json")
+    if support["platforms"]["linux-amd64"]["native_profiles"] != ["minimal", "standard"]:
+        raise ValueError("portable execution must retain complete Linux amd64 native profiles")
+    if any(support["platforms"][name]["container_profiles"] for name in support["platforms"]):
+        raise ValueError("portable metadata must not claim an undistributed complete profile container")
+    source = collect_source(ROOT / "extensions/examples/repository-metadata")
+    if source.manifest["extension_id"] != "vibesec.repository-metadata-example":
+        raise ValueError("reference extension identity is invalid")
+    schema = load_object(ROOT / "config/extension-manifest-schema.json")
+    if (schema.get("additionalProperties") is not False or schema.get("type") != "object"
+            or set(schema.get("required", [])) != set(source.manifest)):
+        raise ValueError("extension manifest JSON schema differs from the strict runtime fields")
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    for job in ("portable-execution-artifacts", "extension-platform-artifacts"):
+        if ci.count(f"\n  {job}:\n") != 1:
+            raise ValueError(f"required portable accountability job is missing or duplicated: {job}")
+
+
 def main() -> int:
     try:
         validate_tools()
@@ -331,7 +356,8 @@ def main() -> int:
         validate_adoption_metadata()
         validate_github_actions_documentation()
         validate_supply_chain_configuration()
-        inventory = load_inventory(ROOT / "config/github-actions.json")
+        validate_portable_extension_platform()
+        inventory = load_action_inventory(ROOT / "config/github-actions.json")
         action_errors = audit_tracked_files(ROOT, inventory)
         if action_errors:
             raise ValueError("; ".join(action_errors))

@@ -18,6 +18,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED, WARNINGS  # noqa: E402
+from vibesec.extensions import ExtensionError, verify_extensions  # noqa: E402
 from vibesec.capabilities import CapabilityError, load_capabilities_file, scanner_applicability  # noqa: E402
 from vibesec.authenticated import (  # noqa: E402
     AUTH_ENVIRONMENT_VARIABLE, AuthenticatedSecurityError, BEARER, LIKELY_JWT,
@@ -486,6 +487,29 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
     if state.version and state.version != read_version(ROOT):
         diagnostics.append(diagnostic("version", "DEVELOPMENT_VERSION_DRIFT", "warning", "Installed development version differs from this doctor version.",
                                       "Use a verified local bundle and generate an upgrade plan.", "docs/upgrading.md"))
+    extension_context: dict[str, Any] = {"status": "valid", "verified": [], "errors": [], "extensions": []}
+    try:
+        extension_context = verify_extensions(state.target)
+        if extension_context["status"] != "valid":
+            diagnostics.append(diagnostic(
+                "extensions", "EXTENSION_VERIFICATION_FAILED", "error",
+                "; ".join(extension_context["errors"]),
+                "Disable the extension and restore or reinstall only reviewed local bytes.",
+                "docs/extension-security-model.md",
+            ))
+        elif extension_context["verified"]:
+            diagnostics.append(diagnostic(
+                "extensions", "EXTENSIONS_VERIFIED", "informational",
+                "Installed extension content and registrations match the local digest inventory.",
+                "Reverify after every reviewed extension lifecycle change.", "docs/extensions.md",
+            ))
+    except ExtensionError as exc:
+        extension_context = {"status": "invalid", "verified": [], "errors": [str(exc)], "extensions": []}
+        diagnostics.append(diagnostic(
+            "extensions", "EXTENSION_INVENTORY_INVALID", "error", str(exc),
+            "Repair the strict local extension inventory without executing adapters.",
+            "docs/extension-security-model.md",
+        ))
     if any(item["severity"] == "error" for item in diagnostics):
         status = "error"
     elif any(item["severity"] == "warning" for item in diagnostics):
@@ -493,7 +517,8 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
     else:
         status = "healthy"
     return status, diagnostics, {"profile": profile, "stage": sorted({manifest["stage"] for manifest in state.manifests}),
-                                 "installation_status": state.status, "scanner_applicability": applicability}
+                                 "installation_status": state.status, "scanner_applicability": applicability,
+                                 "extensions": extension_context}
 
 
 def main() -> int:

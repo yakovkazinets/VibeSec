@@ -4,6 +4,8 @@ Passive DAST is not part of either profile. After a valid base installation, mai
 
 VibeSec is a scanning baseline, not proof that an application is secure. Use a reviewed VibeSec checkout matching the version you intend to adopt. The initializer itself uses no network, installs nothing, executes no application code, and defaults to a preview.
 
+For local routing, run `./vibesec --help`. `./vibesec scan --profile minimal --execution-mode auto --json` selects only a complete supported tool mode; it never converts missing or failed coverage into a clean fallback. See [local execution](local-execution.md) and the exact [platform matrix](platform-support.md).
+
 The supplied GitHub.com workflows use full-SHA actions that embed Node 24. GitHub-hosted runners meet the requirement; self-hosted runners need Actions Runner 2.327.1 or newer. Node 20 fallback is unsupported. VibeSec does not require npm or a Node application runtime. Review [the action runtime and GHES limits](github-actions-runtime.md) before adoption.
 
 The initializer first asks the [project capability questionnaire](project-capabilities.md). Every question shows `[Y/n]`: Enter is Yes, and you should explicitly answer No for absent scopes. Its dry-run JSON includes the exact manifest and writes nothing. For automation, supply reviewed answers with `--capabilities-file`; do not pipe EOF and assume defaults.
@@ -75,6 +77,8 @@ The initializer makes no network calls. Workflow tool installation downloads pin
 Use `.vibesec/install-*.json` as a review checklist. Remove only files that are still VibeSec-owned, preserve any local policy evidence you need, and remove the workflow in a reviewed change. The initializer deliberately has no destructive uninstall or overwrite mode. Removing VibeSec also removes its coverage; it does not resolve findings.
 
 For problems, use [troubleshooting](troubleshooting.md). For upgrades, use [upgrading](upgrading.md).
+
+Extensions are optional and never discovered from project content. Preview the bundled reference with `./vibesec extensions install extensions/examples/repository-metadata --target /path/to/application --json`; add `--write` only after reviewing its strict manifest and [security model](extension-security-model.md).
 
 ## Optional OpenAPI API testing
 

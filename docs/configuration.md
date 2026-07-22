@@ -8,6 +8,8 @@ Authenticated runtime testing stores only its GitHub Actions secret name in `.vi
 
 GitHub Action pins and embedded runtimes are configured only through the strict `config/github-actions.json` inventory. The supported baseline is Node 24 on Actions Runner 2.327.1 or newer; Node 20 runtime fallback and runtime-forcing environment overrides are invalid. These settings concern third-party actions, not an npm or Node runtime required by VibeSec. See [GitHub Actions runtime and pin policy](github-actions-runtime.md).
 
+Portable platform and scanner declarations live in `config/portable-execution.json`; they are not environment overrides. Extension declarations use the exact versioned `vibesec-extension.json` contract and cannot add environment variables, core capability IDs, policy files, secret grants, or fallback modes. See [extension authoring](extension-authoring.md).
+
 API target path, port, and base-path environment defaults come from the `installed add-on configuration` when no explicit trusted override is provided.
 
 | Variable | Profile | Type/default | Accepted values | Security and privacy effect | Failure and example |

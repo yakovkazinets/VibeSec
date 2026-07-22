@@ -4,6 +4,8 @@ For an installed DAST add-on, doctor validates redacted image-reference syntax, 
 
 The doctor performs bounded, read-only, offline diagnostics:
 
+Installed extension inventory is checked without executing adapters. Tampering, missing or extra files, manifest drift, duplicate IDs, unsafe permissions, and stale capability registrations produce an extension error diagnostic. An absent inventory means no extensions are installed; it is not an error.
+
 Standard installation manifests include the finding-intelligence generator, model, and schemas. Missing or locally changed files remain visible as installation errors or warnings; source-tree development does not require generated scan artifacts to exist.
 
 ```shell

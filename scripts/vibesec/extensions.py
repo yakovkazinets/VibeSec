@@ -138,7 +138,9 @@ def collect_source(raw: Path) -> ExtensionSource:
             candidate = base / name
             if candidate.is_symlink():
                 raise ExtensionError(f"extension source contains a symlink: {candidate.relative_to(root)}")
-        names[:] = sorted(name for name in names if name not in {".git", "__pycache__"})
+            if name in {".git", "__pycache__"}:
+                raise ExtensionError(f"extension source contains prohibited development content: {candidate.relative_to(root)}")
+        names[:] = sorted(names)
         for name in sorted(files):
             candidate = base / name
             relative = candidate.relative_to(root).as_posix()
@@ -194,7 +196,7 @@ def validate_inventory(payload: Any) -> dict[str, Any]:
         raise ExtensionError("extension inventory list is invalid")
     ids: set[str] = set()
     for record in extensions:
-        required = {"extension_id", "version", "manifest_sha256", "content_sha256", "install_source", "installed_files", "enabled", "granted_permissions", "capabilities"}
+        required = {"extension_id", "version", "manifest_sha256", "content_sha256", "install_source", "installed_files", "enabled", "granted_permissions", "capabilities", "signature"}
         if not isinstance(record, dict) or set(record) != required:
             raise ExtensionError("extension inventory record is malformed")
         if record["extension_id"] in ids:
@@ -205,7 +207,7 @@ def validate_inventory(payload: Any) -> dict[str, Any]:
                 or not isinstance(record["manifest_sha256"], str) or not HASH.fullmatch(record["manifest_sha256"])
                 or not isinstance(record["content_sha256"], str) or not HASH.fullmatch(record["content_sha256"])
                 or not isinstance(record["install_source"], str) or not record["install_source"] or len(record["install_source"]) > 1000
-                or not isinstance(record["enabled"], bool)):
+                or not isinstance(record["enabled"], bool) or record["signature"] is not None):
             raise ExtensionError("extension inventory identity is invalid")
         if record["granted_permissions"] != {"repository_read": True, "repository_write": False, "network": False, "docker": False, "secrets": False, "host_process": True}:
             raise ExtensionError("extension inventory contains unsafe permissions")
@@ -268,6 +270,7 @@ def _record(source: ExtensionSource) -> dict[str, Any]:
         "manifest_sha256": hashlib.sha256((source.root / MANIFEST_NAME).read_bytes()).hexdigest(),
         "content_sha256": source.content_digest, "install_source": str(source.root),
         "installed_files": source.files, "enabled": True,
+        "signature": None,
         "granted_permissions": source.manifest["permissions"], "capabilities": source.manifest["capabilities"],
     }
 
@@ -301,6 +304,7 @@ def install_extension(target: Path, source_path: Path, *, write: bool) -> dict[s
             descriptor = os.open(output, flags, record["mode"])
             with os.fdopen(descriptor, "wb") as stream:
                 stream.write((source.root / record["path"]).read_bytes())
+            output.chmod(record["mode"])
         destination.parent.mkdir(parents=True, exist_ok=True)
         os.replace(temporary, destination)
         published = True
@@ -345,7 +349,7 @@ def verify_extensions(target: Path) -> dict[str, Any]:
                 if path.is_symlink() or not stat.S_ISREG(details.st_mode):
                     raise ExtensionError(f"installed file is missing or unsafe: {expected['path']}")
                 data = path.read_bytes()
-                current = {"path": expected["path"], "sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "mode": 0o755 if stat.S_IMODE(details.st_mode) & 0o111 else 0o644}
+                current = {"path": expected["path"], "sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "mode": stat.S_IMODE(details.st_mode) & 0o777}
                 observed.append(current)
                 if current != expected:
                     raise ExtensionError(f"installed file was modified: {expected['path']}")
@@ -516,11 +520,26 @@ def execute_adapter(target: Path, extension_id: str, *, repository: Path, result
                 raise ExtensionError(f"adapter artifact is missing, unsafe, or oversized: {relative}")
         normalized = private_results / "normalized.json"
         try:
-            document = _validate_document(loads_strict(normalized.read_bytes(), maximum_bytes=MAX_FILE_BYTES))
+            normalized_bytes = normalized.read_bytes()
+            if BEARER_VALUE.search(normalized_bytes.decode("utf-8", errors="replace")):
+                raise ExtensionError("adapter normalized findings contain bearer-shaped material")
+            document = _validate_document(loads_strict(normalized_bytes, maximum_bytes=MAX_FILE_BYTES))
         except (OSError, StrictJSONError, ResultDocumentError) as exc:
             raise ExtensionError(f"adapter normalized findings are invalid: {exc}") from exc
-        if any(item["result_type"] not in RESULT_TYPES or item["severity"] not in SEVERITIES for item in document["results"]):
-            raise ExtensionError("adapter normalized findings contain unsupported values")
+        if len(document["results"]) > 1_000:
+            raise ExtensionError("adapter normalized finding count exceeds its bound")
+        for item in document["results"]:
+            try:
+                if (set(item) != REQUIRED_RESULT_FIELDS or item["tool"] != extension_id
+                        or item["result_type"] not in RESULT_TYPES or item["severity"] not in SEVERITIES
+                        or item["confidence"] not in {"confirmed", "possible", "unknown"}
+                        or not isinstance(item["description"], str) or len(item["description"]) > 500
+                        or not isinstance(item["fingerprint"], str) or not HASH.fullmatch(item["fingerprint"])
+                        or item["line"] is not None and (not isinstance(item["line"], int) or isinstance(item["line"], bool) or item["line"] < 1)
+                        or item["file"] and safe_posix_path(item["file"]) != item["file"]):
+                    raise ExtensionError("adapter normalized finding violates the strict v1 schema")
+            except UnsafePath as exc:
+                raise ExtensionError("adapter normalized finding contains an unsafe path") from exc
         staging = Path(tempfile.mkdtemp(prefix=f".{results.name}.", dir=results.parent))
         try:
             for relative in response["artifacts"]:

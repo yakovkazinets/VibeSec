@@ -4,6 +4,8 @@ This document is generated from `config/security-capabilities.json`. Run `python
 
 A capability is not complete merely because integration code exists. See [security validation policy](security-validation-policy.md).
 
+Every row below is a **core** capability maintained by this repository. Extension capabilities are separately registered under `extension.<extension_id>.<capability>`, cannot override these IDs, and never become required core CI merely by installation. See [extensions](extensions.md).
+
 | Capability | Profile | Component/tool | Status | Fixtures | Self-scan | Expected state | Artifacts | Network/trust | Limitations | CI enforcement |
 |---|---|---|---|---|---|---|---|---|---|---|
 | minimal.trivy-filesystem | minimal | trivy | enforced | positive + negative (tests/security-fixtures/trivy-filesystem/expected.json) | ran | ran | normalized.json, report.md | scanner_database_updates_then_local_scan | docs/security-model.md | self-scan-minimal, scanner-accountability, tests/test_security_accountability.py |

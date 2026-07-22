@@ -125,10 +125,12 @@ def main() -> int:
                                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                                 text=True, env=authenticated_environment, check=False)
             os.environ.pop(AUTH_ENVIRONMENT_VARIABLE, None)
-            if unauthenticated_run.returncode not in {0, 1, 2, 3} or authenticated_run.returncode not in {0, 1, 2, 3}:
-                return 3
             try:
-                return combine_result_directories(unauthenticated_results, authenticated_results, results)
+                return combine_result_directories(
+                    unauthenticated_results, authenticated_results, results,
+                    unauthenticated_exit_code=unauthenticated_run.returncode,
+                    authenticated_exit_code=authenticated_run.returncode,
+                )
             except (AuthenticatedSecurityError, OSError, StrictJSONError):
                 return 3
     try:

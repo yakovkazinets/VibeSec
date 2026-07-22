@@ -188,27 +188,85 @@ class AuthenticatedSecurityTestingTests(unittest.TestCase):
         (repository / ".vibesec/project-capabilities.json").write_bytes(capability_bytes(capabilities))
         (repository / ".vibesec/authenticated-security-testing.json").write_bytes(configuration_bytes("FIXTURE_BEARER"))
         fake_docker = self.root / "fake-docker"
-        fake_docker.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        fake_log = self.root / "fake-docker.log"
+        fake_docker.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$FAKE_AUTH_DOCKER_LOG"\nexit 1\n', encoding="utf-8")
         fake_docker.chmod(0o700)
         results = self.root / "tool-error-results"
         token = "vibesec-obvious-local-fixture-token"
         environment = os.environ.copy()
-        environment.update({AUTH_ENVIRONMENT_VARIABLE: token, "VIBESEC_AUTH_MODE": "bearer"})
+        environment.pop("VIBESEC_AUTH_SINGLE_RUN", None)
+        environment.update({AUTH_ENVIRONMENT_VARIABLE: token, "VIBESEC_AUTH_MODE": "bearer",
+                            "FAKE_AUTH_DOCKER_LOG": str(fake_log)})
         completed = subprocess.run(
             [sys.executable, "scripts/run_dast_baseline.py", str(results), "--repository", str(repository),
-             "--docker", str(fake_docker), "--image-reference", "fixture/app@sha256:" + "a" * 64],
+             "--docker", str(fake_docker), "--event", "workflow_dispatch",
+             "--image-reference", "fixture/app@sha256:" + "a" * 64],
             cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
         )
         self.assertEqual(completed.returncode, 2, completed.stderr)
+        self.assertIn("pull", fake_log.read_text())
         self.assertNotIn(token, completed.stdout + completed.stderr)
+        self.assertLessEqual(len(completed.stderr.encode()), 2_000)
         coverage = json.loads((results / "coverage.json").read_text())
         policy = json.loads((results / "policy-result.json").read_text())
         self.assertEqual(coverage["state"], "tool_error")
         self.assertFalse(coverage["authentication_applied"])
+        self.assertEqual(policy["exit_code"], 2)
         self.assertEqual(policy["exit_category"], "tool_error")
         self.assertFalse(policy["clean"])
+        self.assertEqual({path.name for path in results.iterdir()},
+                         {"normalized.json", "coverage.json", "policy-result.json", "report.md"})
         published = b"\n".join(path.read_bytes() for path in results.iterdir())
         self.assertNotIn(token.encode(), published)
+        self.assertNotIn(b"authorization: bearer", published.lower())
+        validate_publishable_bytes(published, token)
+
+    def test_authenticated_api_tool_failure_preserves_exit_and_redaction(self):
+        repository = self.root / "api-tool-error-repository"
+        (repository / ".vibesec").mkdir(parents=True)
+        capabilities = all_capabilities(False)
+        capabilities["capabilities"].update({
+            "api": True, "container_image": True, "authentication": True,
+            "api_security_target": True, "authenticated_security_testing": True,
+        })
+        (repository / ".vibesec/project-capabilities.json").write_bytes(capability_bytes(capabilities))
+        (repository / ".vibesec/authenticated-security-testing.json").write_bytes(configuration_bytes("FIXTURE_BEARER"))
+        (repository / "openapi.yaml").write_bytes(
+            (ROOT / "tests/security-fixtures/api-security/openapi.yaml").read_bytes()
+        )
+        fake_docker = self.root / "fake-api-docker"
+        fake_log = self.root / "fake-api-docker.log"
+        fake_docker.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$FAKE_AUTH_DOCKER_LOG"\nexit 1\n', encoding="utf-8")
+        fake_docker.chmod(0o700)
+        results = self.root / "api-tool-error-results"
+        token = "vibesec-obvious-local-api-fixture-token"
+        environment = os.environ.copy()
+        environment.pop("VIBESEC_AUTH_SINGLE_RUN", None)
+        environment.update({AUTH_ENVIRONMENT_VARIABLE: token, "VIBESEC_AUTH_MODE": "bearer",
+                            "FAKE_AUTH_DOCKER_LOG": str(fake_log)})
+        completed = subprocess.run(
+            [sys.executable, "scripts/run_api_security_baseline.py", str(results),
+             "--repository", str(repository), "--docker", str(fake_docker),
+             "--event", "workflow_dispatch", "--schema", "openapi.yaml",
+             "--image-reference", "fixture/api@sha256:" + "b" * 64],
+            cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(completed.returncode, 2, completed.stderr)
+        self.assertIn("pull", fake_log.read_text())
+        self.assertNotIn(token, completed.stdout + completed.stderr)
+        self.assertLessEqual(len(completed.stderr.encode()), 2_000)
+        coverage = json.loads((results / "coverage.json").read_text())
+        policy = json.loads((results / "policy-result.json").read_text())
+        self.assertEqual(coverage["state"], "tool_error")
+        self.assertFalse(coverage["authentication_applied"])
+        self.assertEqual(policy["exit_code"], 2)
+        self.assertEqual(policy["exit_category"], "tool_error")
+        self.assertFalse(policy["clean"])
+        self.assertEqual({path.name for path in results.iterdir()},
+                         {"normalized.json", "coverage.json", "policy-result.json", "report.md"})
+        published = b"\n".join(path.read_bytes() for path in results.iterdir())
+        self.assertNotIn(token.encode(), published)
+        self.assertNotIn(b"authorization: bearer", published.lower())
         validate_publishable_bytes(published, token)
 
     def test_paired_result_fails_closed_when_either_side_has_tool_error(self):
@@ -220,7 +278,8 @@ class AuthenticatedSecurityTestingTests(unittest.TestCase):
             documents = {
                 "normalized.json": {"schema_version": 1, "profile": "dast-baseline", "results": results},
                 "coverage.json": {"schema_version": 1, "profile": "dast-baseline", "state": state},
-                "policy-result.json": {"schema_version": 1, "profile": "dast-baseline", "exit_code": code},
+                "policy-result.json": {"schema_version": 1, "profile": "dast-baseline", "exit_code": code,
+                                       "clean": state == "ran" and code == 0},
             }
             for name, document in documents.items():
                 (directory / name).write_text(json.dumps(document) + "\n", encoding="utf-8")
@@ -231,9 +290,17 @@ class AuthenticatedSecurityTestingTests(unittest.TestCase):
         output = self.root / "combined"
         write_result(unauthenticated, "tool_error", 2)
         write_result(authenticated, "ran", 0)
-        self.assertEqual(combine_result_directories(unauthenticated, authenticated, output), 2)
+        self.assertEqual(combine_result_directories(
+            unauthenticated, authenticated, output,
+            unauthenticated_exit_code=2, authenticated_exit_code=0,
+        ), 2)
         self.assertEqual(json.loads((output / "coverage.json").read_text())["state"], "tool_error")
         self.assertFalse(json.loads((output / "policy-result.json").read_text())["clean"])
+        with self.assertRaisesRegex(AuthenticatedSecurityError, "process and policy exits differ"):
+            combine_result_directories(
+                unauthenticated, authenticated, self.root / "mismatched",
+                unauthenticated_exit_code=0, authenticated_exit_code=0,
+            )
 
     def test_authenticated_commands_remain_internal_passive_and_stateless(self):
         dast_config = load_dast_config(ROOT)

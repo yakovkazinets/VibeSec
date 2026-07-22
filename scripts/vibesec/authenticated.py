@@ -178,7 +178,28 @@ def correlate_findings(unauthenticated: list[dict[str, Any]], authenticated: lis
     return findings
 
 
-def combine_result_directories(unauthenticated: Path, authenticated: Path, output: Path) -> int:
+def _validate_child_exit_contract(label: str, coverage: dict[str, Any], policy: dict[str, Any],
+                                  process_exit_code: int) -> None:
+    if type(process_exit_code) is not int or process_exit_code not in {0, 1, 2, 3}:
+        raise AuthenticatedSecurityError(f"{label} comparison process exit is outside the reviewed contract")
+    policy_exit_code = policy.get("exit_code")
+    if type(policy_exit_code) is not int or policy_exit_code != process_exit_code:
+        raise AuthenticatedSecurityError(f"{label} comparison process and policy exits differ")
+    state = coverage.get("state")
+    valid_pairs = {
+        "ran": {0, 1},
+        "not_applicable": {0},
+        "not_configured": {0},
+        "tool_error": {2, 3},
+    }
+    if state not in valid_pairs or process_exit_code not in valid_pairs[state]:
+        raise AuthenticatedSecurityError(f"{label} comparison coverage and process exit differ")
+    if policy.get("clean") is not (state == "ran" and process_exit_code == 0):
+        raise AuthenticatedSecurityError(f"{label} comparison clean state is inconsistent")
+
+
+def combine_result_directories(unauthenticated: Path, authenticated: Path, output: Path, *,
+                               unauthenticated_exit_code: int, authenticated_exit_code: int) -> int:
     """Publish one sanitized comparison from two completed same-scanner runs."""
     required = {"normalized.json", "coverage.json", "policy-result.json", "report.md"}
     documents: dict[str, dict[str, Any]] = {}
@@ -201,21 +222,22 @@ def combine_result_directories(unauthenticated: Path, authenticated: Path, outpu
     auth = documents["authenticated"]
     if unauth["normalized"]["profile"] != auth["normalized"]["profile"]:
         raise AuthenticatedSecurityError("authenticated comparison profiles differ")
+    _validate_child_exit_contract(
+        "unauthenticated", unauth["coverage"], unauth["policy"], unauthenticated_exit_code,
+    )
+    _validate_child_exit_contract(
+        "authenticated", auth["coverage"], auth["policy"], authenticated_exit_code,
+    )
     auth_state = auth["coverage"].get("state")
     unauth_state = unauth["coverage"].get("state")
     if auth_state == "ran" and unauth_state == "ran":
         results = correlate_findings(unauth["normalized"]["results"], auth["normalized"]["results"])
         state = "ran"
-        code = max(int(unauth["policy"].get("exit_code", 3)), int(auth["policy"].get("exit_code", 3)))
-        if code not in {0, 1}:
-            code = 3
+        code = max(unauthenticated_exit_code, authenticated_exit_code)
     elif "tool_error" in {auth_state, unauth_state}:
         results = copy.deepcopy(unauth["normalized"]["results"] + auth["normalized"]["results"])
         state = "tool_error"
-        child_codes = {
-            int(unauth["policy"].get("exit_code", 3)),
-            int(auth["policy"].get("exit_code", 3)),
-        }
+        child_codes = {unauthenticated_exit_code, authenticated_exit_code}
         code = 3 if 3 in child_codes else 2 if 2 in child_codes else 3
     elif auth_state == "ran":
         results = copy.deepcopy(unauth["normalized"]["results"] + auth["normalized"]["results"])
@@ -224,9 +246,7 @@ def combine_result_directories(unauthenticated: Path, authenticated: Path, outpu
     else:
         results = copy.deepcopy(auth["normalized"]["results"])
         state = auth_state if auth_state in {"not_applicable", "not_configured", "tool_error"} else "tool_error"
-        code = int(auth["policy"].get("exit_code", 3))
-        if state == "tool_error" and code not in {2, 3}:
-            code = 3
+        code = authenticated_exit_code
         if state in {"not_applicable", "not_configured"}:
             code = 0
     normalized = {"schema_version": 1, "profile": auth["normalized"]["profile"], "results": results}

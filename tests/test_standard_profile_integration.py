@@ -9,6 +9,8 @@ import zipfile
 from datetime import date
 from unittest.mock import patch
 
+from scripts.run_standard_profile import run as run_scanner
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -54,6 +56,7 @@ assert sys.argv[1:3] == ["scan", "source"]
 mode = os.getenv("FAKE_OSV_MODE", "pass")
 if mode == "fail": raise SystemExit(8)
 output = sys.argv[sys.argv.index("--output-file") + 1]
+if mode == "malformed": open(output, "w").write("{"); raise SystemExit(0)
 payload = {"results":[]}
 if mode == "finding": payload = {"results":[{"source":{"path":"requirements.txt"},"packages":[{"package":{"name":"fixture"},"vulnerabilities":[{"id":"OSV-TEST","summary":"Synthetic advisory","database_specific":{"severity":"HIGH"}}]}]}]}
 json.dump(payload, open(output, "w"))
@@ -64,10 +67,12 @@ import json, os, sys
 expected = os.environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("--config") + 1] == expected + "/config/syft-standard.yaml"
 assert "dir:." in sys.argv and sys.argv[sys.argv.index("--base-path") + 1] == "."
-if os.getenv("FAKE_SYFT_MODE") == "fail": raise SystemExit(7)
+mode = os.getenv("FAKE_SYFT_MODE", "pass")
+if mode == "fail": raise SystemExit(7)
 for index, value in enumerate(sys.argv):
     if value == "--output":
         form, path = sys.argv[index + 1].split("=", 1)
+        if mode == "malformed": open(path, "w").write("{"); continue
         payload = ({"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"fixture"}]} if form == "cyclonedx-json" else {"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT","packages":[{"name":"fixture"}]})
         json.dump(payload, open(path, "w"))
 ''')
@@ -76,6 +81,9 @@ import json, os, sys
 expected = os.environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("--config") + 1] == expected + "/config/trivy-standard.yaml"
 output = sys.argv[sys.argv.index("--output") + 1]
+mode = os.getenv("FAKE_TRIVY_IMAGE_MODE" if "image" in sys.argv else "FAKE_TRIVY_MODE", "pass")
+if mode == "fail": raise SystemExit(7)
+if mode == "malformed": open(output, "w").write("{"); raise SystemExit(0)
 json.dump({"Results":[]}, open(output, "w"))
 ''')
         self.write_tool("gitleaks", r'''#!/usr/bin/env python3
@@ -84,6 +92,9 @@ expected = os.environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("--config") + 1] == expected + "/config/gitleaks-standard.toml"
 assert sys.argv[sys.argv.index("--gitleaks-ignore-path") + 1] == expected + "/config/gitleaks-standard-ignore.txt"
 output = sys.argv[sys.argv.index("--report-path") + 1]
+mode = os.getenv("FAKE_GITLEAKS_MODE", "pass")
+if mode == "fail": raise SystemExit(7)
+if mode == "malformed": open(output, "w").write("{"); raise SystemExit(0)
 json.dump([], open(output, "w"))
 ''')
         self.write_tool("actionlint", r'''#!/usr/bin/env python3
@@ -92,12 +103,19 @@ expected = os.environ["VIBESEC_EXPECTED_ROOT"]
 assert sys.argv[sys.argv.index("-config-file") + 1] == expected + "/config/actionlint-standard.yaml"
 assert sys.argv[sys.argv.index("-shellcheck") + 1] == ""
 assert sys.argv[sys.argv.index("-pyflakes") + 1] == ""
+mode = os.getenv("FAKE_ACTIONLINT_MODE", "pass")
+if mode == "fail": raise SystemExit(7)
+if mode == "malformed": print("not actionlint output")
 ''')
         self.write_tool("docker", r'''#!/usr/bin/env python3
 import json, sys
 assert sys.argv[sys.argv.index("--network") + 1] == "none"
 assert sys.argv[sys.argv.index("--config-file") + 1] == "/dev/null"
 assert "--read-only" in sys.argv and "ALL" in sys.argv and "/workspace:ro" in " ".join(sys.argv)
+import os
+mode = os.getenv("FAKE_CHECKOV_MODE", "pass")
+if mode == "fail": raise SystemExit(7)
+if mode == "malformed": print("{"); raise SystemExit(0)
 print(json.dumps({"results":{"failed_checks":[]}}))
 ''')
 
@@ -140,12 +158,108 @@ print(json.dumps({"results":{"failed_checks":[]}}))
         self.assertIn("Standard profile coverage", (self.results / "report.md").read_text(encoding="utf-8"))
         self.assertTrue((self.results / "sbom.cyclonedx.json").is_file())
         self.assertTrue((self.results / "sbom.spdx.json").is_file())
+        policy = self.load_json("policy-result.json")
+        self.assertEqual(policy["exit_category"], "pass")
+        self.assertFalse(policy["security_guarantee"])
+        validated = subprocess.run(
+            ["python3", "scripts/validate_security_artifacts.py", "--profile", "standard", "--results", str(self.results),
+             "--expect-state", "opengrep=ran", "--expect-state", "osv-scanner=ran", "--expect-state", "syft=ran",
+             "--expect-state", "checkov=ran", "--expect-state", "trivy=ran", "--expect-state", "gitleaks=ran",
+             "--expect-state", "actionlint=ran", "--expect-state", "trivy-image=not_applicable"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(validated.returncode, 0, validated.stderr)
 
     def test_tool_execution_failure_returns_two(self):
         completed = self.run_profile(FAKE_OSV_MODE="fail")
         self.assertEqual(completed.returncode, 2, completed.stderr)
         results = self.load_json("normalized.json")["results"]
         self.assertTrue(any(item["tool"] == "osv-scanner" and item["result_type"] == "tool_error" for item in results))
+        self.assertEqual(self.load_json("policy-result.json")["exit_category"], "tool_error")
+
+    def test_every_scanner_nonzero_exit_is_a_non_clean_tool_error(self):
+        scenarios = {
+            "opengrep": {"FAKE_OPENGREP_MODE": "fail"},
+            "osv-scanner": {"FAKE_OSV_MODE": "fail"},
+            "syft": {"FAKE_SYFT_MODE": "fail"},
+            "checkov": {"FAKE_CHECKOV_MODE": "fail"},
+            "trivy": {"FAKE_TRIVY_MODE": "fail"},
+            "gitleaks": {"FAKE_GITLEAKS_MODE": "fail"},
+            "actionlint": {"FAKE_ACTIONLINT_MODE": "fail"},
+            "trivy-image": {
+                "FAKE_TRIVY_IMAGE_MODE": "fail",
+                "VIBESEC_IMAGE_REFERENCE": "registry.example/image@sha256:" + "d" * 64,
+            },
+        }
+        for tool, environment in scenarios.items():
+            with self.subTest(tool=tool):
+                completed = self.run_profile(**environment)
+                self.assertEqual(completed.returncode, 2, completed.stderr)
+                coverage = {item["tool"]: item["state"] for item in self.load_json("coverage.json")["tools"]}
+                self.assertEqual(coverage[tool], "tool_error")
+                policy = self.load_json("policy-result.json")
+                self.assertEqual(policy["exit_category"], "tool_error")
+                self.assertFalse(policy["clean"])
+
+    def test_every_scanner_malformed_output_is_invalid_not_clean(self):
+        scenarios = {
+            "opengrep": {"FAKE_OPENGREP_MODE": "malformed"},
+            "osv-scanner": {"FAKE_OSV_MODE": "malformed"},
+            "syft": {"FAKE_SYFT_MODE": "malformed"},
+            "checkov": {"FAKE_CHECKOV_MODE": "malformed"},
+            "trivy": {"FAKE_TRIVY_MODE": "malformed"},
+            "gitleaks": {"FAKE_GITLEAKS_MODE": "malformed"},
+            "actionlint": {"FAKE_ACTIONLINT_MODE": "malformed"},
+            "trivy-image": {
+                "FAKE_TRIVY_IMAGE_MODE": "malformed",
+                "VIBESEC_IMAGE_REFERENCE": "registry.example/image@sha256:" + "e" * 64,
+            },
+        }
+        for tool, environment in scenarios.items():
+            with self.subTest(tool=tool):
+                completed = self.run_profile(**environment)
+                self.assertEqual(completed.returncode, 3, completed.stderr)
+                coverage = {item["tool"]: item["state"] for item in self.load_json("coverage.json")["tools"]}
+                self.assertEqual(coverage[tool], "tool_error")
+                policy = self.load_json("policy-result.json")
+                self.assertEqual(policy["exit_category"], "invalid_input")
+                self.assertFalse(policy["clean"])
+
+    def test_every_scanner_missing_executable_is_a_non_clean_tool_error(self):
+        scenarios = {
+            "opengrep": ("opengrep", {}),
+            "osv-scanner": ("osv-scanner", {}),
+            "syft": ("syft", {}),
+            "checkov": ("docker", {}),
+            "trivy": ("trivy", {}),
+            "gitleaks": ("gitleaks", {}),
+            "actionlint": ("actionlint", {}),
+            "trivy-image": (
+                "trivy",
+                {"VIBESEC_IMAGE_REFERENCE": "registry.example/image@sha256:" + "f" * 64},
+            ),
+        }
+        for tool, (binary_name, environment) in scenarios.items():
+            binary = self.tools / binary_name
+            saved = binary.read_bytes()
+            binary.unlink()
+            try:
+                with self.subTest(tool=tool):
+                    completed = self.run_profile(**environment)
+                    self.assertEqual(completed.returncode, 2, completed.stderr)
+                    coverage = {item["tool"]: item["state"] for item in self.load_json("coverage.json")["tools"]}
+                    self.assertEqual(coverage[tool], "tool_error")
+                    self.assertFalse(self.load_json("policy-result.json")["clean"])
+            finally:
+                binary.write_bytes(saved)
+                binary.chmod(0o755)
+
+    def test_timeout_is_a_tool_error_for_every_scanner_identity(self):
+        with patch("scripts.run_standard_profile.subprocess.run", side_effect=subprocess.TimeoutExpired(["fixture"], 1)):
+            for tool in ("opengrep", "osv-scanner", "syft", "checkov", "trivy", "gitleaks", "actionlint", "trivy-image"):
+                with self.subTest(tool=tool):
+                    error = run_scanner(tool, ["fixture"], None, cwd=self.target, env={})
+                    self.assertIn("TimeoutExpired", error or "")
 
     def test_osv_finding_exit_is_not_misclassified_as_tool_failure(self):
         completed = self.run_profile(FAKE_OSV_MODE="finding", VIBESEC_ENFORCEMENT="all")

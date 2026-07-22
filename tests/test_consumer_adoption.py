@@ -122,7 +122,10 @@ elif name == "docker":
         shutil.rmtree(failure_results)
         malformed, malformed_results = self.run_copied_minimal(FAKE_SCANNER_MODE="malformed")
         self.assertEqual(malformed.returncode, 3)
-        self.assertFalse((malformed_results / "report.md").exists())
+        self.assertIn("Status: **invalid_input**", (malformed_results / "report.md").read_text(encoding="utf-8"))
+        policy = json.loads((malformed_results / "policy-result.json").read_text(encoding="utf-8"))
+        self.assertEqual(policy["exit_category"], "invalid_input")
+        self.assertFalse(policy["clean"])
 
     def test_standard_copy_uses_exact_two_stage_files_and_runs(self):
         self.copy_fixture("unsupported-repo")

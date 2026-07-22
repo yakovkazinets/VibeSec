@@ -25,7 +25,7 @@ from vibesec.sbom import sanitize_repository_paths, validate_cyclonedx, validate
 IMAGE_DIGEST = re.compile(r"^[A-Za-z0-9._/-]+@sha256:[0-9a-f]{64}$")
 TRUSTED_GITHUB_EVENTS = {"push", "schedule", "workflow_dispatch"}
 KNOWN_OUTPUTS = (
-    "normalized.json", "coverage.json", "inventory.json", "report.md",
+    "normalized.json", "coverage.json", "inventory.json", "report.md", "policy-result.json",
     "sbom.cyclonedx.json", "sbom.spdx.json",
     "raw/opengrep.json", "raw/osv.json", "raw/checkov.json", "raw/trivy.json",
     "raw/gitleaks.json", "raw/actionlint.txt", "raw/trivy-image.json",
@@ -348,7 +348,14 @@ def main() -> int:
     if (results / "report.md").is_file():
         with (results / "report.md").open("a", encoding="utf-8", newline="\n") as stream:
             stream.write("\n" + coverage_markdown(coverage_payload))
-    return 3 if input_failure else completed.returncode
+    final_status = 3 if input_failure else completed.returncode
+    categories = {0: "pass", 1: "policy_violation", 2: "tool_error", 3: "invalid_input"}
+    atomic_json(results / "policy-result.json", {
+        "schema_version": 1, "profile": "standard", "exit_code": final_status,
+        "exit_category": categories.get(final_status, "invalid_input"),
+        "clean": final_status == 0, "security_guarantee": False,
+    })
+    return final_status
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Modernize every supplied GitHub Actions reference to reviewed full-SHA Node 24 releases, add a strict offline action inventory, and preserve checkout credential and artifact-upload boundaries.
+- Require Actions Runner 2.327.1 or newer for self-hosted workflows; document GitHub.com/GHES differences, Node 20 non-support, and Node 26 as a future compatibility target.
 - Add a separate opt-in passive OWASP ZAP Baseline add-on with immutable non-root target validation, internal Docker isolation, strict normalization, independent policy, sanitized artifacts, accountability fixtures, consumer installation, documentation, and a manual starter workflow.
 - Add a strict project-capability questionnaire and manifest with Yes-by-default interactive answers, explicit non-interactive input, manifest-driven scanner applicability, preservation-aware upgrades, and VibeSec DAST reported as `not_applicable`.
 

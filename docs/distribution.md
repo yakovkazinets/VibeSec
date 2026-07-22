@@ -15,6 +15,8 @@ An optional full lowercase commit SHA may be recorded with `--source-commit`. Th
 
 The file set is selected only by `config/adoption-files.json`. It includes both profile support sets, workflow templates, policies, local Opengrep rules, distribution commands, offline documentation, the license, and security notices. It excludes tests, fixtures, Git data, caches, scanner binaries, vulnerability databases, dependencies, arbitrary untracked files, and prior artifacts.
 
+Bundles include `config/github-actions.json` and its strict validator. Installed workflows must match the reviewed Node 24 full SHAs and comments, keep checkout credentials disabled, and retain safe artifact settings. Consumers on self-hosted runners need Actions Runner 2.327.1 or newer. Supplied workflows target GitHub.com because modern `upload-artifact` releases are not supported on GHES; no Node 20 downgrade is bundled. See [the runtime policy](github-actions-runtime.md).
+
 ## Determinism and format
 
 Entries are sorted, use fixed timestamps and ZIP metadata, deterministic `0644` or reviewed `0755` modes, DEFLATE level 9, and canonical UTF-8 JSON. Source mtimes, working directory, umask, locale, host, user, and unrelated environment values are not recorded. `vibesec-bundle-manifest.json` records schema and format versions, development version, optional source commit, profiles, capabilities, network declaration, and each file's path, SHA-256, size, and mode.

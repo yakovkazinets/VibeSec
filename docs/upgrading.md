@@ -19,6 +19,10 @@ Preserve `policy/baseline.json` and `policy/suppressions.yml`. Compare the workf
 
 Post-v0.2.0 consumer hardening on `main` is unreleased development and does not add scanner categories or weaken v0.2.0 trust boundaries. Preserve `policy/standard-baseline.json` and suppressions. Review the initializer/catalog, diagnostics, documentation, and test changes alongside any workflow/support-file changes. Keep the base-revision harness, immutable pins, isolated results, no-secret fork behavior, and two-stage bootstrap intact.
 
+## Node 20 action pins to Node 24
+
+The planner identifies installed workflows that differ from the current bundle and proposes the reviewed full-SHA Node 24 workflow bytes without applying them. Doctor separately names the known v4.2.2 checkout and v4.6.2 artifact Node 20 pins. Preserve unrelated local workflow changes and merge the pin, exact review comment, `persist-credentials: false`, existing `fetch-depth`, artifact paths, 14-day retention, `if-no-files-found: error`, hidden-file exclusion, and archived upload settings manually. Before adoption, require self-hosted Actions Runner 2.327.1 or newer and review the [GitHub.com/GHES boundary](github-actions-runtime.md). Never resolve the migration by enabling a Node 20 fallback.
+
 ## Plan classifications
 
 The planner compares manifest expectations, current bytes, and proposed bundle bytes. It reports `unchanged`, `add`, `upstream_changed_local_unmodified`, `locally_modified_upstream_unchanged`, `both_modified`, `remove_candidate`, `capability_preserve`, preservation-specific baseline/suppression states, `policy_review_required`, workflow/support mismatch, unknown legacy state, conflict, or unsafe path. `both_modified` always needs manual three-way review.

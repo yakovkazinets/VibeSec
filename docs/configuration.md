@@ -4,6 +4,8 @@ Project scope is declared separately in `.vibesec/project-capabilities.json`; se
 
 `config/environment-variables.json` is the machine-readable source for this page. Unsupported values and malformed configuration fail closed; they are not clean results. Environment values must come from reviewed workflow configuration, not untrusted pull-request text.
 
+GitHub Action pins and embedded runtimes are configured only through the strict `config/github-actions.json` inventory. The supported baseline is Node 24 on Actions Runner 2.327.1 or newer; Node 20 runtime fallback and runtime-forcing environment overrides are invalid. These settings concern third-party actions, not an npm or Node runtime required by VibeSec. See [GitHub Actions runtime and pin policy](github-actions-runtime.md).
+
 | Variable | Profile | Type/default | Accepted values | Security and privacy effect | Failure and example |
 |---|---|---|---|---|---|
 | `VIBESEC_ENFORCEMENT` | Minimal, Standard | enum / `observe` | `observe`, `new`, `all` | Selects policy gating; no privacy effect | unsupported exits 3; `new` |

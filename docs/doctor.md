@@ -11,6 +11,8 @@ python3 scripts/vibesec_doctor.py --target /path/to/app --profile standard --jso
 
 It starts with installation verification, then checks runtime assumptions, profile/stage consistency, configuration and policy parsing, action pins and workflow safety, optional Docker relevance, OSV offline metadata, immutable image references, fork restrictions, security-workflow overlap, development-version drift, and unsupported-repository indicators.
 
+Doctor reports `GITHUB_ACTION_NODE20_PIN` when an installed VibeSec workflow still contains a known checkout v4.2.2 or upload-artifact v4.6.2 pin. The repair is a reviewed, preservation-aware upgrade to the inventory's Node 24 pin—not a fallback override. Doctor cannot query the runner service, so self-hosted maintainers must confirm Actions Runner 2.327.1 or newer separately.
+
 Doctor also validates the strict project capability manifest and detects missing or malformed data, unknown capabilities, dependency conflicts, changes since installation, partial installation, DAST installed while `dast_target=false`, and missing DAST support while `dast_target=true`. It reports `not_applicable` separately from `not_configured` and never translates either into a clean scan.
 
 Every diagnostic contains a stable code, component, severity, explanation, next action, and documentation reference. `error` is blocking; `warning` records drift, reduced coverage, or a review decision; `informational` records context; `not_applicable` is not a pass.

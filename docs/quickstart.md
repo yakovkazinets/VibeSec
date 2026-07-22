@@ -4,6 +4,8 @@ Passive DAST is not part of either profile. After a valid base installation, mai
 
 VibeSec is a scanning baseline, not proof that an application is secure. Use a reviewed VibeSec checkout matching the version you intend to adopt. The initializer itself uses no network, installs nothing, executes no application code, and defaults to a preview.
 
+The supplied GitHub.com workflows use full-SHA actions that embed Node 24. GitHub-hosted runners meet the requirement; self-hosted runners need Actions Runner 2.327.1 or newer. Node 20 fallback is unsupported. VibeSec does not require npm or a Node application runtime. Review [the action runtime and GHES limits](github-actions-runtime.md) before adoption.
+
 The initializer first asks the [project capability questionnaire](project-capabilities.md). Every question shows `[Y/n]`: Enter is Yes, and you should explicitly answer No for absent scopes. Its dry-run JSON includes the exact manifest and writes nothing. For automation, supply reviewed answers with `--capabilities-file`; do not pipe EOF and assume defaults.
 
 ## Choose a profile

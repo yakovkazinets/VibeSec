@@ -41,6 +41,7 @@
     "docs/distribution.md",
     "docs/dast-baseline.md",
     "docs/dast-threat-model.md",
+    "docs/github-actions-runtime.md",
     "docs/installation-verification.md",
     "docs/profile-selection.md",
     "docs/project-capabilities.md",

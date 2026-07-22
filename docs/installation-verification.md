@@ -22,7 +22,9 @@ Statuses are:
 - `invalid`: a manifest, path, type, mode, baseline, support set, or workflow safety property is invalid.
 - `unverifiable_legacy_installation`: no manifest exists or schema 1 lacks hashes and modes.
 
-Minimal uses only `policy/baseline.json`; Standard uses only `policy/standard-baseline.json`. Standard workflow installation requires its support-stage manifest and files. Workflows are checked for full action SHAs, least-privilege contents access, identifiable enforcement, absence of `pull_request_target`, and matching support files.
+Minimal uses only `policy/baseline.json`; Standard uses only `policy/standard-baseline.json`. Standard workflow installation requires its support-stage manifest and files. Workflows are checked against the strict Node 24 action inventory for exact full SHAs, adjacent release/runtime comments, disabled checkout credential persistence, safe artifact inputs, least-privilege contents access, identifiable enforcement, absence of `pull_request_target`, and matching support files.
+
+Verification is offline and does not resolve action tags. A self-hosted consumer must separately confirm Actions Runner 2.327.1 or newer; GitHub-hosted runners satisfy this baseline. Node 20 is unsupported, and the GitHub.com templates have the documented GHES artifact-action limitation. See [GitHub Actions runtime and pin policy](github-actions-runtime.md).
 
 Never replace local baselines, suppressions, ignore files, policy, or workflows merely because they differ. A wrong executable mode, symlink replacement, unsafe path, malformed manifest, or mismatched workflow/support set is blocking; changed policy content is drift for human review.
 

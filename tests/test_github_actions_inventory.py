@@ -10,13 +10,15 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+SCRIPTS = str(ROOT / "scripts")
+sys.path.insert(0, SCRIPTS)
 from vibesec.bundle import build_bundle_bytes, verify_bundle  # noqa: E402
 from vibesec.github_actions import (  # noqa: E402
     GitHubActionsError, KNOWN_NODE20_PINS, PROHIBITED_OVERRIDES,
     audit_tracked_files, audit_workflow_text, load_inventory, parse_inventory,
     validate_inventory,
 )
+sys.path.remove(SCRIPTS)
 
 
 WORKFLOWS = (
@@ -95,6 +97,14 @@ class GitHubActionsInventoryTests(unittest.TestCase):
             self.assertTrue(audit_workflow_text(text, "bad.yml", self.inventory))
 
     def test_artifact_contract_and_checkout_credential_contract_are_preserved(self):
+        expected_fetch_depths = {
+            ".github/workflows/ci.yml": [0, 0, None, None, None, 0],
+            ".github/workflows/dast-integration.yml": [None],
+            "templates/github-actions/dast-baseline.yml": [None],
+            "templates/github-actions/security-baseline.yml": [0],
+            "templates/github-actions/security-standard.yml": [0],
+            "tests/security-fixtures/actionlint/negative/.github/workflows/valid.yml": [None],
+        }
         expected_paths = {
             ".github/workflows/ci.yml": [["results/normalized.json", "results/report.md", "results/coverage.json", "results/policy-result.json"]],
             "templates/github-actions/dast-baseline.yml": [[
@@ -117,9 +127,12 @@ class GitHubActionsInventoryTests(unittest.TestCase):
         for relative in WORKFLOWS:
             document = yaml.safe_load((ROOT / relative).read_text(encoding="utf-8"))
             steps = [step for job in document["jobs"].values() for step in job.get("steps", [])]
+            observed_fetch_depths = []
             for step in steps:
                 if str(step.get("uses", "")).startswith("actions/checkout@"):
                     self.assertIs(step.get("with", {}).get("persist-credentials"), False)
+                    observed_fetch_depths.append(step.get("with", {}).get("fetch-depth"))
+            self.assertEqual(observed_fetch_depths, expected_fetch_depths[relative])
             uploads = [step for step in steps if str(step.get("uses", "")).startswith("actions/upload-artifact@")]
             if relative in expected_paths:
                 self.assertEqual([[item for item in step["with"]["path"].splitlines()] for step in uploads], expected_paths[relative])
@@ -137,6 +150,36 @@ class GitHubActionsInventoryTests(unittest.TestCase):
             entries = verify_bundle(bundle_path).entries
         self.assertIn("config/github-actions.json", entries)
         self.assertIn("scripts/vibesec/github_actions.py", entries)
+        self.assertIn("docs/github-actions-runtime.md", entries)
+        for template in (
+            "templates/github-actions/security-baseline.yml",
+            "templates/github-actions/security-standard.yml",
+            "templates/github-actions/dast-baseline.yml",
+        ):
+            text = entries[template].decode("utf-8")
+            for action in self.inventory["actions"].values():
+                if action["commit"] in "\n".join((ROOT / path).read_text(encoding="utf-8") for path in WORKFLOWS if path == template):
+                    self.assertIn(action["commit"], text)
+            for old in KNOWN_NODE20_PINS:
+                self.assertNotIn(old, text)
+
+    def test_required_runtime_documentation_and_validate_aggregator(self):
+        for relative in (
+            "README.md", "CHANGELOG.md", "docs/quickstart.md", "docs/configuration.md",
+            "docs/distribution.md", "docs/installation-verification.md", "docs/doctor.md",
+            "docs/upgrading.md", "docs/self-hosted-validation.md", "docs/github-actions-runtime.md",
+            "skills/appsec-guardian/SKILL.md",
+        ):
+            self.assertIn("Node 24", (ROOT / relative).read_text(encoding="utf-8"), relative)
+        runtime = (ROOT / "docs/github-actions-runtime.md").read_text(encoding="utf-8")
+        for marker in ("2.327.1", "Node 20", "Node 26", "GHES", "runs.using: node24"):
+            self.assertIn(marker, runtime)
+        ci = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+        self.assertIn("validate", ci["jobs"])
+        self.assertEqual(ci["jobs"]["validate"]["needs"], [
+            "self-scan-minimal", "self-scan-standard", "scanner-accountability",
+            "security-artifacts", "dast-artifacts",
+        ])
 
     def test_repository_has_no_owned_node_runtime_or_compatibility_override(self):
         paths = subprocess.run(

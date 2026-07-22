@@ -142,7 +142,7 @@ rules:
       false_positive_notes: A value named token may be intentionally public and non-sensitive.
       license: Apache-2.0
       provenance: original-vibesec
-    pattern-regex: 'process\\.env\\.NEXT_PUBLIC_(?:.*SECRET|.*TOKEN|.*PASSWORD|.*PRIVATE_KEY)'
+    pattern-regex: 'process\.env\.NEXT_PUBLIC_(?:.*SECRET|.*TOKEN|.*PASSWORD|.*PRIVATE_KEY)'
   - id: vibesec.javascript.react-dangerous-html
     languages: [javascript, typescript]
     message: Review React dangerous HTML injection and ensure the value is sanitized.

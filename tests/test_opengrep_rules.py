@@ -1,7 +1,9 @@
 from pathlib import Path
+import re
 import shutil
 import tempfile
 import unittest
+import yaml
 
 from scripts.validate_opengrep_rules import ROOT, validate
 
@@ -33,6 +35,27 @@ class OpengrepRuleTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "return-statement pattern must end with a semicolon"):
                 validate(rules)
+
+    def test_next_public_secret_regex_matches_positive_identifier_only(self):
+        javascript = yaml.safe_load((ROOT / "rules/opengrep/javascript.yml").read_text(encoding="utf-8"))
+        rule = next(item for item in javascript["rules"] if item["id"] == "vibesec.javascript.next-public-secret")
+        pattern = re.compile(rule["pattern-regex"])
+        positive = (ROOT / "tests/security-fixtures/opengrep/positive/frameworks.jsx").read_text(encoding="utf-8")
+        negative = (ROOT / "tests/security-fixtures/opengrep/negative/frameworks.jsx").read_text(encoding="utf-8")
+        self.assertEqual(pattern.findall(positive), ["process.env.NEXT_PUBLIC_API_TOKEN"])
+        self.assertFalse(pattern.search(negative))
+
+    def test_fastapi_cors_rule_targets_add_middleware_call(self):
+        python = yaml.safe_load((ROOT / "rules/opengrep/python.yml").read_text(encoding="utf-8"))
+        rule = next(item for item in python["rules"] if item["id"] == "vibesec.python.fastapi-permissive-cors")
+        self.assertEqual(
+            rule["pattern"],
+            '$APP.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, ...)',
+        )
+        positive = (ROOT / "tests/security-fixtures/opengrep/positive/frameworks.py").read_text(encoding="utf-8")
+        negative = (ROOT / "tests/security-fixtures/opengrep/negative/frameworks.py").read_text(encoding="utf-8")
+        self.assertIn('allow_origins=["*"]', positive)
+        self.assertNotIn('allow_origins=["*"]', negative)
 
 
 if __name__ == "__main__":

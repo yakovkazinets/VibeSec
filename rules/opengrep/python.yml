@@ -206,4 +206,4 @@ rules:
       false_positive_notes: None; browsers reject some wildcard credential combinations but the configuration is misleading and unsafe to extend.
       license: Apache-2.0
       provenance: original-vibesec
-    pattern: CORSMiddleware(..., allow_origins=["*"], ..., allow_credentials=True, ...)
+    pattern: $APP.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, ...)

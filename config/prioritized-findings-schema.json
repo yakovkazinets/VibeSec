@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vibesec.dev/schema/prioritized-findings-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "model", "priority_is_separate_from_scanner_severity", "groups"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "model": {"const": "vibesec-prioritized-findings"},
+    "priority_is_separate_from_scanner_severity": {"const": true},
+    "groups": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": {
+        "type": "object",
+        "required": ["correlation_key", "priority", "priority_reasons", "member_count", "contributing_scanners", "independent_scanner_count", "confirmed_runtime", "member_references"],
+        "properties": {
+          "priority": {"enum": ["critical", "high", "medium", "low", "informational"]}
+        }
+      }
+    }
+  }
+}

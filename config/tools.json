@@ -84,6 +84,17 @@
     "verification_date": "2026-07-21",
     "official_repository": "https://github.com/docker-library/python"
   },
+  "schemathesis": {
+    "kind": "container",
+    "image": "ghcr.io/schemathesis/schemathesis",
+    "digest": "sha256:1f9f038554cc8b60ee28da38f508b9682c59affa31c1fc00c4a750b302100996",
+    "version": "4.24.2",
+    "license": "MIT",
+    "verification_date": "2026-07-22",
+    "official_repository": "https://github.com/schemathesis/schemathesis",
+    "runtime_classification": "local containerized active contract testing",
+    "network_classification": "internal isolated target only; external egress disabled"
+  },
   "zap-baseline": {
     "kind": "container",
     "image": "ghcr.io/zaproxy/zaproxy",

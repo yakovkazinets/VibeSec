@@ -27,6 +27,7 @@ QUESTIONS: tuple[tuple[str, str], ...] = (
     ("database", "Does the application use a database?"),
     ("secrets_configuration", "Does the project use secrets or environment configuration?"),
     ("dast_target", "Should VibeSec configure a runtime DAST target?"),
+    ("api_security_target", "Should VibeSec configure OpenAPI-driven API security testing?"),
 )
 CAPABILITY_KEYS = tuple(key for key, _ in QUESTIONS)
 
@@ -51,6 +52,10 @@ def validate_capabilities(payload: Any) -> dict[str, Any]:
         raise CapabilityError("project capability values must be Boolean")
     if values["dast_target"] and not values["web_application"]:
         raise CapabilityError("dast_target=true requires web_application=true")
+    if values["api_security_target"] and not values["api"]:
+        raise CapabilityError("api_security_target=true requires api=true")
+    if values["api_security_target"] and not values["container_image"]:
+        raise CapabilityError("api_security_target=true requires container_image=true")
     if values["public_runtime"] and not (values["web_application"] or values["api"]):
         raise CapabilityError("public_runtime=true requires web_application=true or api=true")
     if values["authentication"] and not (values["web_application"] or values["api"]):
@@ -121,6 +126,7 @@ def scanner_applicability(payload: Any) -> dict[str, dict[str, str]]:
         "checkov": capabilities["infrastructure_as_code"],
         "trivy-image": capabilities["container_image"],
         "dast-baseline": capabilities["dast_target"] and capabilities["web_application"],
+        "api-security-baseline": capabilities["api_security_target"] and capabilities["api"] and capabilities["container_image"],
     }
     result = {
         name: ({"state": "applicable", "reason": "project capability manifest enables this scanner scope"}
@@ -129,4 +135,6 @@ def scanner_applicability(payload: Any) -> dict[str, dict[str, str]]:
     }
     if not mapping["dast-baseline"]:
         result["dast-baseline"]["reason"] = "project capability manifest declares no runnable web application target"
+    if not mapping["api-security-baseline"]:
+        result["api-security-baseline"]["reason"] = "project capability manifest declares no runnable OpenAPI API target"
     return result

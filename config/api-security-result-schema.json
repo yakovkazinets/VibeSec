@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VibeSec API Security Baseline normalized results",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile", "results"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "profile": {"const": "api-security-baseline"},
+    "results": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "required": ["tool", "category", "rule_id", "severity", "file", "line", "description", "confidence", "fingerprint", "result_type"],
+        "properties": {
+          "tool": {"const": "schemathesis"},
+          "category": {"enum": ["api", "execution"]},
+          "rule_id": {"type": "string", "maxLength": 64},
+          "severity": {"enum": ["low", "medium", "high", "critical"]},
+          "file": {"type": "string", "maxLength": 1024},
+          "line": {"type": ["integer", "null"]},
+          "description": {"type": "string", "maxLength": 512},
+          "confidence": {"enum": ["confirmed", "possible", "unknown"]},
+          "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "result_type": {"enum": ["finding", "tool_error"]},
+          "operation_id": {"type": "string", "maxLength": 128},
+          "method": {"enum": ["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"]},
+          "path_template": {"type": "string", "maxLength": 1024},
+          "title": {"type": "string", "maxLength": 200},
+          "remediation": {"type": "string", "maxLength": 300},
+          "response_status": {"type": ["integer", "null"], "minimum": 100, "maximum": 599}
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

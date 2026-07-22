@@ -1,0 +1,33 @@
+openapi: 3.1.0
+info:
+  title: VibeSec controlled API fixture
+  version: 1.0.0
+paths:
+  /defect:
+    get:
+      operationId: getControlledDefect
+      responses:
+        "200":
+          description: Controlled response-schema defect
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [value]
+                properties:
+                  value:
+                    type: integer
+  /compliant:
+    get:
+      operationId: getCompliantValue
+      responses:
+        "200":
+          description: Compliant response
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [value]
+                properties:
+                  value:
+                    type: string

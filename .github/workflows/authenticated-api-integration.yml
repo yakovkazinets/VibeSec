@@ -1,0 +1,25 @@
+name: Authenticated API integration accountability
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 6 * * 4"
+
+permissions:
+  contents: read
+
+jobs:
+  controlled-authenticated-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    steps:
+      - name: Check out the trusted controlled fixture without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Install pinned schema validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Exercise authenticated Schemathesis against the controlled internal fixture
+        env:
+          VIBESEC_AUTH_BEARER_TOKEN: ${{ secrets.VIBESEC_AUTH_FIXTURE_BEARER }}
+        run: python3 scripts/test_api_security_container.py --authenticated

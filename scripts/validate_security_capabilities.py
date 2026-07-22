@@ -30,8 +30,8 @@ EXPECTED_FIELDS = {
 }
 CASE_FIELDS = {"expected_findings", "expected_finding_ids", "expected_count", "expected_coverage", "expected_exit_category"}
 FINDING_EXPECTATION_FIELDS = {"id", "path", "severity"}
-PROFILES = {"minimal", "standard", "dast-baseline", "api-security-baseline"}
-CATEGORIES = {"secret_configuration", "secret", "ci", "policy", "sast", "sca", "sbom", "iac", "container", "inventory", "coverage", "trust_boundary", "dast", "api"}
+PROFILES = {"minimal", "standard", "dast-baseline", "api-security-baseline", "authenticated-security-testing"}
+CATEGORIES = {"secret_configuration", "secret", "ci", "policy", "sast", "sca", "sbom", "iac", "container", "inventory", "coverage", "trust_boundary", "dast", "api", "authentication"}
 STATUSES = {"enforced", "conditionally_enforced", "documented_only", "deferred"}
 COVERAGE = {"ran", "not_applicable", "not_configured", "tool_error"}
 NON_SCANNER_TOOLS = {"cosign", "dast-fixture-python"}
@@ -94,7 +94,7 @@ def _validate_expected(path: Path, capability: dict[str, Any]) -> None:
         ):
             raise CapabilityError(f"fixture {case_name} finding expectations are invalid: {capability['id']}")
         for item in finding_expectations:
-            if capability["profile"] == "dast-baseline":
+            if capability["tool"] == "zap-baseline":
                 if not item["path"].startswith("/") or ".." in item["path"].split("/") or "\\" in item["path"]:
                     raise CapabilityError(f"fixture expected DAST path is unsafe: {capability['id']}")
             else:

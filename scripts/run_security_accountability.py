@@ -14,6 +14,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.detection import inventory  # noqa: E402
+from vibesec.authenticated import annotate_findings  # noqa: E402
 from vibesec.dast import normalize_zap_report  # noqa: E402
 from vibesec.api_security import CHECKS, load_config as load_api_config, normalize_schemathesis_report, operation_index, validate_openapi_schema  # noqa: E402
 from vibesec.normalize import normalize_file  # noqa: E402
@@ -34,6 +35,8 @@ SCANNER_NORMALIZERS = {
     "standard.trivy-image": ("trivy-image", "raw.json"),
     "dast.zap-passive-baseline": ("zap-baseline", "raw.json"),
     "api.response-schema-conformance": ("schemathesis", "raw.ndjson"),
+    "authenticated.passive-dast": ("zap-baseline", "dast.raw.json"),
+    "authenticated.openapi-testing": ("schemathesis", "api.raw.ndjson"),
 }
 PROHIBITED_OUTPUT = ("VIBESEC_" + "FAKE_SECRET_DO_NOT_USE_", "/home/runner/", "/Users/", "RUNNER_TOKEN", "registry credential")
 
@@ -77,6 +80,8 @@ def scanner_evidence(capability: dict[str, Any], expected: dict[str, Any]) -> di
                 findings, _ = normalize_schemathesis_report(raw, schema_source="openapi.yaml", operations=operation_index(schema_payload), maximum_bytes=10_485_760, maximum_findings=1000)
             else:
                 findings = [item.to_dict() for item in normalize_file(tool, raw)]
+            if capability["id"].startswith("authenticated."):
+                findings = annotate_findings(findings, authenticated=True)
         except ValueError as exc:
             raise AccountabilityError(f"{capability['id']} {case} normalization failed: {exc}") from exc
         identifiers = sorted(item["rule_id"] for item in findings)
@@ -158,7 +163,7 @@ def internal_evidence(capability: dict[str, Any], expected: dict[str, Any]) -> d
         fixture = ROOT / "tests/security-fixtures/api-security"
         if identifier == "api.openapi-schema-validation":
             _, _, operations = validate_openapi_schema(fixture, "openapi.yaml", config=load_api_config(ROOT), port=8080, base_path="/")
-            if operations != 2:
+            if operations != 5:
                 raise AccountabilityError("API schema fixture operation count differs")
         else:
             _, schema_payload, _ = validate_openapi_schema(fixture, "openapi.yaml", config=load_api_config(ROOT), port=8080, base_path="/")
@@ -170,6 +175,15 @@ def internal_evidence(capability: dict[str, Any], expected: dict[str, Any]) -> d
             check = identifier.removeprefix("api.").replace("server-error-detection", "not_a_server_error").replace("status-code-conformance", "status_code_conformance").replace("content-type-conformance", "content_type_conformance").replace("response-schema-conformance", "response_schema_conformance").replace("negative-data-rejection", "negative_data_rejection").replace("positive-data-acceptance", "positive_data_acceptance")
             if identifier in {"api.server-error-detection", "api.status-code-conformance", "api.content-type-conformance", "api.response-schema-conformance", "api.negative-data-rejection", "api.positive-data-acceptance"} and check not in CHECKS:
                 raise AccountabilityError(f"{identifier} reviewed check mapping is absent")
+    elif identifier.startswith("authenticated."):
+        good = load_json(positive / "scenario.json")
+        bad = load_json(negative / "scenario.json")
+        if (good != {"schema_version": 1, "safe": True, "authentication_mode": "bearer",
+                     "secret_source": "github_actions_secret", "target": "internal_only", "token_persisted": False}
+                or bad.get("safe") is not False or bad.get("authentication_mode") != "basic"
+                or bad.get("secret_source") != "literal" or bad.get("target") != "public"
+                or bad.get("token_persisted") is not True):
+            raise AccountabilityError(f"{identifier} authenticated fixture distinction failed")
     else:
         raise AccountabilityError(f"no fixture handler exists for {identifier}")
     return {

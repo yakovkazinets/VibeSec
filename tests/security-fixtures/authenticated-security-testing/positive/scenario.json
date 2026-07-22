@@ -1,0 +1,1 @@
+{"schema_version":1,"safe":true,"authentication_mode":"bearer","secret_source":"github_actions_secret","target":"internal_only","token_persisted":false}

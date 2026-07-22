@@ -2,6 +2,11 @@ openapi: 3.1.0
 info:
   title: VibeSec controlled API fixture
   version: 1.0.0
+components:
+  securitySchemes:
+    fixtureBearer:
+      type: http
+      scheme: bearer
 paths:
   /defect:
     get:
@@ -31,3 +36,51 @@ paths:
                 properties:
                   value:
                     type: string
+  /public:
+    get:
+      operationId: getPublicValue
+      responses:
+        "200":
+          description: Public response
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [value]
+                properties:
+                  value:
+                    type: string
+  /private-defect:
+    get:
+      operationId: getPrivateDefect
+      security: [{fixtureBearer: []}]
+      responses:
+        "200":
+          description: Controlled authenticated response-schema defect
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [value]
+                properties:
+                  value:
+                    type: integer
+        "401":
+          description: Missing bearer token
+  /private-compliant:
+    get:
+      operationId: getPrivateCompliant
+      security: [{fixtureBearer: []}]
+      responses:
+        "200":
+          description: Compliant authenticated response
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [value]
+                properties:
+                  value:
+                    type: string
+        "401":
+          description: Missing bearer token

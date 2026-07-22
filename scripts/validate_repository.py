@@ -35,7 +35,7 @@ EXPECTED_VIBESEC_VARIABLES = {
     "VIBESEC_DAST_BASE_PATH", "VIBESEC_DAST_ENFORCEMENT", "VIBESEC_DAST_MIN_SEVERITY",
     "VIBESEC_API_IMAGE_REFERENCE", "VIBESEC_API_SCHEMA_PATH", "VIBESEC_API_CONTAINER_PORT",
     "VIBESEC_API_BASE_PATH", "VIBESEC_API_SAFE_METHODS_ONLY", "VIBESEC_API_ENFORCEMENT",
-    "VIBESEC_API_MIN_SEVERITY",
+    "VIBESEC_API_MIN_SEVERITY", "VIBESEC_AUTH_MODE",
 }
 
 
@@ -114,7 +114,8 @@ def validate_policy() -> None:
 
 def validate_references() -> None:
     required = (
-        ".github/workflows/ci.yml", ".github/workflows/dast-integration.yml", ".github/workflows/api-security-integration.yml", "templates/github-actions/security-baseline.yml",
+        ".github/workflows/ci.yml", ".github/workflows/dast-integration.yml", ".github/workflows/api-security-integration.yml",
+        ".github/workflows/authenticated-dast-integration.yml", ".github/workflows/authenticated-api-integration.yml", "templates/github-actions/security-baseline.yml",
         "templates/github-actions/security-standard.yml", "templates/github-actions/dast-baseline.yml", "templates/github-actions/api-security-baseline.yml",
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
         "scripts/install_standard_tools.sh", "scripts/run_standard_profile.py", "scripts/detect_repository.py",
@@ -132,6 +133,7 @@ def validate_references() -> None:
         "scripts/vibesec/dast.py", "scripts/vibesec/zap_automation.py", "scripts/vibesec/zap_diagnostics.py",
         "scripts/run_api_security_baseline.py", "scripts/validate_api_security_artifacts.py",
         "scripts/vibesec/api_security.py", "scripts/vibesec/schemathesis_runtime.py",
+        "scripts/vibesec/authenticated.py", "tests/test_authenticated_security_testing.py",
         "config/api-security-result-schema.json",
         "config/github-actions.json", "scripts/vibesec/github_actions.py",
         "config/zap-passive-plan-schema.json",
@@ -140,6 +142,7 @@ def validate_references() -> None:
         "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md", "docs/distribution.md",
         "docs/installation-verification.md", "docs/doctor.md", "docs/dast-baseline.md", "docs/dast-threat-model.md",
         "docs/api-security-baseline.md", "docs/api-security-threat-model.md", "scripts/test_api_security_container.py",
+        "docs/authenticated-security-testing.md", "docs/authenticated-security-threat-model.md",
         "docs/security-validation-policy.md", "docs/security-capability-matrix.md", "docs/self-hosted-validation.md",
         "examples/reports/README.md",
         "skills/appsec-guardian/SKILL.md",
@@ -269,7 +272,7 @@ def validate_github_actions_documentation() -> None:
     if any(marker not in runtime for marker in markers):
         raise ValueError("GitHub Actions runtime documentation is incomplete")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts]"
+    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts]"
     if expected not in ci or ci.count("\n  validate:\n") != 1:
         raise ValueError("validate must remain the single required aggregate CI job")
 

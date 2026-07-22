@@ -25,6 +25,8 @@ WORKFLOWS = (
     ".github/workflows/ci.yml",
     ".github/workflows/api-security-integration.yml",
     ".github/workflows/dast-integration.yml",
+    ".github/workflows/authenticated-api-integration.yml",
+    ".github/workflows/authenticated-dast-integration.yml",
     "templates/github-actions/api-security-baseline.yml",
     "templates/github-actions/dast-baseline.yml",
     "templates/github-actions/security-baseline.yml",
@@ -100,9 +102,11 @@ class GitHubActionsInventoryTests(unittest.TestCase):
 
     def test_artifact_contract_and_checkout_credential_contract_are_preserved(self):
         expected_fetch_depths = {
-            ".github/workflows/ci.yml": [0, 0, None, None, None, None, 0],
+            ".github/workflows/ci.yml": [0, 0, None, None, None, None, None, 0],
             ".github/workflows/api-security-integration.yml": [None],
             ".github/workflows/dast-integration.yml": [None],
+            ".github/workflows/authenticated-api-integration.yml": [None],
+            ".github/workflows/authenticated-dast-integration.yml": [None],
             "templates/github-actions/api-security-baseline.yml": [None],
             "templates/github-actions/dast-baseline.yml": [None],
             "templates/github-actions/security-baseline.yml": [0],
@@ -191,6 +195,7 @@ class GitHubActionsInventoryTests(unittest.TestCase):
             "self-scan-minimal", "self-scan-standard", "scanner-accountability",
             "security-artifacts", "dast-artifacts",
             "api-security-artifacts",
+            "authenticated-security-artifacts",
         ])
 
     def test_repository_has_no_owned_node_runtime_or_compatibility_override(self):

@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED, WARNINGS  # noqa: E402
 from vibesec.capabilities import CapabilityError, load_capabilities_file, scanner_applicability  # noqa: E402
 from vibesec.installation import InstallationError, verify_installation  # noqa: E402
+from vibesec.github_actions import KNOWN_NODE20_PINS, MAX_AUDIT_FILE_BYTES  # noqa: E402
 from vibesec.output import emit, envelope, safe_text  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
 from vibesec.version import VersionError, read_version  # noqa: E402
@@ -75,6 +76,24 @@ def _overlap(root: Path) -> list[str]:
     return sorted(found)
 
 
+def _known_node20_workflows(root: Path) -> list[str]:
+    workflow_root = root / ".github/workflows"
+    found: list[str] = []
+    if not workflow_root.is_dir() or workflow_root.is_symlink():
+        return found
+    for path in sorted(workflow_root.glob("*.y*ml")):
+        try:
+            if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_AUDIT_FILE_BYTES:
+                continue
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            continue
+        labels = sorted({label for commit, label in KNOWN_NODE20_PINS.items() if commit in text})
+        if labels:
+            found.append(f"{path.name}: {', '.join(labels)}")
+    return found
+
+
 def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[dict[str, str]], dict[str, Any]]:
     state = verify_installation(target)
     diagnostics: list[dict[str, str]] = []
@@ -96,6 +115,14 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
     for message in state.warnings:
         diagnostics.append(diagnostic("installation", "INSTALLATION_DRIFT", "warning", message,
                                       "Compare the local file with its installation manifest.", "docs/installation-verification.md"))
+    old_action_pins = _known_node20_workflows(state.target)
+    if old_action_pins:
+        diagnostics.append(diagnostic(
+            "github_actions", "GITHUB_ACTION_NODE20_PIN", "error",
+            "Known Node 20 action pins remain in installed workflows: " + "; ".join(old_action_pins),
+            "Generate a read-only upgrade plan and migrate to the approved Node 24 pins.",
+            "docs/upgrading.md",
+        ))
     diagnostics.append(diagnostic("runtime", "PYTHON_VERSION", "informational", f"Python {platform.python_version()} is running.",
                                   "Use Python 3.11 or newer for distribution tooling.", "docs/doctor.md"))
     if sys.version_info < (3, 11):

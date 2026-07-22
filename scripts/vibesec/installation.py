@@ -13,6 +13,7 @@ from typing import Any
 
 from .bundle import BundleError, validate_catalog
 from .capabilities import MANIFEST_PATH as CAPABILITY_MANIFEST_PATH, CapabilityError, load_capabilities_file
+from .github_actions import GitHubActionsError, audit_workflow_text, load_inventory
 from .manifest import ManifestError, parse_installation_manifest
 from .paths import UnsafePath, collision_key, safe_posix_path
 from .strict_json import StrictJSONError, loads_strict
@@ -84,7 +85,8 @@ def _safe_target_file(target: Path, relative: str) -> Path:
     return path
 
 
-def _workflow_checks(path: Path, relative: str, errors: list[str], warnings: list[str]) -> None:
+def _workflow_checks(path: Path, relative: str, errors: list[str], warnings: list[str],
+                     action_inventory: dict[str, Any] | None) -> None:
     try:
         if path.stat().st_size > MAX_WORKFLOW_BYTES:
             errors.append(f"workflow is oversized: {relative}")
@@ -101,6 +103,8 @@ def _workflow_checks(path: Path, relative: str, errors: list[str], warnings: lis
         reference = match.group(1)
         if not re.search(r"@[0-9a-f]{40}$", reference):
             errors.append(f"workflow action is not immutably pinned: {relative}")
+    if action_inventory is not None:
+        errors.extend(audit_workflow_text(text, relative, action_inventory))
     if not any(marker in text for marker in (
         "VIBESEC_ENFORCEMENT: observe", "VIBESEC_ENFORCEMENT: new", "VIBESEC_ENFORCEMENT: all",
         "VIBESEC_DAST_ENFORCEMENT: observe", "VIBESEC_DAST_ENFORCEMENT: new", "VIBESEC_DAST_ENFORCEMENT: all",
@@ -171,16 +175,18 @@ def verify_installation(target_path: Path) -> InstallationState:
     if len(sources) > 1:
         errors.append("installation manifests declare conflicting source types")
     catalog: dict[str, Any] | None = None
+    action_inventory: dict[str, Any] | None = None
     if any(manifest["schema_version"] == 2 for manifest in manifests):
         try:
             catalog_path = _safe_target_file(target, "config/adoption-files.json")
             if catalog_path.is_symlink() or not catalog_path.is_file():
                 raise InstallationError("installed adoption catalog is missing or unsafe")
             catalog = validate_catalog(loads_strict(catalog_path.read_bytes()))
+            action_inventory = load_inventory(_safe_target_file(target, "config/github-actions.json"))
             installed_version = parse_version_bytes(_safe_target_file(target, "VERSION").read_bytes())
             if len(versions) == 1 and installed_version != next(iter(versions)):
                 errors.append("installed VERSION differs from installation manifests")
-        except (OSError, BundleError, InstallationError, StrictJSONError, UnsafePath, VersionError) as exc:
+        except (OSError, BundleError, GitHubActionsError, InstallationError, StrictJSONError, UnsafePath, VersionError) as exc:
             errors.append(f"installed adoption metadata is invalid: {exc}")
     if catalog is not None:
         for manifest in manifests:
@@ -254,7 +260,7 @@ def verify_installation(target_path: Path) -> InstallationState:
                 "preservation_sensitive": relative in PRESERVATION_SENSITIVE or relative.startswith("policy/") or relative.startswith("config/") and "ignore" in relative,
             })
             if relative.startswith(".github/workflows/"):
-                _workflow_checks(path, relative, errors, warnings)
+                _workflow_checks(path, relative, errors, warnings, action_inventory)
             if relative in {"policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json"}:
                 try:
                     baseline = loads_strict(path.read_bytes())

@@ -1,6 +1,6 @@
 # Architecture
 
-The optional DAST Baseline is a separate execution boundary. A trusted runner pulls a target and ZAP by immutable digest, rejects root/unspecified target users, creates a unique internal Docker network, starts the target without mounts, secrets, commands, or published ports, and runs only the traditional-spider passive ZAP baseline. Raw output exists only in a private temporary directory; strict normalization precedes the independent DAST policy gate and sanitized artifact upload.
+The optional DAST Baseline is a separate execution boundary. A trusted runner pulls a target and ZAP by immutable digest, rejects root/unspecified target users, creates a unique internal Docker network, starts the target without mounts, secrets, commands, or published ports, and runs a generated exact-shape Automation Framework plan with only traditional-spider passive jobs. The plan and raw output exist only in a private temporary directory; strict normalization and deletion precede the independent DAST policy gate and sanitized artifact upload.
 
 ## Goals
 

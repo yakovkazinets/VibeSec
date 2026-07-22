@@ -1,6 +1,6 @@
 # Tool Selection
 
-OWASP ZAP 2.17.0 is available only through the independent DAST add-on. Its official GHCR image is pinned by immutable digest, and only the reviewed baseline script and local rule disposition file are allowed. Active scan, AJAX spider, authentication, external targets, arbitrary options, and target builds are excluded.
+OWASP ZAP 2.17.0 is available only through the independent DAST add-on. Its official GHCR image is pinned by immutable digest, and only VibeSec's generated, exact-shape passive Automation Framework plan is allowed. Active scan, AJAX/client spider, authentication, external targets, arbitrary options, add-on management, and target builds are excluded.
 
 ## Minimal profile
 

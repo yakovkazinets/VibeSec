@@ -13,6 +13,7 @@ import re
 import tempfile
 from typing import Any
 
+from .finding_intelligence import FindingIntelligenceError, SourceDocument, build as build_finding_intelligence
 from .strict_json import StrictJSONError, canonical_json, loads_strict
 
 AUTH_ENVIRONMENT_VARIABLE = "VIBESEC_AUTH_BEARER_TOKEN"
@@ -222,6 +223,15 @@ def combine_result_directories(unauthenticated: Path, authenticated: Path, outpu
     auth = documents["authenticated"]
     if unauth["normalized"]["profile"] != auth["normalized"]["profile"]:
         raise AuthenticatedSecurityError("authenticated comparison profiles differ")
+    try:
+        finding_groups, prioritized_findings = build_finding_intelligence([
+            SourceDocument(unauth["normalized"]["profile"], "unauthenticated/normalized.json",
+                           unauth["normalized"], "unauthenticated"),
+            SourceDocument(auth["normalized"]["profile"], "authenticated/normalized.json",
+                           auth["normalized"], "authenticated"),
+        ])
+    except FindingIntelligenceError as exc:
+        raise AuthenticatedSecurityError(f"authenticated finding intelligence failed: {exc}") from exc
     _validate_child_exit_contract(
         "unauthenticated", unauth["coverage"], unauth["policy"], unauthenticated_exit_code,
     )
@@ -270,11 +280,14 @@ def combine_result_directories(unauthenticated: Path, authenticated: Path, outpu
               f"- Coverage: {state}\n- Authenticated scan: {auth_state}\n"
               f"- Unauthenticated scan: {unauth_state}\n"
               f"- Correlated findings: {policy['findings']}\n\n"
+              f"- Finding intelligence groups: {len(finding_groups['groups'])}\n\n"
               "One bearer identity cannot prove authorization correctness.\n").encode()
     output.mkdir(parents=True, exist_ok=True)
     for name, data in {
         "normalized.json": canonical_json(normalized), "coverage.json": canonical_json(coverage),
         "policy-result.json": canonical_json(policy), "report.md": report,
+        "finding-groups.json": canonical_json(finding_groups),
+        "prioritized-findings.json": canonical_json(prioritized_findings),
     }.items():
         atomic_publish(output / name, data)
     return code

@@ -123,7 +123,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn('exit_file="$(mktemp "$SELF_SCAN_RESULTS/.scan-exit-code.XXXXXX")"', text)
         self.assertIn('mv "$exit_file" "$SELF_SCAN_RESULTS/scan-exit-code.txt"', text)
-        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts]", text)
+        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts]", text)
         self.assertNotIn("dast-accountability", text)
         validation = text.index("Validate Standard self-scan artifacts and exact states")
         preservation = text.index("Preserve Standard scan exit contract")
@@ -159,6 +159,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         for job in ("self-scan-minimal", "self-scan-standard", "scanner-accountability", "security-artifacts", "dast-artifacts", "api-security-artifacts"):
             self.assertIn(job, needs)
         self.assertIn("authenticated-security-artifacts", needs)
+        self.assertIn("finding-intelligence-artifacts", needs)
         self.assertNotIn("dast-accountability", needs)
         dast = text.split("  dast-artifacts:", 1)[1].split("\n  validate:", 1)[0]
         self.assertIn("tests.test_dast_baseline", dast)

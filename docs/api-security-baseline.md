@@ -1,5 +1,7 @@
 # API Security Baseline
 
+When bearer-authenticated comparison is explicitly enabled, the runner additionally publishes sanitized `finding-groups.json` and `prioritized-findings.json`; unauthenticated API behavior and its four mandatory artifacts are unchanged.
+
 The opt-in `api-security-baseline` add-on performs contract-driven testing of one local OpenAPI 3.0.x or 3.1.x document against one already-built immutable, non-root API image. It is separate from Minimal, Standard, and Passive DAST Baseline. It runs only on `workflow_dispatch` or `schedule`, never against VibeSec itself, a pull request, a public URL, or a host service. Optional authentication supports only the separately configured static bearer model.
 
 Bearer mode uses the pinned Schemathesis CLI header option through a trusted in-process launcher after reading the opaque value from stdin. The value is not an OS argument, Docker environment setting, config file, curl reproduction, or report field. Raw NDJSON stays on container tmpfs until in-memory redaction and credential/JWT rejection complete. Safe methods, stateless execution, fixed origin, local schema, no hooks, and no arbitrary-header rules remain unchanged. See [authenticated security testing](authenticated-security-testing.md).

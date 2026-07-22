@@ -411,15 +411,81 @@ def validate_documents(groups: Any, priorities: Any) -> None:
     references = [item.get("source_reference") for item in groups["findings"] if isinstance(item, dict)]
     if len(references) != len(groups["findings"]) or len(references) != len(set(references)):
         raise FindingIntelligenceError("source finding references are invalid or duplicated")
+    finding_fields = {
+        "source_reference", "source_profile", "source_artifact", "original_scanner", "original_rule_id",
+        "original_normalized_severity", "confidence", "scanner_fingerprint", "scanner_fingerprint_version",
+        "category", "vulnerability_family", "cwe", "sink_category", "file", "start_line", "end_line",
+        "method", "path_template", "authentication_context", "package_ecosystem", "package_name",
+        "installed_version", "advisory_id", "direct_dependency", "confirmed_runtime", "reachable_sink",
+        "known_exploited", "baseline_state", "correlation_key",
+    }
+    for item in groups["findings"]:
+        if (not isinstance(item, dict) or set(item) != finding_fields
+                or item.get("original_scanner") not in KNOWN_SCANNERS
+                or item.get("original_normalized_severity") not in SEVERITIES
+                or item.get("confidence") not in CONFIDENCES
+                or item.get("authentication_context") not in AUTH_CONTEXTS
+                or item.get("baseline_state") not in {"new", "baseline", "suppressed"}
+                or item.get("scanner_fingerprint_version") != FINGERPRINT_VERSION
+                or not isinstance(item.get("scanner_fingerprint"), str)
+                or not HEX64.fullmatch(item["scanner_fingerprint"])
+                or not isinstance(item.get("correlation_key"), str)
+                or not HEX64.fullmatch(item["correlation_key"])):
+            raise FindingIntelligenceError("source finding evidence is malformed")
     reference_set = set(references)
+    assigned: list[str] = []
+    group_fields = {
+        "correlation_key", "correlation_key_version", "correlation_rules", "correlation_classification",
+        "member_count", "member_references", "contributing_scanners", "decision_provenance",
+    }
     for item in groups["groups"]:
-        if (not isinstance(item.get("member_references"), list) or not item["member_references"]
+        if (set(item) != group_fields or item.get("correlation_key_version") != 1
+                or item.get("correlation_classification") not in {"exact", "heuristic", "none"}
+                or not isinstance(item.get("correlation_rules"), list)
+                or not item["correlation_rules"]
+                or not set(item["correlation_rules"]) <= {"scanner-exact", "code-location", "dependency", "runtime-route", "singleton"}
+                or not isinstance(item.get("member_references"), list) or not item["member_references"]
                 or not set(item["member_references"]) <= reference_set
-                or item.get("member_count") != len(item["member_references"])):
+                or item.get("member_count") != len(item["member_references"])
+                or not isinstance(item.get("contributing_scanners"), list)
+                or item["contributing_scanners"] != sorted(set(item["contributing_scanners"]))
+                or not set(item["contributing_scanners"]) <= KNOWN_SCANNERS
+                or not isinstance(item.get("decision_provenance"), list)
+                or not 1 <= len(item["decision_provenance"]) <= MAX_CANDIDATE_PAIRS):
             raise FindingIntelligenceError("group membership is invalid")
+        assigned.extend(item["member_references"])
+        for decision in item["decision_provenance"]:
+            if (not isinstance(decision, dict) or set(decision) != {"left", "right", "rule", "classification", "evidence"}
+                    or decision["left"] not in reference_set
+                    or decision["right"] is not None and decision["right"] not in reference_set
+                    or decision["classification"] not in {"exact", "heuristic", "none"}
+                    or not isinstance(decision["evidence"], list) or not 1 <= len(decision["evidence"]) <= MAX_REASONS):
+                raise FindingIntelligenceError("correlation decision provenance is malformed")
+    if sorted(assigned) != sorted(references):
+        raise FindingIntelligenceError("every source finding must belong to exactly one group")
+    priority_fields = {
+        "correlation_key", "priority", "priority_reasons", "member_count", "contributing_scanners",
+        "independent_scanner_count", "confirmed_runtime", "member_references",
+    }
     for item in priorities["groups"]:
-        if item.get("priority") not in PRIORITIES or not isinstance(item.get("priority_reasons"), list):
+        if (not isinstance(item, dict) or set(item) != priority_fields
+                or item.get("priority") not in PRIORITIES
+                or not isinstance(item.get("priority_reasons"), list)
+                or not 1 <= len(item["priority_reasons"]) <= MAX_REASONS
+                or type(item.get("independent_scanner_count")) is not int
+                or item["independent_scanner_count"] != len(item.get("contributing_scanners", []))
+                or type(item.get("confirmed_runtime")) is not bool
+                or not isinstance(item.get("member_references"), list)):
             raise FindingIntelligenceError("priority or reasons are invalid")
+        for reason in item["priority_reasons"]:
+            if (not isinstance(reason, dict) or set(reason) != {"factor", "effect", "evidence"}
+                    or not all(isinstance(reason[field], str) and reason[field] for field in reason)):
+                raise FindingIntelligenceError("priority reason is malformed")
+    expected_order = sorted(
+        priorities["groups"], key=lambda item: ({"critical": 0, "high": 1, "medium": 2, "low": 3, "informational": 4}[item["priority"]], item["correlation_key"])
+    )
+    if priorities["groups"] != expected_order:
+        raise FindingIntelligenceError("priority groups are not deterministically ordered")
 
 
 def canonical_bytes(payload: dict[str, Any]) -> bytes:

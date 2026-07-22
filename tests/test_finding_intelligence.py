@@ -126,6 +126,11 @@ class FindingIntelligenceTests(unittest.TestCase):
         with self.assertRaisesRegex(FindingIntelligenceError, "count"):
             build([source(*many)])
 
+    def test_pathological_correlation_candidate_count_is_bounded(self):
+        crowded = [finding(fingerprint=f"{index:064x}", line=index + 1) for index in range(450)]
+        with self.assertRaisesRegex(FindingIntelligenceError, "candidate count"):
+            build([source(*crowded)])
+
     def test_cli_rejects_duplicate_keys_and_does_not_publish(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

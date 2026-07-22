@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "capability_id": "standard.finding-intelligence",
+  "expected_tool": null,
+  "positive": {"expected_findings": [], "expected_finding_ids": [], "expected_count": 0, "expected_coverage": "ran", "expected_exit_category": "correlated"},
+  "negative": {"expected_findings": [], "expected_finding_ids": [], "expected_count": 0, "expected_coverage": "ran", "expected_exit_category": "separate"},
+  "required_normalized_fields": [],
+  "failure_modes": ["ambiguous_evidence", "malformed_input", "oversized_input", "unknown_scanner"],
+  "privacy_classification": "normalized_metadata_only_no_source_upload",
+  "fake_secret_pattern": null
+}

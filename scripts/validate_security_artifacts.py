@@ -12,6 +12,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.coverage import validate_coverage  # noqa: E402
+from vibesec.finding_intelligence import FindingIntelligenceError, validate_documents  # noqa: E402
 from vibesec.results import REQUIRED_RESULT_FIELDS  # noqa: E402
 from vibesec.sbom import validate_cyclonedx, validate_spdx  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
@@ -116,6 +117,13 @@ def main() -> int:
         has_tool_error = any(item.get("result_type") == "tool_error" for item in normalized["results"])
         validate_policy(load(args.results / "policy-result.json"), args.profile, has_tool_error)
         if args.profile == "standard":
+            try:
+                validate_documents(
+                    load(args.results / "finding-groups.json"),
+                    load(args.results / "prioritized-findings.json"),
+                )
+            except FindingIntelligenceError as exc:
+                raise ArtifactError(str(exc)) from exc
             validate_inventory(load(args.results / "inventory.json"))
             syft_state = states.get("syft")
             if syft_state == "ran":

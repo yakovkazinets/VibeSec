@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "results": [
+    {"tool":"opengrep","category":"sast","rule_id":"SYNTHETIC-CODE","severity":"high","file":"src/app.py","line":10,"description":"Harmless controlled finding","confidence":"confirmed","fingerprint":"1111111111111111111111111111111111111111111111111111111111111111","result_type":"finding","cwe":"CWE-78","vulnerability_family":"command-injection","sink_category":"shell"},
+    {"tool":"trivy","category":"configuration","rule_id":"SYNTHETIC-CONFIG","severity":"high","file":"src/app.py","line":11,"description":"Harmless controlled finding","confidence":"possible","fingerprint":"2222222222222222222222222222222222222222222222222222222222222222","result_type":"finding","cwe":"CWE-78","vulnerability_family":"command-injection","sink_category":"process"}
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "model": "vibesec-prioritized-findings",
+  "priority_is_separate_from_scanner_severity": true,
+  "groups": []
+}

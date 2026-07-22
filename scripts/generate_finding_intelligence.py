@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import os
 from pathlib import Path
 import sys
@@ -13,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.finding_intelligence import (  # noqa: E402
     FindingIntelligenceError, SourceDocument, build, canonical_bytes,
 )
+from vibesec.policy import ConfigurationError, active_suppressions  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
 
 
@@ -51,6 +53,13 @@ def fingerprints(path: Path | None, field: str) -> set[str]:
     return set(values)
 
 
+def suppression_fingerprints(path: Path | None) -> set[str]:
+    if path is None:
+        return set()
+    active, _ = active_suppressions(load(path), date.today())
+    return active
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, required=True)
@@ -67,10 +76,10 @@ def main() -> int:
         groups, priorities = build([
             SourceDocument(args.profile, args.source_artifact, document, args.authentication_context),
         ], baseline=fingerprints(args.baseline, "fingerprints"),
-           suppressions={item["finding_fingerprint"] for item in load(args.suppressions).get("suppressions", [])} if args.suppressions else set())
+           suppressions=suppression_fingerprints(args.suppressions))
         atomic_write(args.groups, canonical_bytes(groups))
         atomic_write(args.prioritized, canonical_bytes(priorities))
-    except (OSError, StrictJSONError, FindingIntelligenceError, KeyError, TypeError) as exc:
+    except (OSError, StrictJSONError, FindingIntelligenceError, ConfigurationError, KeyError, TypeError) as exc:
         print(f"finding intelligence failed: {exc}", file=sys.stderr)
         return 3
     return 0

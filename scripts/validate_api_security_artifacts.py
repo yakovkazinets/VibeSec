@@ -11,6 +11,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.api_security import ApiSecurityError, CHECKS, IMAGE, sanitize_path_template  # noqa: E402
 from vibesec.authenticated import validate_publishable_bytes  # noqa: E402
+from vibesec.finding_intelligence import FindingIntelligenceError, validate_documents  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
 
 REQUIRED = {"normalized.json", "coverage.json", "report.md", "policy-result.json"}
@@ -22,11 +23,17 @@ def validate(results: Path, expected_state: str) -> None:
     if results.is_symlink() or not results.is_dir():
         raise ApiSecurityError("API results directory is missing or unsafe")
     observed = {path.name for path in results.iterdir() if path.is_file()}
-    if not REQUIRED <= observed or observed - REQUIRED - {"scan-exit-code.txt"}:
+    intelligence = {"finding-groups.json", "prioritized-findings.json"}
+    if not REQUIRED <= observed or observed - REQUIRED - intelligence - {"scan-exit-code.txt"} or bool(observed & intelligence) != (intelligence <= observed):
         raise ApiSecurityError("API result file set is missing or contains unapproved artifacts")
     normalized = loads_strict((results / "normalized.json").read_bytes())
     coverage = loads_strict((results / "coverage.json").read_bytes())
     policy = loads_strict((results / "policy-result.json").read_bytes())
+    if intelligence <= observed:
+        validate_documents(
+            loads_strict((results / "finding-groups.json").read_bytes()),
+            loads_strict((results / "prioritized-findings.json").read_bytes()),
+        )
     if not isinstance(normalized, dict) or normalized.get("profile") != "api-security-baseline" or not isinstance(normalized.get("results"), list):
         raise ApiSecurityError("normalized API artifact is malformed")
     authenticated = coverage.get("authentication_mode") == "bearer"
@@ -49,7 +56,7 @@ def validate(results: Path, expected_state: str) -> None:
             if item.get("rule_id") not in CHECKS:
                 raise ApiSecurityError("API normalized result contains an unreviewed check")
             sanitize_path_template(item.get("path_template"))
-    raw_artifacts = b"".join((results / name).read_bytes() for name in REQUIRED)
+    raw_artifacts = b"".join((results / name).read_bytes() for name in REQUIRED | (intelligence & observed))
     validate_publishable_bytes(raw_artifacts)
     serialized = raw_artifacts.decode("utf-8").casefold()
     if any(marker.casefold() in serialized for marker in PROHIBITED) or re.search(r"https?://", serialized):
@@ -63,7 +70,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         validate(args.results, args.expect_state)
-    except (ApiSecurityError, OSError, StrictJSONError, UnicodeError) as exc:
+    except (ApiSecurityError, FindingIntelligenceError, OSError, StrictJSONError, UnicodeError) as exc:
         print(f"API artifact validation failed: {exc}", file=sys.stderr)
         return 3
     return 0

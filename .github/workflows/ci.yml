@@ -124,6 +124,19 @@ jobs:
           scripts/install_standard_tools.sh . .tools/bin
           python3 scripts/test_opengrep_rules.py .tools/bin/opengrep
 
+  finding-intelligence-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted finding-intelligence validators without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Install pinned validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Validate correlation, false-correlation prevention, priority, schemas, and failure paths
+        run: python3 -m unittest -v tests.test_finding_intelligence tests.test_policy tests.test_report
+
   security-artifacts:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -182,7 +195,7 @@ jobs:
           tests.test_project_capabilities tests.test_workflows
 
   validate:
-    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts]
+    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

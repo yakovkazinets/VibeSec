@@ -215,7 +215,10 @@ class AuthenticatedSecurityTestingTests(unittest.TestCase):
         self.assertEqual(policy["exit_category"], "tool_error")
         self.assertFalse(policy["clean"])
         self.assertEqual({path.name for path in results.iterdir()},
-                         {"normalized.json", "coverage.json", "policy-result.json", "report.md"})
+                         {"normalized.json", "coverage.json", "policy-result.json", "report.md",
+                          "finding-groups.json", "prioritized-findings.json"})
+        self.assertEqual(json.loads((results / "finding-groups.json").read_text())["model"],
+                         "vibesec-finding-groups")
         published = b"\n".join(path.read_bytes() for path in results.iterdir())
         self.assertNotIn(token.encode(), published)
         self.assertNotIn(b"authorization: bearer", published.lower())
@@ -263,7 +266,10 @@ class AuthenticatedSecurityTestingTests(unittest.TestCase):
         self.assertEqual(policy["exit_category"], "tool_error")
         self.assertFalse(policy["clean"])
         self.assertEqual({path.name for path in results.iterdir()},
-                         {"normalized.json", "coverage.json", "policy-result.json", "report.md"})
+                         {"normalized.json", "coverage.json", "policy-result.json", "report.md",
+                          "finding-groups.json", "prioritized-findings.json"})
+        self.assertEqual(json.loads((results / "prioritized-findings.json").read_text())["model"],
+                         "vibesec-prioritized-findings")
         published = b"\n".join(path.read_bytes() for path in results.iterdir())
         self.assertNotIn(token.encode(), published)
         self.assertNotIn(b"authorization: bearer", published.lower())

@@ -23,7 +23,9 @@ sys.path.remove(SCRIPTS)
 
 WORKFLOWS = (
     ".github/workflows/ci.yml",
+    ".github/workflows/api-security-integration.yml",
     ".github/workflows/dast-integration.yml",
+    "templates/github-actions/api-security-baseline.yml",
     "templates/github-actions/dast-baseline.yml",
     "templates/github-actions/security-baseline.yml",
     "templates/github-actions/security-standard.yml",
@@ -98,8 +100,10 @@ class GitHubActionsInventoryTests(unittest.TestCase):
 
     def test_artifact_contract_and_checkout_credential_contract_are_preserved(self):
         expected_fetch_depths = {
-            ".github/workflows/ci.yml": [0, 0, None, None, None, 0],
+            ".github/workflows/ci.yml": [0, 0, None, None, None, None, 0],
+            ".github/workflows/api-security-integration.yml": [None],
             ".github/workflows/dast-integration.yml": [None],
+            "templates/github-actions/api-security-baseline.yml": [None],
             "templates/github-actions/dast-baseline.yml": [None],
             "templates/github-actions/security-baseline.yml": [0],
             "templates/github-actions/security-standard.yml": [0],
@@ -107,6 +111,12 @@ class GitHubActionsInventoryTests(unittest.TestCase):
         }
         expected_paths = {
             ".github/workflows/ci.yml": [["results/normalized.json", "results/report.md", "results/coverage.json", "results/policy-result.json"]],
+            "templates/github-actions/api-security-baseline.yml": [[
+                "${{ runner.temp }}/vibesec-api-security-results/normalized.json",
+                "${{ runner.temp }}/vibesec-api-security-results/coverage.json",
+                "${{ runner.temp }}/vibesec-api-security-results/report.md",
+                "${{ runner.temp }}/vibesec-api-security-results/policy-result.json",
+            ]],
             "templates/github-actions/dast-baseline.yml": [[
                 "${{ runner.temp }}/vibesec-dast-results/normalized.json",
                 "${{ runner.temp }}/vibesec-dast-results/coverage.json",
@@ -155,6 +165,7 @@ class GitHubActionsInventoryTests(unittest.TestCase):
             "templates/github-actions/security-baseline.yml",
             "templates/github-actions/security-standard.yml",
             "templates/github-actions/dast-baseline.yml",
+            "templates/github-actions/api-security-baseline.yml",
         ):
             text = entries[template].decode("utf-8")
             for action in self.inventory["actions"].values():
@@ -179,6 +190,7 @@ class GitHubActionsInventoryTests(unittest.TestCase):
         self.assertEqual(ci["jobs"]["validate"]["needs"], [
             "self-scan-minimal", "self-scan-standard", "scanner-accountability",
             "security-artifacts", "dast-artifacts",
+            "api-security-artifacts",
         ])
 
     def test_repository_has_no_owned_node_runtime_or_compatibility_override(self):

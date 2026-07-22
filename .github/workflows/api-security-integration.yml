@@ -1,0 +1,23 @@
+name: VibeSec API Security Controlled Integration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "11 6 * * 4"
+
+permissions:
+  contents: read
+
+jobs:
+  controlled-api-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out trusted accountability fixture without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Install pinned schema validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Exercise pinned Schemathesis only against the controlled internal API fixture
+        run: python3 scripts/test_api_security_container.py

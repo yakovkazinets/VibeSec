@@ -33,6 +33,30 @@ def unique_mapping(loader: StrictLoader, node: yaml.MappingNode, deep: bool = Fa
 StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, unique_mapping)
 
 
+def pattern_texts(rule: dict) -> list[str]:
+    """Return direct patterns needed for conservative syntax-shape checks."""
+    values: list[str] = []
+    if "pattern" in rule:
+        if not isinstance(rule["pattern"], str) or not rule["pattern"].strip():
+            raise ValueError(f"{rule.get('id', 'rule')} pattern must be non-empty text")
+        values.append(rule["pattern"])
+    if "pattern-either" in rule:
+        entries = rule["pattern-either"]
+        if not isinstance(entries, list) or not entries:
+            raise ValueError(f"{rule.get('id', 'rule')} pattern-either must be a non-empty array")
+        for entry in entries:
+            if (not isinstance(entry, dict) or set(entry) != {"pattern"}
+                    or not isinstance(entry["pattern"], str) or not entry["pattern"].strip()):
+                raise ValueError(f"{rule.get('id', 'rule')} pattern-either contains an invalid pattern")
+            values.append(entry["pattern"])
+    regex = rule.get("pattern-regex")
+    if regex is not None and (not isinstance(regex, str) or not regex.strip()):
+        raise ValueError(f"{rule.get('id', 'rule')} pattern-regex must be non-empty text")
+    if not values and regex is None:
+        raise ValueError(f"{rule.get('id', 'rule')} has no reviewed direct pattern")
+    return values
+
+
 def validate(directory: Path) -> list[str]:
     identifiers: list[str] = []
     for path in sorted(directory.glob("*.yml")):
@@ -54,6 +78,12 @@ def validate(directory: Path) -> list[str]:
                 raise ValueError(f"{path.name} contains an invalid or duplicate rule id")
             if not isinstance(languages, list) or not languages or not set(languages) <= ALLOWED_LANGUAGES:
                 raise ValueError(f"{identifier} contains unsupported languages")
+            patterns = pattern_texts(rule)
+            if "java" in languages and any(
+                pattern.strip().startswith("return ") and not pattern.rstrip().endswith(";")
+                for pattern in patterns
+            ):
+                raise ValueError(f"{identifier} Java return-statement pattern must end with a semicolon")
             if not isinstance(metadata, dict) or set(metadata) != REQUIRED_METADATA:
                 raise ValueError(f"{identifier} must define the exact reviewed metadata fields")
             if metadata.get("license") != "Apache-2.0" or metadata.get("provenance") != "original-vibesec":

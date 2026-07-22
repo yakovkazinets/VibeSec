@@ -46,7 +46,7 @@ rules:
       false_positive_notes: A separately validated local path may be safe.
       license: Apache-2.0
       provenance: original-vibesec
-    pattern: return "redirect:" + $REQUEST.getParameter(...)
+    pattern: return "redirect:" + $REQUEST.getParameter(...);
   - id: vibesec.java.spring-request-file-path
     languages: [java]
     message: Do not construct a filesystem path directly from a request parameter.

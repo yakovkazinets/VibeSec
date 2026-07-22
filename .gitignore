@@ -17,6 +17,8 @@ htmlcov/
 .tools/
 results/
 reports/
+!examples/reports/
+!examples/reports/**
 *.sarif
 
 # Environment and secrets

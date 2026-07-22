@@ -6,7 +6,7 @@ destination="${2:-${repo_root}/.tools/bin}"
 config_path="${repo_root}/config/tools.json"
 
 if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
-  echo "The Standard-profile installer supports Linux x86_64 only." >&2
+  echo "component=standard-tool-installer result=invalid_configuration cause=unsupported-platform next=use-a-Linux-x86_64-runner docs=docs/troubleshooting.md" >&2
   exit 3
 fi
 
@@ -30,7 +30,7 @@ PY
   curl --fail --location --proto '=https' --tlsv1.2 --output "${temporary_directory}/${artifact}" "$url"
   actual="$(sha256sum "${temporary_directory}/${artifact}" | awk '{print $1}')"
   if [[ "$actual" != "$expected" ]]; then
-    echo "Checksum verification failed for ${tool}." >&2
+    echo "component=${tool} result=tool_error cause=checksum-mismatch next=stop-and-verify-the-official-release docs=docs/troubleshooting.md" >&2
     exit 2
   fi
   if [[ "$artifact" == *.tar.gz ]]; then

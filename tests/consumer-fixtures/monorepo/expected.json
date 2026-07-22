@@ -1,0 +1,1 @@
+{"languages":["go","java","javascript","python"],"package_managers":["go","gradle","npm","pip"],"monorepo":true,"workflows":[".github/workflows/root.yml","services/python/.github/workflows/nested.yml"],"purpose":"multiple roots retain independent path evidence, including duplicate package names"}

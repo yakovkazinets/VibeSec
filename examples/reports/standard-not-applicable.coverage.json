@@ -1,0 +1,15 @@
+{
+  "schema_version": 1, "profile": "standard",
+  "limitations": ["No supported source, packages, IaC, workflows, or image evidence was detected."],
+  "outside_coverage": ["The repository contents are unsupported and were not assessed semantically."],
+  "tools": [
+    {"tool":"opengrep","version":"example","scope":"source","state":"not_applicable","reason":"no supported source","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false},
+    {"tool":"osv-scanner","version":"example","scope":"dependencies","state":"not_applicable","reason":"no supported manifests","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false},
+    {"tool":"syft","version":"example","scope":"sbom","state":"not_applicable","reason":"no supported manifests","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false},
+    {"tool":"checkov","version":"example","scope":"iac","state":"not_applicable","reason":"no supported IaC","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false},
+    {"tool":"trivy","version":"example","scope":"configuration","state":"ran","reason":"filesystem scope completed","relevant_artifacts":[],"output_files":["raw/trivy.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"gitleaks","version":"example","scope":"secrets","state":"ran","reason":"history scope completed","relevant_artifacts":[".git"],"output_files":["raw/gitleaks.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"actionlint","version":"example","scope":"workflows","state":"not_applicable","reason":"no workflows","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false},
+    {"tool":"trivy-image","version":"example","scope":"image","state":"not_applicable","reason":"no Dockerfile or image","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false}
+  ]
+}

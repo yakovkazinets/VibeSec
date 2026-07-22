@@ -1,0 +1,9 @@
+name: Root fixture workflow
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  document:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "fixture only"

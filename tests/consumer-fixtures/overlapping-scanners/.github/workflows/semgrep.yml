@@ -1,0 +1,9 @@
+name: Existing Semgrep documentation
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "existing scanner placeholder; fixture only"

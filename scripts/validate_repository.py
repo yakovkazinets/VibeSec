@@ -12,6 +12,11 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "cosign", "checkov"}
+EXPECTED_VIBESEC_VARIABLES = {
+    "VIBESEC_ENFORCEMENT", "VIBESEC_MIN_SEVERITY", "VIBESEC_TOOL_DIR", "VIBESEC_NETWORK_MODE",
+    "VIBESEC_OSV_DATABASE_DIR", "VIBESEC_OSV_DATABASE_DATE", "VIBESEC_OSV_MAX_DATABASE_AGE_DAYS",
+    "VIBESEC_IMAGE_REFERENCE",
+}
 
 
 def load_object(path: Path) -> dict:
@@ -83,6 +88,10 @@ def validate_references() -> None:
         "scripts/validate_sbom.py", "scripts/validate_opengrep_rules.py",
         "scripts/test_opengrep_rules.py",
         "scripts/append_tool_errors.py", "scripts/policy_gate.py", "scripts/validate_skill.py",
+        "scripts/init_vibesec.py", "scripts/preflight.py", "config/adoption-files.json",
+        "config/environment-variables.json", "docs/quickstart.md", "docs/profile-selection.md",
+        "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md",
+        "examples/reports/README.md",
         "skills/appsec-guardian/SKILL.md",
     )
     missing = [path for path in required if not (ROOT / path).is_file()]
@@ -93,11 +102,40 @@ def validate_references() -> None:
         raise ValueError("requirements.txt must contain the reviewed PyYAML pin")
 
 
+def validate_adoption_metadata() -> None:
+    adoption = load_object(ROOT / "config/adoption-files.json")
+    if adoption.get("schema_version") != 1 or adoption.get("source_version") != "0.2.1-dev":
+        raise ValueError("adoption catalog must declare schema 1 and the unreleased v0.2.1 source version")
+    common = adoption.get("common")
+    profiles = adoption.get("profiles")
+    if not isinstance(common, list) or not isinstance(profiles, dict) or set(profiles) != {"minimal", "standard"}:
+        raise ValueError("adoption catalog must define common, Minimal, and Standard files")
+    for profile, config in profiles.items():
+        if not isinstance(config, dict) or not isinstance(config.get("support"), list):
+            raise ValueError(f"adoption catalog profile {profile} is malformed")
+        for relative in [*common, *config["support"], config.get("workflow_source")]:
+            if not isinstance(relative, str) or not relative or relative.startswith("/") or ".." in Path(relative).parts:
+                raise ValueError(f"adoption catalog contains unsafe path {relative!r}")
+            if not (ROOT / relative).is_file():
+                raise ValueError(f"adoption catalog references missing file {relative}")
+    environment = load_object(ROOT / "config/environment-variables.json")
+    variables = environment.get("variables")
+    if environment.get("schema_version") != 1 or not isinstance(variables, list):
+        raise ValueError("environment variable catalog is malformed")
+    names = {item.get("name") for item in variables if isinstance(item, dict)}
+    if names != EXPECTED_VIBESEC_VARIABLES:
+        raise ValueError(f"environment variable catalog must define exactly {sorted(EXPECTED_VIBESEC_VARIABLES)}")
+    configuration = (ROOT / "docs/configuration.md").read_text(encoding="utf-8")
+    if any(name not in configuration for name in names):
+        raise ValueError("configuration documentation is missing a supported VIBESEC variable")
+
+
 def main() -> int:
     try:
         validate_tools()
         validate_policy()
         validate_references()
+        validate_adoption_metadata()
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 3

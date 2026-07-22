@@ -1,0 +1,15 @@
+{
+  "schema_version": 1, "profile": "standard",
+  "limitations": ["Fictional example; configured scans do not prove security."],
+  "outside_coverage": ["Runtime behavior and business logic were not assessed."],
+  "tools": [
+    {"tool":"opengrep","version":"example","scope":"source","state":"ran","reason":"fictional local scan completed","relevant_artifacts":["src/example.py"],"output_files":["raw/opengrep.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"osv-scanner","version":"example","scope":"dependencies","state":"ran","reason":"fictional advisory lookup completed","relevant_artifacts":["requirements.txt"],"output_files":["raw/osv.json"],"network_access":"advisory_queries","application_code_executed":false},
+    {"tool":"syft","version":"example","scope":"sbom","state":"ran","reason":"fictional SBOM pair completed","relevant_artifacts":["requirements.txt"],"output_files":["sbom.cyclonedx.json","sbom.spdx.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"checkov","version":"example","scope":"iac","state":"not_applicable","reason":"no supported IaC detected","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false},
+    {"tool":"trivy","version":"example","scope":"secrets and configuration","state":"ran","reason":"fictional scan completed","relevant_artifacts":["src/example.py"],"output_files":["raw/trivy.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"gitleaks","version":"example","scope":"Git history secrets","state":"ran","reason":"fictional scan completed","relevant_artifacts":[".git"],"output_files":["raw/gitleaks.json"],"network_access":"none","application_code_executed":false},
+    {"tool":"actionlint","version":"example","scope":"GitHub Actions","state":"not_applicable","reason":"no workflows detected","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false},
+    {"tool":"trivy-image","version":"example","scope":"prebuilt image","state":"not_configured","reason":"no immutable image reference configured","relevant_artifacts":[],"output_files":[],"network_access":"none","application_code_executed":false}
+  ]
+}

@@ -38,10 +38,11 @@ REQUIRED_CONSUMER_PATHS = {
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
     "scripts/plan_vibesec_upgrade.py", "scripts/vibesec/bundle.py",
     "templates/github-actions/security-baseline.yml", "templates/github-actions/security-standard.yml",
-    "docs/distribution.md", "docs/installation-verification.md", "docs/doctor.md", "docs/upgrading.md",
+    "templates/github-actions/dast-baseline.yml", "scripts/run_dast_baseline.py",
+    "docs/distribution.md", "docs/dast-baseline.md", "docs/dast-threat-model.md", "docs/installation-verification.md", "docs/doctor.md", "docs/upgrading.md",
 }
 REQUIRED_EXECUTABLES = {
-    "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py",
+    "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py", "scripts/run_dast_baseline.py", "scripts/validate_dast_artifacts.py",
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
     "scripts/plan_vibesec_upgrade.py",
 }
@@ -86,7 +87,7 @@ class VerifiedBundle:
 
 
 def validate_catalog(payload: Any) -> dict[str, Any]:
-    if not isinstance(payload, dict) or set(payload) != {"schema_version", "common", "bundle_additional", "executable_files", "profiles"}:
+    if not isinstance(payload, dict) or set(payload) != {"schema_version", "common", "bundle_additional", "executable_files", "profiles", "addons"}:
         raise BundleError("adoption catalog fields or schema are invalid")
     if payload.get("schema_version") != 1 or not isinstance(payload.get("common"), list):
         raise BundleError("adoption catalog schema is unsupported")
@@ -116,6 +117,19 @@ def validate_catalog(payload: Any) -> dict[str, Any]:
         destination = safe_posix_path(config["workflow_destination"])
         if destination != f".github/workflows/vibesec-{profile}.yml":
             raise BundleError(f"adoption catalog {profile} workflow destination is invalid")
+    addons = payload.get("addons")
+    if not isinstance(addons, dict) or set(addons) != {"dast-baseline"}:
+        raise BundleError("adoption catalog must define the reviewed DAST add-on")
+    addon = addons["dast-baseline"]
+    if not isinstance(addon, dict) or set(addon) != {"support", "workflow_source", "workflow_destination"}:
+        raise BundleError("DAST add-on catalog is malformed")
+    validate_unique_paths(addon["support"])
+    for value in addon["support"]:
+        _reviewed_source_path(value)
+    all_paths.extend(addon["support"])
+    all_paths.append(_reviewed_source_path(addon["workflow_source"]))
+    if safe_posix_path(addon["workflow_destination"]) != ".github/workflows/vibesec-dast-baseline.yml":
+        raise BundleError("DAST add-on workflow destination is invalid")
     validate_unique_paths(sorted(set(all_paths)))
     selected = set(configured_bundle_paths_unchecked(payload))
     executable = set(payload["executable_files"])
@@ -129,6 +143,9 @@ def validate_catalog(payload: Any) -> dict[str, Any]:
 def configured_bundle_paths_unchecked(catalog: dict[str, Any]) -> list[str]:
     values = ["VERSION", "config/adoption-files.json", *catalog["common"], *catalog["bundle_additional"]]
     for config in catalog["profiles"].values():
+        values.extend(config["support"])
+        values.append(config["workflow_source"])
+    for config in catalog["addons"].values():
         values.extend(config["support"])
         values.append(config["workflow_source"])
     return sorted(set(values))
@@ -205,6 +222,7 @@ def create_manifest(version: str, source_commit: str | None, files: list[BundleF
         "development_version": version,
         "source_commit": source_commit,
         "supported_profiles": ["minimal", "standard"],
+        "supported_addons": ["dast-baseline"],
         "files": records,
         "total_file_count": len(records),
         "total_uncompressed_size": sum(item["size"] for item in records),
@@ -259,7 +277,7 @@ def write_bundle(root: Path, output: Path, source_commit: str | None = None) -> 
 def _validate_manifest(payload: Any) -> dict[str, Any]:
     required = {
         "schema_version", "bundle_format_version", "development_version", "source_commit",
-        "supported_profiles", "files", "total_file_count", "total_uncompressed_size",
+        "supported_profiles", "supported_addons", "files", "total_file_count", "total_uncompressed_size",
         "capabilities", "network_behavior", "scanner_binaries_included",
         "application_code_executed", "signed", "signature_status",
     }
@@ -274,6 +292,8 @@ def _validate_manifest(payload: Any) -> dict[str, Any]:
         raise BundleError("bundle source commit is invalid")
     if payload["supported_profiles"] != ["minimal", "standard"]:
         raise BundleError("bundle profile declaration is invalid")
+    if payload["supported_addons"] != ["dast-baseline"]:
+        raise BundleError("bundle add-on declaration is invalid")
     if payload["capabilities"] != ["initialize", "verify_installation", "doctor", "plan_upgrade"]:
         raise BundleError("bundle capability declaration is invalid")
     if payload["network_behavior"] != "distribution tools are offline; scanners retain documented profile behavior":

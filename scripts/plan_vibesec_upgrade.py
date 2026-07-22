@@ -31,7 +31,11 @@ def desired_files(bundle: VerifiedBundle, state: InstallationState) -> dict[str,
     mappings: dict[str, str] = {}
     stages = {(item["profile"], item["stage"]) for item in state.manifests}
     for profile, stage in stages:
-        config = catalog["profiles"][profile]
+        config = catalog["addons"][profile] if stage == "addon" else catalog["profiles"][profile]
+        if stage == "addon":
+            for source in config["support"]:
+                mappings[source] = source
+            mappings[config["workflow_destination"]] = config["workflow_source"]
         if stage in {"all", "support"}:
             for source in [*catalog["common"], *config["support"]]:
                 mappings[source] = source
@@ -59,9 +63,9 @@ def classify_plan(state: InstallationState, bundle: VerifiedBundle) -> dict[str,
         expected_old = old.get("expected_sha256") if old else None
         actual = old.get("actual_sha256") if old else None
         expected_new = new.get("sha256") if new else None
-        if path == "policy/baseline.json" or path == "policy/standard-baseline.json":
+        if path in {"policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json"}:
             classification = "baseline_preserve"
-        elif path == "policy/suppressions.yml":
+        elif path in {"policy/suppressions.yml", "policy/dast-suppressions.json"}:
             classification = "suppression_preserve"
         elif old is None:
             classification = "add"

@@ -19,10 +19,11 @@ from .version import VersionError, parse_version_bytes
 
 ACTION = re.compile(r"uses:\s*[^\s#]+@([0-9a-f]{40})(?:\s|$)")
 ANY_ACTION = re.compile(r"uses:\s*([^\s#]+)")
-MAX_MANIFESTS = 4
+MAX_MANIFESTS = 5
 MAX_WORKFLOW_BYTES = 1_000_000
 PRESERVATION_SENSITIVE = {
-    "policy/baseline.json", "policy/standard-baseline.json", "policy/suppressions.yml",
+    "policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json",
+    "policy/dast-suppressions.json", "policy/suppressions.yml",
 }
 
 
@@ -99,7 +100,10 @@ def _workflow_checks(path: Path, relative: str, errors: list[str], warnings: lis
         reference = match.group(1)
         if not re.search(r"@[0-9a-f]{40}$", reference):
             errors.append(f"workflow action is not immutably pinned: {relative}")
-    if "VIBESEC_ENFORCEMENT: observe" not in text and "VIBESEC_ENFORCEMENT: new" not in text and "VIBESEC_ENFORCEMENT: all" not in text:
+    if not any(marker in text for marker in (
+        "VIBESEC_ENFORCEMENT: observe", "VIBESEC_ENFORCEMENT: new", "VIBESEC_ENFORCEMENT: all",
+        "VIBESEC_DAST_ENFORCEMENT: observe", "VIBESEC_DAST_ENFORCEMENT: new", "VIBESEC_DAST_ENFORCEMENT: all",
+    )):
         warnings.append(f"workflow enforcement mode is not identifiable: {relative}")
 
 
@@ -141,7 +145,7 @@ def verify_installation(target_path: Path) -> InstallationState:
         seen_stage.add(key)
         manifests.append(manifest)
     profiles = sorted({manifest["profile"] for manifest in manifests})
-    if len(profiles) > 1:
+    if {"minimal", "standard"} <= set(profiles):
         errors.append("Minimal and Standard installation manifests conflict")
     if ("standard", "workflow") in seen_stage and ("standard", "support") not in seen_stage:
         errors.append("Standard workflow is present without a Standard support manifest")
@@ -149,12 +153,14 @@ def verify_installation(target_path: Path) -> InstallationState:
         item if manifest["schema_version"] == 1 else item["path"]
         for manifest in manifests for item in manifest["installed_files"]
     }
-    if profiles == ["minimal"]:
+    if "minimal" in profiles:
         if "policy/baseline.json" not in declared_paths or "policy/standard-baseline.json" in declared_paths:
             errors.append("Minimal installation has a missing or wrong profile baseline")
-    elif profiles == ["standard"]:
+    elif "standard" in profiles:
         if "policy/standard-baseline.json" not in declared_paths or "policy/baseline.json" in declared_paths:
             errors.append("Standard installation has a missing or wrong profile baseline")
+    if "dast-baseline" in profiles and "policy/dast-baseline.json" not in declared_paths:
+        errors.append("DAST add-on has a missing DAST baseline")
     file_results: list[dict[str, Any]] = []
     observed_paths: dict[str, str] = {}
     versions = {manifest.get("development_version") or manifest.get("source_version") for manifest in manifests}
@@ -179,8 +185,12 @@ def verify_installation(target_path: Path) -> InstallationState:
         for manifest in manifests:
             if manifest["schema_version"] != 2:
                 continue
-            config = catalog["profiles"][manifest["profile"]]
+            config = (catalog["addons"][manifest["profile"]] if manifest["stage"] == "addon"
+                      else catalog["profiles"][manifest["profile"]])
             expected: set[str] = set()
+            if manifest["stage"] == "addon":
+                expected.update(config["support"])
+                expected.add(config["workflow_destination"])
             if manifest["stage"] in {"all", "support"}:
                 expected.update(catalog["common"])
                 expected.update(config["support"])
@@ -235,10 +245,10 @@ def verify_installation(target_path: Path) -> InstallationState:
             })
             if relative.startswith(".github/workflows/"):
                 _workflow_checks(path, relative, errors, warnings)
-            if relative in {"policy/baseline.json", "policy/standard-baseline.json"}:
+            if relative in {"policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json"}:
                 try:
                     baseline = loads_strict(path.read_bytes())
-                    expected_profile = "standard" if relative == "policy/standard-baseline.json" else "minimal"
+                    expected_profile = "dast-baseline" if relative == "policy/dast-baseline.json" else ("standard" if relative == "policy/standard-baseline.json" else "minimal")
                     if not isinstance(baseline, dict) or baseline.get("profile") != expected_profile or not isinstance(baseline.get("fingerprints"), list):
                         errors.append(f"wrong or malformed profile baseline: {relative}")
                 except (OSError, StrictJSONError):

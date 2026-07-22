@@ -103,8 +103,9 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
                                       f"Local platform {platform.system()} {platform.machine()} is not supported by scanner installers.",
                                       "Run scanners on Linux x86_64; offline diagnostics remain safe locally.", "docs/troubleshooting.md"))
     profiles = state.profiles
-    profile = requested_profile or (profiles[0] if len(profiles) == 1 else None)
-    if requested_profile and profiles and requested_profile not in profiles:
+    base_profiles = [item for item in profiles if item in {"minimal", "standard"}]
+    profile = requested_profile or (base_profiles[0] if len(base_profiles) == 1 else None)
+    if requested_profile and base_profiles and requested_profile not in base_profiles:
         diagnostics.append(diagnostic("profile", "PROFILE_MISMATCH", "error", "Requested profile differs from installed manifests.",
                                       "Select the installed profile or repair the manifest conflict.", "docs/installation-verification.md"))
     stages = {manifest["stage"] for manifest in state.manifests}
@@ -125,6 +126,8 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
         "VIBESEC_ENFORCEMENT": {"observe", "new", "all"},
         "VIBESEC_MIN_SEVERITY": {"low", "medium", "high", "critical"},
         "VIBESEC_NETWORK_MODE": {"online", "offline"},
+        "VIBESEC_DAST_ENFORCEMENT": {"observe", "new", "all"},
+        "VIBESEC_DAST_MIN_SEVERITY": {"low", "medium", "high", "critical"},
     }
     for name, values in allowed.items():
         if name in os.environ and os.environ[name] not in values:
@@ -154,6 +157,22 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
     if image and not IMAGE.fullmatch(image):
         diagnostics.append(diagnostic("image", "IMAGE_REFERENCE_INVALID", "error", "Prebuilt image reference is tag-only or malformed; value redacted.",
                                       "Use an immutable registry/name@sha256 digest.", "docs/configuration.md"))
+    if "dast-baseline" in profiles:
+        dast_image = os.getenv("VIBESEC_DAST_IMAGE_REFERENCE", "")
+        if dast_image and not IMAGE.fullmatch(dast_image):
+            diagnostics.append(diagnostic("dast", "DAST_IMAGE_REFERENCE_INVALID", "error", "DAST image reference is mutable or malformed; value redacted.",
+                                          "Use an immutable registry/name@sha256 digest.", "docs/dast-baseline.md"))
+        port = os.getenv("VIBESEC_DAST_CONTAINER_PORT", "8080")
+        if not port.isascii() or not port.isdigit() or not 1 <= int(port) <= 65535:
+            diagnostics.append(diagnostic("dast", "DAST_PORT_INVALID", "error", "DAST container port is invalid; value redacted.",
+                                          "Use an integer from 1 through 65535.", "docs/configuration.md"))
+        path = os.getenv("VIBESEC_DAST_BASE_PATH", "/")
+        if not path.startswith("/") or any(marker in path for marker in ("..", "\\", "?", "#")):
+            diagnostics.append(diagnostic("dast", "DAST_BASE_PATH_INVALID", "error", "DAST base path is invalid; value redacted.",
+                                          "Use a bounded absolute path without traversal, query, or fragment.", "docs/configuration.md"))
+        if shutil.which("docker") is None:
+            diagnostics.append(diagnostic("dast", "DAST_DOCKER_UNAVAILABLE", "warning", "Docker is unavailable for the installed DAST Baseline add-on.",
+                                          "Run the add-on only on a disposable trusted runner with Docker.", "docs/dast-baseline.md"))
     if os.getenv("GITHUB_ACTIONS", "").casefold() == "true" and os.getenv("GITHUB_EVENT_NAME", "") == "pull_request":
         diagnostics.append(diagnostic("fork", "FORK_RESTRICTIONS_ACTIVE", "not_applicable", "Pull-request image/private-registry scanning remains disabled and receives no secrets.",
                                       "Review coverage state; do not weaken the trust boundary.", "docs/security-model.md"))

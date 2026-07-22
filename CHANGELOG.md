@@ -9,10 +9,13 @@ All notable changes will be documented here. The project follows semantic versio
 - Five-minute Quick Start, profile-selection guide, compatibility matrix, complete environment-variable reference, upgrade guide, and sanitized sample reports.
 - Dry-run-first consumer initializer with conflict refusal, atomic creation, staged Standard bootstrap, installation manifests, and read-only preflight diagnostics.
 - Deterministic consumer fixtures and copy-and-adopt tests for Minimal, Standard, forks, monorepositories, unsupported repositories, overlaps, conflicts, and symlink boundaries.
+- Canonical `VERSION` parsing, deterministic consumer-only ZIP construction, strict in-memory verification, and verified-bundle initialization.
+- Read-only installation verification, offline doctor diagnostics, and non-destructive upgrade planning with stable JSON envelopes and exit codes.
 
 ### Changed
 
 - Restructured README and AppSec Guardian guidance around profile fit, installation state, overlap detection, privacy, and unsupported coverage.
+- Expanded installation manifests with source, version, expected hash, and expected mode metadata while retaining bounded legacy inspection.
 
 ### Fixed
 
@@ -22,10 +25,12 @@ All notable changes will be documented here. The project follows semantic versio
 
 - Initializer rejects overwrite, traversal, symlink escape, Unicode/case collisions, partial writes, and self-installation without invoking Git, package managers, network access, or application code.
 - Preflight and troubleshooting preserve fork, base-harness, malformed-output, baseline-separation, and no-raw-upload boundaries from v0.2.0.
+- Bundle verification fails closed on archive bombs, ambiguous paths and JSON, special files, unexpected modes, and manifest/catalog mismatch before initialization can plan writes.
 
 ### Documentation
 
 - Documented coverage-state semantics, network calls, SBOM sensitivity, staged Standard adoption, clean removal, rollback, and explicit compatibility limits.
+- Documented unsigned offline distribution, installation statuses, safe doctor diagnostics, and preservation-aware upgrade review.
 
 ## 0.2.0 - 2026-07-21
 

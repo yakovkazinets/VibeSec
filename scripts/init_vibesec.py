@@ -1,25 +1,42 @@
 #!/usr/bin/env python3
-"""Safely preview or initialize VibeSec in an unrelated repository.
+"""Safely preview or initialize VibeSec from source or a verified local bundle.
 
-Exit codes: 0 success, 2 conflict, 3 invalid target/configuration, 4 infrastructure failure.
-This helper performs no network, package-management, Git, or application execution.
+Exit codes: 0 success, 2 conflict/bundle verification, 3 invalid target or
+configuration, and 4 infrastructure failure. No network, Git, package manager,
+scanner, or application code is invoked.
 """
 
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
+import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import sys
 import tempfile
 import unicodedata
-from typing import Any
+from typing import Any, Protocol
+
+SCRIPT_DIRECTORY = str(Path(__file__).resolve().parent)
+_remove_script_path = SCRIPT_DIRECTORY not in sys.path
+if _remove_script_path:
+    sys.path.insert(0, SCRIPT_DIRECTORY)
+from vibesec.bundle import BundleError, VerifiedBundle, validate_catalog, verify_bundle  # noqa: E402
+from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED  # noqa: E402
+from vibesec.manifest import file_record, installation_manifest_bytes  # noqa: E402
+from vibesec.paths import UnsafePath, safe_posix_path  # noqa: E402
+from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
+from vibesec.version import VersionError, read_version  # noqa: E402
+if _remove_script_path:
+    sys.path.remove(SCRIPT_DIRECTORY)
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
-CATALOG_PATH = SOURCE_ROOT / "config/adoption-files.json"
 MAX_WORKFLOW_BYTES = 1_000_000
+COMMIT = re.compile(r"^[0-9a-f]{40}$")
 OVERLAP_MARKERS = (
     "semgrep", "codeql", "snyk", "dependabot", "renovate", "trivy",
     "gitleaks", "osv-scanner", "checkov", "grype", "anchore",
@@ -27,49 +44,126 @@ OVERLAP_MARKERS = (
 
 
 class InvalidTarget(ValueError):
-    """The target or source catalog violates initialization constraints."""
+    """The target, source, or adoption catalog violates safety constraints."""
 
 
 class ConflictError(ValueError):
     """One or more destination files already exist."""
 
 
+class ConsumerSource(Protocol):
+    source_type: str
+    version: str
+    source_commit: str | None
+    bundle_manifest_sha256: str | None
+
+    def read(self, relative: str) -> bytes: ...
+    def mode(self, relative: str) -> int: ...
+
+
+@dataclass(frozen=True)
+class TreeSource:
+    root: Path
+    version: str
+    source_commit: str | None = None
+    source_type: str = "source_tree"
+    bundle_manifest_sha256: str | None = None
+
+    def _path(self, relative: str) -> Path:
+        safe_posix_path(relative)
+        source = self.root / relative
+        try:
+            resolved = source.resolve(strict=True)
+            resolved.relative_to(self.root.resolve(strict=True))
+            details = source.stat(follow_symlinks=False)
+        except (OSError, ValueError) as exc:
+            raise InvalidTarget(f"required source file is unavailable: {relative}") from exc
+        if source.is_symlink() or not stat.S_ISREG(details.st_mode):
+            raise InvalidTarget(f"required source must be a regular file: {relative}")
+        return source
+
+    def read(self, relative: str) -> bytes:
+        try:
+            return self._path(relative).read_bytes()
+        except OSError as exc:
+            raise InvalidTarget(f"required source cannot be read: {relative}") from exc
+
+    def mode(self, relative: str) -> int:
+        return stat.S_IMODE(self._path(relative).stat(follow_symlinks=False).st_mode) & 0o755
+
+
+@dataclass(frozen=True)
+class BundleSource:
+    bundle: VerifiedBundle
+    source_type: str = "bundle"
+
+    @property
+    def version(self) -> str:
+        return self.bundle.version
+
+    @property
+    def source_commit(self) -> str | None:
+        return self.bundle.source_commit
+
+    @property
+    def bundle_manifest_sha256(self) -> str:
+        return self.bundle.manifest_sha256
+
+    def read(self, relative: str) -> bytes:
+        safe_posix_path(relative)
+        try:
+            return self.bundle.entries[relative]
+        except KeyError as exc:
+            raise InvalidTarget(f"verified bundle is missing required source: {relative}") from exc
+
+    def mode(self, relative: str) -> int:
+        try:
+            return self.bundle.modes[relative]
+        except KeyError as exc:
+            raise InvalidTarget(f"verified bundle is missing source mode: {relative}") from exc
+
+
+@dataclass(frozen=True)
+class PlanEntry:
+    source_path: str | None
+    destination: Path
+    mode: int
+    data: bytes
+
+
 def result() -> dict[str, Any]:
     return {
-        "schema_version": 1,
-        "would_create": [],
-        "created": [],
-        "conflict": [],
-        "skipped": [],
-        "warning": [],
-        "error": [],
+        "schema_version": 1, "would_create": [], "created": [], "conflict": [],
+        "skipped": [], "warning": [], "error": [], "source": {},
     }
 
 
-def load_catalog() -> dict[str, Any]:
+def tree_source(source_commit: str | None = None) -> TreeSource:
+    if source_commit is not None and not COMMIT.fullmatch(source_commit):
+        raise InvalidTarget("source commit must be a full lowercase 40-character SHA")
     try:
-        payload = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        version = read_version(SOURCE_ROOT)
+    except VersionError as exc:
+        raise InvalidTarget(str(exc)) from exc
+    return TreeSource(SOURCE_ROOT, version, source_commit)
+
+
+def load_catalog(source: ConsumerSource | None = None) -> dict[str, Any]:
+    provider = source or tree_source()
+    try:
+        return validate_catalog(loads_strict(provider.read("config/adoption-files.json")))
+    except (BundleError, StrictJSONError, UnsafePath) as exc:
         raise InvalidTarget(f"invalid VibeSec adoption catalog: {exc}") from exc
-    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
-        raise InvalidTarget("invalid VibeSec adoption catalog schema")
-    profiles = payload.get("profiles")
-    common = payload.get("common")
-    if not isinstance(profiles, dict) or not isinstance(common, list):
-        raise InvalidTarget("VibeSec adoption catalog is missing profiles or common files")
-    return payload
 
 
 def safe_relative(value: object) -> Path:
-    if not isinstance(value, str) or not value or "\x00" in value:
-        raise InvalidTarget("adoption catalog contains an invalid path")
-    path = Path(value)
-    if path.is_absolute() or ".." in path.parts or path == Path("."):
-        raise InvalidTarget(f"adoption catalog path is unsafe: {value!r}")
-    return path
+    try:
+        return Path(safe_posix_path(value))
+    except UnsafePath as exc:
+        raise InvalidTarget(f"adoption catalog path is unsafe: {value!r}") from exc
 
 
-def validate_target(raw_target: Path) -> Path:
+def validate_target(raw_target: Path, source_root: Path | None = SOURCE_ROOT) -> Path:
     if raw_target.is_symlink():
         raise InvalidTarget("target root must not be a symbolic link")
     try:
@@ -78,29 +172,27 @@ def validate_target(raw_target: Path) -> Path:
         raise InvalidTarget(f"target directory is unavailable: {exc}") from exc
     if not target.is_dir():
         raise InvalidTarget("target must be an existing directory")
-    if target == SOURCE_ROOT:
+    if source_root is not None and target == source_root:
         raise InvalidTarget("the VibeSec source repository cannot initialize itself")
     return target
 
 
-def source_entry(relative: Path) -> tuple[Path, int]:
-    source = SOURCE_ROOT / relative
-    try:
-        source_resolved = source.resolve(strict=True)
-        source_resolved.relative_to(SOURCE_ROOT)
-    except (OSError, ValueError) as exc:
-        raise InvalidTarget(f"required VibeSec source file is unavailable: {relative.as_posix()}") from exc
-    if source.is_symlink() or not source_resolved.is_file():
-        raise InvalidTarget(f"required VibeSec source must be a regular file: {relative.as_posix()}")
-    mode = stat.S_IMODE(source_resolved.stat().st_mode) & 0o755
-    return source_resolved, mode
+def source_entry(relative: Path, source: ConsumerSource | None = None,
+                 executable: set[str] | None = None) -> tuple[bytes, int]:
+    provider = source or tree_source()
+    name = relative.as_posix()
+    data = provider.read(name)
+    mode = 0o755 if executable is not None and name in executable else provider.mode(name)
+    if mode not in {0o644, 0o755}:
+        mode = 0o755 if mode & 0o111 else 0o644
+    return data, mode
 
 
 def ensure_safe_parent(target: Path, destination: Path) -> None:
     try:
         destination.relative_to(target)
     except ValueError as exc:
-        raise InvalidTarget(f"destination escapes target: {destination}") from exc
+        raise InvalidTarget("destination escapes target") from exc
     current = target
     for part in destination.relative_to(target).parts[:-1]:
         current = current / part
@@ -116,8 +208,7 @@ def existing_name_index(target: Path) -> dict[str, str]:
         base = Path(directory)
         names[:] = sorted(name for name in names if not (base / name).is_symlink())
         for name in sorted([*names, *files]):
-            path = base / name
-            relative = path.relative_to(target).as_posix()
+            relative = (base / name).relative_to(target).as_posix()
             key = unicodedata.normalize("NFC", relative).casefold()
             prior = index.get(key)
             if prior is not None and prior != relative:
@@ -140,59 +231,47 @@ def overlap_warnings(target: Path) -> list[str]:
             text = path.read_text(encoding="utf-8", errors="replace").casefold()
         except OSError:
             continue
-        for marker in OVERLAP_MARKERS:
-            if marker in text:
-                detected.add(marker)
-    if not detected:
-        return []
-    return [
-        "existing security workflow markers detected ("
-        + ", ".join(sorted(detected))
+        detected.update(marker for marker in OVERLAP_MARKERS if marker in text)
+    return [] if not detected else [
+        "existing security workflow markers detected (" + ", ".join(sorted(detected))
         + "); review docs/profile-selection.md before adding overlapping controls"
     ]
 
 
-def manifest_bytes(profile: str, stage: str, version: str, paths: list[str]) -> bytes:
-    payload = {
-        "schema_version": 1,
-        "profile": profile,
-        "stage": stage,
-        "source_version": version,
-        "installed_files": sorted(paths),
-        "enforcement": "observe",
-        "network_used_by_initializer": False,
-    }
-    if profile == "standard" and stage == "support":
-        payload["next_step"] = "After merging support files to the default branch, run --profile standard --stage workflow --write."
-    return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
-
-
-def build_plan(catalog: dict[str, Any], profile: str, stage: str) -> list[tuple[Path | None, Path, int, bytes | None]]:
+def build_plan(catalog: dict[str, Any], profile: str, stage: str,
+               source: ConsumerSource | None = None) -> list[PlanEntry]:
+    provider = source or tree_source()
     config = catalog["profiles"].get(profile)
     if not isinstance(config, dict):
         raise InvalidTarget(f"unknown profile: {profile}")
-    items: list[tuple[Path | None, Path, int, bytes | None]] = []
-    paths: list[Path] = []
+    executable = set(catalog["executable_files"])
+    mappings: list[tuple[str, Path]] = []
     if stage in {"all", "support"}:
-        for value in [*catalog["common"], *config.get("support", [])]:
-            relative = safe_relative(value)
-            paths.append(relative)
+        mappings.extend((value, safe_relative(value)) for value in [*catalog["common"], *config["support"]])
     if stage in {"all", "workflow"}:
-        source_relative = safe_relative(config.get("workflow_source"))
-        destination_relative = safe_relative(config.get("workflow_destination"))
-        source, mode = source_entry(source_relative)
-        items.append((source, destination_relative, mode, None))
-        paths.append(destination_relative)
-    for relative in sorted(set(paths), key=lambda item: item.as_posix()):
-        if any(destination == relative for _, destination, _, _ in items):
+        mappings.append((safe_relative(config["workflow_source"]).as_posix(), safe_relative(config["workflow_destination"])))
+    entries: list[PlanEntry] = []
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source_path, destination in sorted(mappings, key=lambda item: item[1].as_posix()):
+        if destination.as_posix() in seen:
             continue
-        source, mode = source_entry(relative)
-        items.append((source, relative, mode, None))
+        seen.add(destination.as_posix())
+        data, source_mode = source_entry(Path(source_path), provider, executable)
+        mode = 0o755 if source_path in executable else 0o644
+        if source_mode != mode:
+            raise InvalidTarget(f"source mode does not match reviewed catalog: {source_path}")
+        entries.append(PlanEntry(source_path, destination, mode, data))
+        records.append(file_record(destination.as_posix(), data, mode))
     manifest_relative = Path(f".vibesec/install-{profile}-{stage}.json")
-    installed = [destination.as_posix() for _, destination, _, _ in items] + [manifest_relative.as_posix()]
-    content = manifest_bytes(profile, stage, str(catalog.get("source_version", "unknown")), installed)
-    items.append((None, manifest_relative, 0o644, content))
-    return sorted(items, key=lambda item: item[1].as_posix())
+    manifest_data = installation_manifest_bytes(
+        profile=profile, stage=stage, source_type=provider.source_type,
+        development_version=provider.version, source_commit=provider.source_commit,
+        bundle_manifest_sha256=provider.bundle_manifest_sha256,
+        manifest_path=manifest_relative.as_posix(), installed=records,
+    )
+    entries.append(PlanEntry(None, manifest_relative, 0o644, manifest_data))
+    return sorted(entries, key=lambda item: item.destination.as_posix())
 
 
 def verify_standard_workflow_prerequisites(target: Path, catalog: dict[str, Any]) -> None:
@@ -202,17 +281,17 @@ def verify_standard_workflow_prerequisites(target: Path, catalog: dict[str, Any]
         raise InvalidTarget("Standard workflow stage requires support files already present: " + ", ".join(missing))
 
 
-def preflight(target: Path, plan: list[tuple[Path | None, Path, int, bytes | None]], output: dict[str, Any]) -> None:
+def preflight(target: Path, plan: list[PlanEntry], output: dict[str, Any]) -> None:
     names = existing_name_index(target)
-    for _, relative, _, _ in plan:
+    for entry in plan:
+        relative = entry.destination
         destination = target / relative
         ensure_safe_parent(target, destination)
         key = unicodedata.normalize("NFC", relative.as_posix()).casefold()
         parent_conflict = None
         for length in range(1, len(relative.parts)):
             parent = Path(*relative.parts[:length]).as_posix()
-            parent_key = unicodedata.normalize("NFC", parent).casefold()
-            existing = names.get(parent_key)
+            existing = names.get(unicodedata.normalize("NFC", parent).casefold())
             if existing is not None and existing != parent:
                 parent_conflict = existing
                 break
@@ -226,12 +305,12 @@ def preflight(target: Path, plan: list[tuple[Path | None, Path, int, bytes | Non
         raise ConflictError("initialization refused because destination files already exist")
 
 
-def write_plan(target: Path, plan: list[tuple[Path | None, Path, int, bytes | None]], output: dict[str, Any]) -> None:
+def write_plan(target: Path, plan: list[PlanEntry], output: dict[str, Any]) -> None:
     created_files: list[tuple[Path, tuple[int, int]]] = []
     created_dirs: list[Path] = []
     try:
-        for source, relative, mode, generated in plan:
-            destination = target / relative
+        for entry in plan:
+            destination = target / entry.destination
             ensure_safe_parent(target, destination)
             missing_parents: list[Path] = []
             parent = destination.parent
@@ -242,22 +321,21 @@ def write_plan(target: Path, plan: list[tuple[Path | None, Path, int, bytes | No
                 directory.mkdir(mode=0o755)
                 created_dirs.append(directory)
             if destination.exists() or destination.is_symlink():
-                raise FileExistsError(f"destination appeared during initialization: {relative.as_posix()}")
-            data = generated if generated is not None else source.read_bytes() if source else b""
-            file_descriptor, temporary_name = tempfile.mkstemp(prefix=f".{destination.name}.", dir=destination.parent)
+                raise FileExistsError(f"destination appeared during initialization: {entry.destination.as_posix()}")
+            descriptor, temporary_name = tempfile.mkstemp(prefix=f".{destination.name}.", dir=destination.parent)
             temporary = Path(temporary_name)
             try:
-                with os.fdopen(file_descriptor, "wb") as stream:
-                    stream.write(data)
+                with os.fdopen(descriptor, "wb") as stream:
+                    stream.write(entry.data)
                     stream.flush()
                     os.fsync(stream.fileno())
-                os.chmod(temporary, mode)
+                os.chmod(temporary, entry.mode)
                 os.link(temporary, destination, follow_symlinks=False)
                 details = destination.stat(follow_symlinks=False)
                 created_files.append((destination, (details.st_dev, details.st_ino)))
             finally:
                 temporary.unlink(missing_ok=True)
-            output["created"].append(relative.as_posix())
+            output["created"].append(entry.destination.as_posix())
     except BaseException:
         for path, identity in reversed(created_files):
             try:
@@ -280,6 +358,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--profile", required=True, choices=("minimal", "standard"))
     parser.add_argument("--target", required=True, type=Path)
     parser.add_argument("--stage", choices=("support", "workflow"), help="Standard only; defaults to support")
+    parser.add_argument("--bundle", type=Path, help="verified local consumer ZIP")
+    parser.add_argument("--source-commit", help="optional source-tree full commit SHA")
     parser.add_argument("--write", action="store_true", help="create files after a conflict-free preview")
     return parser.parse_args()
 
@@ -288,19 +368,33 @@ def main() -> int:
     args = parse_args()
     output = result()
     try:
-        target = validate_target(args.target)
-        catalog = load_catalog()
+        if args.bundle and args.source_commit:
+            raise InvalidTarget("--source-commit cannot be combined with --bundle")
+        if args.bundle:
+            try:
+                source: ConsumerSource = BundleSource(verify_bundle(args.bundle))
+            except BundleError as exc:
+                output["error"].append(f"bundle verification failed: {exc}")
+                print(json.dumps(output, indent=2, sort_keys=True))
+                return VERIFICATION_FAILED
+        else:
+            source = tree_source(args.source_commit)
+        output["source"] = {
+            "type": source.source_type, "development_version": source.version,
+            "source_commit": source.source_commit,
+            "bundle_manifest_sha256": source.bundle_manifest_sha256,
+        }
+        target = validate_target(args.target, SOURCE_ROOT if source.source_type == "source_tree" else None)
+        catalog = load_catalog(source)
         if args.profile == "minimal" and args.stage is not None:
             raise InvalidTarget("--stage is only valid with --profile standard")
         stage = args.stage or ("all" if args.profile == "minimal" else "support")
         if args.profile == "standard" and stage == "workflow":
             verify_standard_workflow_prerequisites(target, catalog)
-        plan = build_plan(catalog, args.profile, stage)
+        plan = build_plan(catalog, args.profile, stage, source)
         output["warning"].extend(overlap_warnings(target))
         if args.profile == "standard" and stage == "support":
-            output["warning"].append(
-                "Standard uses a two-stage bootstrap: merge support files before initializing the workflow stage."
-            )
+            output["warning"].append("Standard uses a two-stage bootstrap: merge support files before initializing the workflow stage.")
         preflight(target, plan, output)
         if args.write:
             write_plan(target, plan, output)
@@ -309,17 +403,17 @@ def main() -> int:
     except ConflictError as exc:
         output["error"].append(str(exc))
         print(json.dumps(output, indent=2, sort_keys=True))
-        return 2
-    except InvalidTarget as exc:
+        return VERIFICATION_FAILED
+    except (InvalidTarget, VersionError, UnsafePath) as exc:
         output["error"].append(str(exc))
         print(json.dumps(output, indent=2, sort_keys=True))
-        return 3
+        return INVALID_INPUT
     except (OSError, UnicodeError, KeyboardInterrupt) as exc:
         output["error"].append(f"initialization infrastructure failure: {type(exc).__name__}: {exc}")
         print(json.dumps(output, indent=2, sort_keys=True))
-        return 4
+        return INFRASTRUCTURE_FAILURE
     print(json.dumps(output, indent=2, sort_keys=True))
-    return 0
+    return SUCCESS
 
 
 if __name__ == "__main__":

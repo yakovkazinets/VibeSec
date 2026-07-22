@@ -74,5 +74,24 @@
     "license": "Apache-2.0",
     "verification_date": "2026-07-21",
     "official_repository": "https://github.com/bridgecrewio/checkov"
+  },
+  "dast-fixture-python": {
+    "kind": "container",
+    "image": "docker.io/library/python",
+    "digest": "sha256:6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df",
+    "version": "3.12.13-alpine stable image resolved 2026-07-21",
+    "license": "Python-2.0",
+    "verification_date": "2026-07-21",
+    "official_repository": "https://github.com/docker-library/python"
+  },
+  "zap-baseline": {
+    "kind": "container",
+    "image": "ghcr.io/zaproxy/zaproxy",
+    "digest": "sha256:8d387b1a63e3425beef4846e39719f5af2a787753af2d8b6558c6257d7a577a2",
+    "version": "2.17.0 stable image resolved 2026-07-21",
+    "license": "Apache-2.0",
+    "verification_date": "2026-07-21",
+    "official_repository": "https://github.com/zaproxy/zaproxy",
+    "publication_note": "The stable image can be regenerated monthly without a ZAP core version change; re-resolve and review the digest on every pin update."
   }
 }

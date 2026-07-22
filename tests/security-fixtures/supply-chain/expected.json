@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "required_cases": [
+    "deterministic-checksums",
+    "release-manifest",
+    "provenance-schema",
+    "subject-digest-matching",
+    "tampered-artifact",
+    "wrong-sbom",
+    "malformed-signature-bundle",
+    "missing-file",
+    "duplicate-json-key",
+    "oversized-file",
+    "untrusted-trigger",
+    "permission-boundary",
+    "immutable-actions",
+    "untrusted-signing-context",
+    "signer-tool-failure"
+  ]
+}

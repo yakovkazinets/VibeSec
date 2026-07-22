@@ -1,0 +1,69 @@
+name: Prepare trusted release candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-release-candidate:
+    if: github.repository == 'yakovkazinets/VibeSec' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the exact trusted source commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          ref: refs/heads/main
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Reject unexpected source identity
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(git symbolic-ref --short HEAD)" = "main"
+      - name: Install checksum-pinned release tools
+        run: scripts/install_release_tools.sh . .tools/bin
+      - name: Build the deterministic consumer bundle twice
+        run: |
+          mkdir -p release-work
+          python3 scripts/build_consumer_bundle.py --output release-work/first.zip --source-commit "${{ github.sha }}"
+          python3 scripts/build_consumer_bundle.py --output release-work/second.zip --source-commit "${{ github.sha }}"
+          cmp release-work/first.zip release-work/second.zip
+      - name: Generate local SBOMs without application execution
+        run: |
+          .tools/bin/syft scan dir:. --config config/syft-standard.yaml -o cyclonedx-json=release-work/sbom.cyclonedx.json
+          .tools/bin/syft scan dir:. --config config/syft-standard.yaml -o spdx-json=release-work/sbom.spdx.json
+          python3 scripts/validate_sbom.py --cyclonedx release-work/sbom.cyclonedx.json --spdx release-work/sbom.spdx.json
+      - name: Prepare checksums manifest and provenance
+        run: >-
+          python3 scripts/prepare_release_artifacts.py
+          --output release-candidate
+          --bundle release-work/first.zip
+          --cyclonedx release-work/sbom.cyclonedx.json
+          --spdx release-work/sbom.spdx.json
+          --source-commit "${{ github.sha }}"
+          --creation-mode trusted-github-workflow
+          --invocation-id "${{ github.run_id }}:${{ github.run_attempt }}"
+      - name: Sign checksums with ephemeral GitHub OIDC identity
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: python3 scripts/sign_release_artifacts.py release-candidate --cosign .tools/bin/cosign
+      - name: Verify the complete signed release candidate
+        run: >-
+          python3 scripts/verify_release_artifacts.py release-candidate
+          --require-signature --cosign .tools/bin/cosign
+      - name: Upload sanitized release-candidate artifacts only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1, Node 24, verified 2026-07-22
+        with:
+          name: vibesec-release-candidate-${{ github.sha }}
+          path: release-candidate/
+          if-no-files-found: error
+          retention-days: 7
+          include-hidden-files: false
+          archive: true

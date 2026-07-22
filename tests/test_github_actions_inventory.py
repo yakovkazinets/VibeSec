@@ -27,6 +27,7 @@ WORKFLOWS = (
     ".github/workflows/dast-integration.yml",
     ".github/workflows/authenticated-api-integration.yml",
     ".github/workflows/authenticated-dast-integration.yml",
+    ".github/workflows/release-candidate.yml",
     "templates/github-actions/api-security-baseline.yml",
     "templates/github-actions/dast-baseline.yml",
     "templates/github-actions/security-baseline.yml",
@@ -102,11 +103,12 @@ class GitHubActionsInventoryTests(unittest.TestCase):
 
     def test_artifact_contract_and_checkout_credential_contract_are_preserved(self):
         expected_fetch_depths = {
-            ".github/workflows/ci.yml": [0, 0, None, None, None, None, None, 0],
+            ".github/workflows/ci.yml": [0, 0, None, None, None, None, None, None, 0],
             ".github/workflows/api-security-integration.yml": [None],
             ".github/workflows/dast-integration.yml": [None],
             ".github/workflows/authenticated-api-integration.yml": [None],
             ".github/workflows/authenticated-dast-integration.yml": [None],
+            ".github/workflows/release-candidate.yml": [1],
             "templates/github-actions/api-security-baseline.yml": [None],
             "templates/github-actions/dast-baseline.yml": [None],
             "templates/github-actions/security-baseline.yml": [0],
@@ -115,6 +117,7 @@ class GitHubActionsInventoryTests(unittest.TestCase):
         }
         expected_paths = {
             ".github/workflows/ci.yml": [["results/normalized.json", "results/report.md", "results/coverage.json", "results/policy-result.json"]],
+            ".github/workflows/release-candidate.yml": [["release-candidate/"]],
             "templates/github-actions/api-security-baseline.yml": [[
                 "${{ runner.temp }}/vibesec-api-security-results/normalized.json",
                 "${{ runner.temp }}/vibesec-api-security-results/coverage.json",
@@ -151,7 +154,7 @@ class GitHubActionsInventoryTests(unittest.TestCase):
             if relative in expected_paths:
                 self.assertEqual([[item for item in step["with"]["path"].splitlines()] for step in uploads], expected_paths[relative])
                 for step in uploads:
-                    self.assertEqual(step["with"]["retention-days"], 14)
+                    self.assertEqual(step["with"]["retention-days"], 7 if relative == ".github/workflows/release-candidate.yml" else 14)
                     self.assertEqual(step["with"]["if-no-files-found"], "error")
                     self.assertIs(step["with"]["include-hidden-files"], False)
                     self.assertIs(step["with"]["archive"], True)
@@ -196,6 +199,7 @@ class GitHubActionsInventoryTests(unittest.TestCase):
             "security-artifacts", "dast-artifacts",
             "api-security-artifacts",
             "authenticated-security-artifacts",
+            "supply-chain-artifacts",
         ])
 
     def test_repository_has_no_owned_node_runtime_or_compatibility_override(self):

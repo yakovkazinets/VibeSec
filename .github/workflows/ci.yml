@@ -181,8 +181,23 @@ jobs:
           python3 -m unittest -v tests.test_authenticated_security_testing
           tests.test_project_capabilities tests.test_workflows
 
+  supply-chain-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted supply-chain validators without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Validate release manifests provenance tampering and workflow boundaries offline
+        run: >-
+          python3 -m unittest -v tests.test_supply_chain_assurance
+          tests.test_distribution_bundle tests.test_distribution_lifecycle tests.test_workflows
+      - name: Validate offline repository supply-chain posture
+        run: python3 scripts/validate_supply_chain_posture.py
+
   validate:
-    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts]
+    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -246,7 +261,7 @@ jobs:
       - name: Exercise local Opengrep rules
         run: python3 scripts/test_opengrep_rules.py .tools/bin/opengrep
       - name: Lint repository and starter workflows
-        run: .tools/bin/actionlint -no-color .github/workflows/ci.yml .github/workflows/dast-integration.yml .github/workflows/api-security-integration.yml .github/workflows/authenticated-dast-integration.yml .github/workflows/authenticated-api-integration.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml templates/github-actions/dast-baseline.yml templates/github-actions/api-security-baseline.yml
+        run: .tools/bin/actionlint -no-color .github/workflows/ci.yml .github/workflows/dast-integration.yml .github/workflows/api-security-integration.yml .github/workflows/authenticated-dast-integration.yml .github/workflows/authenticated-api-integration.yml .github/workflows/release-candidate.yml templates/github-actions/security-baseline.yml templates/github-actions/security-standard.yml templates/github-actions/dast-baseline.yml templates/github-actions/api-security-baseline.yml
       - name: Run minimal profile in observation mode
         id: security
         continue-on-error: true

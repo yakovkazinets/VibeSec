@@ -58,7 +58,7 @@ def validate_tools() -> None:
             raise ValueError(f"tool {name} configuration must be an object")
         if not all(isinstance(config.get(field), str) and config[field] for field in ("version", "license", "official_repository", "verification_date")):
             raise ValueError(f"tool {name} is missing version, license, official_repository, or verification_date")
-        expected_date = "2026-07-22" if name == "schemathesis" else "2026-07-21"
+        expected_date = "2026-07-22" if name in {"cosign", "schemathesis"} else "2026-07-21"
         if config["verification_date"] != expected_date:
             raise ValueError(f"tool {name} pin must record the current review date")
         official = urlparse(config["official_repository"])
@@ -115,7 +115,7 @@ def validate_policy() -> None:
 def validate_references() -> None:
     required = (
         ".github/workflows/ci.yml", ".github/workflows/dast-integration.yml", ".github/workflows/api-security-integration.yml",
-        ".github/workflows/authenticated-dast-integration.yml", ".github/workflows/authenticated-api-integration.yml", "templates/github-actions/security-baseline.yml",
+        ".github/workflows/authenticated-dast-integration.yml", ".github/workflows/authenticated-api-integration.yml", ".github/workflows/release-candidate.yml", "templates/github-actions/security-baseline.yml",
         "templates/github-actions/security-standard.yml", "templates/github-actions/dast-baseline.yml", "templates/github-actions/api-security-baseline.yml",
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
         "scripts/install_standard_tools.sh", "scripts/run_standard_profile.py", "scripts/detect_repository.py",
@@ -143,6 +143,9 @@ def validate_references() -> None:
         "docs/installation-verification.md", "docs/doctor.md", "docs/dast-baseline.md", "docs/dast-threat-model.md",
         "docs/api-security-baseline.md", "docs/api-security-threat-model.md", "scripts/test_api_security_container.py",
         "docs/authenticated-security-testing.md", "docs/authenticated-security-threat-model.md",
+        "docs/software-supply-chain-assurance.md", "docs/release-signing.md", "docs/provenance.md", "docs/release-threat-model.md",
+        "scripts/install_release_tools.sh", "scripts/prepare_release_artifacts.py", "scripts/sign_release_artifacts.py", "scripts/verify_release_artifacts.py", "scripts/validate_supply_chain_posture.py",
+        "scripts/vibesec/supply_chain.py", "config/release-manifest-schema.json", "config/provenance-schema.json", "config/supply-chain-policy.json",
         "docs/security-validation-policy.md", "docs/security-capability-matrix.md", "docs/self-hosted-validation.md",
         "examples/reports/README.md",
         "skills/appsec-guardian/SKILL.md",
@@ -272,9 +275,39 @@ def validate_github_actions_documentation() -> None:
     if any(marker not in runtime for marker in markers):
         raise ValueError("GitHub Actions runtime documentation is incomplete")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts]"
+    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]"
     if expected not in ci or ci.count("\n  validate:\n") != 1:
         raise ValueError("validate must remain the single required aggregate CI job")
+
+
+def validate_supply_chain_configuration() -> None:
+    policy = load_object(ROOT / "config/supply-chain-policy.json")
+    if set(policy) != {
+        "schema_version", "source_repository", "release_branch", "workflow_identity",
+        "certificate_oidc_issuer", "signature_subject", "signature_bundle",
+        "required_artifacts", "normal_scans_require_network_signing", "claimed_slsa_level",
+    }:
+        raise ValueError("supply-chain policy fields are invalid")
+    if (policy["schema_version"] != 1
+            or policy["source_repository"] != "https://github.com/yakovkazinets/VibeSec"
+            or policy["release_branch"] != "refs/heads/main"
+            or policy["certificate_oidc_issuer"] != "https://token.actions.githubusercontent.com"
+            or policy["signature_subject"] != "SHA256SUMS"
+            or policy["signature_bundle"] != "SHA256SUMS.sigstore.json"
+            or policy["normal_scans_require_network_signing"] is not False
+            or policy["claimed_slsa_level"] is not None):
+        raise ValueError("supply-chain policy values are invalid")
+    expected = [
+        "vibesec-consumer-bundle.zip", "sbom.cyclonedx.json", "sbom.spdx.json",
+        "provenance.intoto.jsonl", "release-manifest.json", "SHA256SUMS",
+        "SHA256SUMS.sigstore.json",
+    ]
+    if policy["required_artifacts"] != expected:
+        raise ValueError("release artifact set is invalid")
+    for relative in ("config/release-manifest-schema.json", "config/provenance-schema.json"):
+        schema = load_object(ROOT / relative)
+        if schema.get("additionalProperties") is not False or schema.get("type") != "object":
+            raise ValueError(f"{relative} must be a closed object schema")
 
 
 def main() -> int:
@@ -286,6 +319,7 @@ def main() -> int:
         validate_api_command_contract()
         validate_adoption_metadata()
         validate_github_actions_documentation()
+        validate_supply_chain_configuration()
         inventory = load_inventory(ROOT / "config/github-actions.json")
         action_errors = audit_tracked_files(ROOT, inventory)
         if action_errors:

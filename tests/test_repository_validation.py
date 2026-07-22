@@ -11,7 +11,7 @@ class RepositoryValidationTests(unittest.TestCase):
         self.assertEqual(set(tools), EXPECTED_TOOLS)
         for name, config in tools.items():
             self.assertTrue(config["official_repository"].startswith("https://github.com/"))
-            expected_date = "2026-07-22" if name == "schemathesis" else "2026-07-21"
+            expected_date = "2026-07-22" if name in {"cosign", "schemathesis"} else "2026-07-21"
             self.assertEqual(config["verification_date"], expected_date)
             if config.get("kind") == "container":
                 self.assertRegex(config["digest"].removeprefix("sha256:"), SHA256)

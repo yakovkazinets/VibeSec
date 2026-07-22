@@ -16,14 +16,14 @@ from typing import Any
 SCRIPT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_ROOT))
 from vibesec.coverage import markdown as coverage_markdown, validate_coverage  # noqa: E402
-from vibesec.detection import DetectionError, inventory  # noqa: E402
+from vibesec.detection import (  # noqa: E402
+    IMAGE_DIGEST, DetectionError, ImageStateError, derive_image_expectation, inventory,
+)
 from vibesec.model import Finding  # noqa: E402
 from vibesec.normalize import normalize_file  # noqa: E402
 from vibesec.osv_database import validate_offline_database  # noqa: E402
 from vibesec.sbom import sanitize_repository_paths, validate_cyclonedx, validate_spdx  # noqa: E402
 
-IMAGE_DIGEST = re.compile(r"^[A-Za-z0-9._/-]+@sha256:[0-9a-f]{64}$")
-TRUSTED_GITHUB_EVENTS = {"push", "schedule", "workflow_dispatch"}
 ACTIONLINT_JSON_FORMAT = "{{json .}}"
 DIAGNOSTIC_DOCS = "docs/self-hosted-validation.md"
 CHECKOV_CONTAINER_CONFIG = "/vibesec/checkov-standard.yaml"
@@ -533,13 +533,19 @@ def main() -> int:
 
     github_event = os.getenv("GITHUB_EVENT_NAME", "")
     github_actions = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
-    image_allowed = not github_actions or github_event in TRUSTED_GITHUB_EVENTS
-    if not image_allowed:
-        record("trivy-image", "prebuilt container image", "not_configured", f"disabled on untrusted or unknown GitHub event {github_event or 'unset'}", [], [], "none")
-    elif not args.image_reference:
-        state = "not_configured" if repo_inventory["dockerfiles"] else "not_applicable"
-        reason = "no immutable prebuilt image reference configured" if repo_inventory["dockerfiles"] else "no Dockerfile or immutable prebuilt image reference detected"
-        record("trivy-image", "prebuilt container image", state, reason, repo_inventory["dockerfiles"], [], "none")
+    try:
+        image_expectation = derive_image_expectation(
+            github_actions=github_actions,
+            github_event=github_event,
+            image_reference=args.image_reference,
+            has_dockerfile=bool(repo_inventory["dockerfiles"]),
+        )
+    except ImageStateError as exc:
+        print(f"invalid image coverage configuration: {exc}", file=sys.stderr)
+        return 3
+    if image_expectation.state != "ran":
+        record("trivy-image", "prebuilt container image", image_expectation.state,
+               image_expectation.reason, repo_inventory["dockerfiles"], [], "none")
     else:
         image_output = raw / "trivy-image.json"
         execute("trivy-image", "prebuilt container image", command(

@@ -48,6 +48,19 @@ jobs:
           persist-credentials: false
       - name: Install pinned validation dependency
         run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Compute event-aware Standard self-scan expectations
+        id: expectations
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          VIBESEC_IMAGE_REFERENCE: ""
+        run: |
+          assignment="$(python3 scripts/expected_self_scan_states.py \
+            --github-event "$GITHUB_EVENT_NAME" --image-reference "$VIBESEC_IMAGE_REFERENCE" --format shell)"
+          case "$assignment" in
+            TRIVY_IMAGE_STATE=ran|TRIVY_IMAGE_STATE=not_applicable|TRIVY_IMAGE_STATE=not_configured) ;;
+            *) echo "Invalid self-scan image-state expectation" >&2; exit 3 ;;
+          esac
+          printf 'trivy_image_state=%s\n' "${assignment#TRIVY_IMAGE_STATE=}" >> "$GITHUB_OUTPUT"
       - name: Install checksum and signature-verified scanners
         run: |
           scripts/install_tools.sh . .tools/bin
@@ -59,6 +72,7 @@ jobs:
         env:
           VIBESEC_ENFORCEMENT: observe
           VIBESEC_MIN_SEVERITY: high
+          VIBESEC_IMAGE_REFERENCE: ""
           SELF_SCAN_RESULTS: ${{ runner.temp }}/vibesec-self-scan-standard
         run: |
           set +e
@@ -78,11 +92,12 @@ jobs:
         if: always() && steps.standard.outcome != 'skipped'
         env:
           SELF_SCAN_RESULTS: ${{ runner.temp }}/vibesec-self-scan-standard
+          EXPECTED_TRIVY_IMAGE_STATE: ${{ steps.expectations.outputs.trivy_image_state }}
         run: |
           python3 scripts/validate_security_artifacts.py --profile standard --results "$SELF_SCAN_RESULTS" \
             --expect-state opengrep=ran --expect-state osv-scanner=ran --expect-state syft=ran \
             --expect-state checkov=ran --expect-state trivy=ran --expect-state gitleaks=ran \
-            --expect-state actionlint=ran --expect-state trivy-image=not_configured
+            --expect-state actionlint=ran --expect-state "trivy-image=$EXPECTED_TRIVY_IMAGE_STATE"
       - name: Preserve Standard scan exit contract
         if: always() && steps.standard.outcome != 'skipped'
         env:

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import os
 from pathlib import Path
+import re
 from typing import Any
 
 import yaml
@@ -32,10 +34,61 @@ LOCKFILES = {
     "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml",
     "bun.lock", "bun.lockb", "uv.lock", "poetry.lock", "Pipfile.lock", "gradle.lockfile", "go.sum",
 }
+IMAGE_DIGEST = re.compile(r"^[A-Za-z0-9._/-]+@sha256:[0-9a-f]{64}$")
+TRUSTED_GITHUB_EVENTS = frozenset({"push", "schedule", "workflow_dispatch"})
+UNTRUSTED_GITHUB_EVENTS = frozenset({"pull_request"})
+SUPPORTED_GITHUB_EVENTS = TRUSTED_GITHUB_EVENTS | UNTRUSTED_GITHUB_EVENTS
 
 
 class DetectionError(ValueError):
     """Inventory could not complete within its explicit safety bounds."""
+
+
+class ImageStateError(ValueError):
+    """Image coverage inputs are malformed or unsafe."""
+
+
+@dataclass(frozen=True)
+class ImageExpectation:
+    state: str
+    reason: str
+
+
+def derive_image_expectation(
+    *,
+    github_actions: bool,
+    github_event: str,
+    image_reference: str,
+    has_dockerfile: bool,
+    strict_event: bool = False,
+) -> ImageExpectation:
+    """Return image coverage expected before a scan result exists.
+
+    Unknown GitHub event names either fail closed when ``strict_event`` is set,
+    or use the runner's explicit safe mapping that disables image scanning.
+    """
+    if image_reference and not IMAGE_DIGEST.fullmatch(image_reference):
+        raise ImageStateError("image references require an immutable sha256 digest")
+    if github_actions and github_event not in SUPPORTED_GITHUB_EVENTS:
+        if strict_event:
+            raise ImageStateError(f"unsupported GitHub event: {github_event or 'unset'}")
+        return ImageExpectation(
+            "not_configured",
+            f"disabled on untrusted or unknown GitHub event {github_event or 'unset'}",
+        )
+    if github_actions and github_event in UNTRUSTED_GITHUB_EVENTS:
+        return ImageExpectation(
+            "not_configured",
+            f"disabled on untrusted or unknown GitHub event {github_event}",
+        )
+    if image_reference:
+        return ImageExpectation("ran", "immutable prebuilt image reference configured")
+    if has_dockerfile:
+        return ImageExpectation("not_configured", "no immutable prebuilt image reference configured")
+    return ImageExpectation(
+        "not_applicable",
+        "no Dockerfile or immutable prebuilt image reference detected",
+    )
 
 
 def _yaml_mappings(path: Path) -> list[dict[str, Any]]:

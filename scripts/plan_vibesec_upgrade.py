@@ -23,6 +23,7 @@ CLASSIFICATIONS = {
     "both_modified", "remove_candidate", "baseline_preserve", "suppression_preserve",
     "policy_review_required", "workflow_support_version_mismatch", "unknown_legacy_state",
     "conflict", "unsafe_path",
+    "capability_preserve",
 }
 
 
@@ -31,7 +32,11 @@ def desired_files(bundle: VerifiedBundle, state: InstallationState) -> dict[str,
     mappings: dict[str, str] = {}
     stages = {(item["profile"], item["stage"]) for item in state.manifests}
     for profile, stage in stages:
-        config = catalog["profiles"][profile]
+        config = catalog["addons"][profile] if stage == "addon" else catalog["profiles"][profile]
+        if stage == "addon":
+            for source in config["support"]:
+                mappings[source] = source
+            mappings[config["workflow_destination"]] = config["workflow_source"]
         if stage in {"all", "support"}:
             for source in [*catalog["common"], *config["support"]]:
                 mappings[source] = source
@@ -59,9 +64,11 @@ def classify_plan(state: InstallationState, bundle: VerifiedBundle) -> dict[str,
         expected_old = old.get("expected_sha256") if old else None
         actual = old.get("actual_sha256") if old else None
         expected_new = new.get("sha256") if new else None
-        if path == "policy/baseline.json" or path == "policy/standard-baseline.json":
+        if path == ".vibesec/project-capabilities.json":
+            classification = "capability_preserve"
+        elif path in {"policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json"}:
             classification = "baseline_preserve"
-        elif path == "policy/suppressions.yml":
+        elif path in {"policy/suppressions.yml", "policy/dast-suppressions.json"}:
             classification = "suppression_preserve"
         elif old is None:
             classification = "add"
@@ -83,7 +90,7 @@ def classify_plan(state: InstallationState, bundle: VerifiedBundle) -> dict[str,
             classification = "both_modified"
         else:
             classification = "conflict"
-        preservation = path in PRESERVATION_SENSITIVE or path.startswith("policy/") or path.startswith(".github/workflows/") or "ignore" in path
+        preservation = path == ".vibesec/project-capabilities.json" or path in PRESERVATION_SENSITIVE or path.startswith("policy/") or path.startswith(".github/workflows/") or "ignore" in path
         records.append({
             "path": path, "classification": classification,
             "current_expected_sha256": expected_old, "current_actual_sha256": actual,
@@ -93,7 +100,7 @@ def classify_plan(state: InstallationState, bundle: VerifiedBundle) -> dict[str,
     for record in records:
         counts[record["classification"]] = counts.get(record["classification"], 0) + 1
     manual = [record["path"] for record in records if record["classification"] in {
-        "both_modified", "baseline_preserve", "suppression_preserve", "policy_review_required",
+        "both_modified", "baseline_preserve", "suppression_preserve", "capability_preserve", "policy_review_required",
         "workflow_support_version_mismatch", "unknown_legacy_state", "conflict", "unsafe_path",
     }]
     additions = [record["path"] for record in records if record["classification"] == "add"]
@@ -163,7 +170,7 @@ def main() -> int:
             return VERIFICATION_FAILED
         plan = classify_plan(state, bundle)
         blocking = bool(plan["files_requiring_manual_merge"] or state.status == "unverifiable_legacy_installation")
-        status = "review_required" if blocking else "no_changes" if set(plan["summary"]) <= {"unchanged", "baseline_preserve", "suppression_preserve"} else "planned"
+        status = "review_required" if blocking else "no_changes" if set(plan["summary"]) <= {"unchanged", "baseline_preserve", "suppression_preserve", "capability_preserve"} else "planned"
         payload = envelope(
             "plan_vibesec_upgrade", tool_version, status, result=plan,
             warnings=["Manual review is required; no files were modified."] if blocking else [],

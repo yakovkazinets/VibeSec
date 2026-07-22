@@ -77,7 +77,7 @@ class VibeSecSelfScanTests(unittest.TestCase):
                 "PATH": f"{harness.tools}:{environment['PATH']}",
                 "VIBESEC_EXPECTED_ROOT": str(ROOT), "GITHUB_ACTIONS": "true",
             })
-            for event, image_state in (("pull_request", "not_configured"), ("push", "not_applicable")):
+            for event, image_state in (("pull_request", "not_applicable"), ("push", "not_applicable")):
                 with self.subTest(event=event):
                     environment["GITHUB_EVENT_NAME"] = event
                     results = harness.target.parent / f"self-scan-results-{event}"

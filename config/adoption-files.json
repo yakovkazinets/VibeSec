@@ -10,9 +10,11 @@
     "scripts/install_tools.sh",
     "scripts/policy_gate.py",
     "scripts/preflight.py",
+    "scripts/validate_project_capabilities.py",
     "scripts/verify_installation.py",
     "scripts/vibesec/__init__.py",
     "scripts/vibesec/bundle.py",
+    "scripts/vibesec/capabilities.py",
     "scripts/vibesec/coverage.py",
     "scripts/vibesec/exit_codes.py",
     "scripts/vibesec/installation.py",
@@ -35,8 +37,11 @@
     "docs/configuration.md",
     "docs/doctor.md",
     "docs/distribution.md",
+    "docs/dast-baseline.md",
+    "docs/dast-threat-model.md",
     "docs/installation-verification.md",
     "docs/profile-selection.md",
+    "docs/project-capabilities.md",
     "docs/quickstart.md",
     "docs/security-model.md",
     "docs/threat-model.md",
@@ -58,9 +63,12 @@
     "scripts/preflight.py",
     "scripts/run_minimal_profile.sh",
     "scripts/run_standard_profile.py",
+    "scripts/run_dast_baseline.py",
+    "scripts/validate_dast_artifacts.py",
     "scripts/write_minimal_artifacts.py",
     "scripts/verify_consumer_bundle.py",
     "scripts/verify_installation.py",
+    "scripts/validate_project_capabilities.py",
     "scripts/vibesec_doctor.py"
   ],
   "profiles": {
@@ -98,6 +106,23 @@
       ],
       "workflow_source": "templates/github-actions/security-standard.yml",
       "workflow_destination": ".github/workflows/vibesec-standard.yml"
+    }
+  },
+  "addons": {
+    "dast-baseline": {
+      "support": [
+        "config/dast-baseline.json",
+        "config/zap-passive-plan-schema.json",
+        "config/zap-baseline.conf",
+        "policy/dast-baseline.json",
+        "policy/dast-suppressions.json",
+        "scripts/run_dast_baseline.py",
+        "scripts/validate_dast_artifacts.py",
+        "scripts/vibesec/dast.py",
+        "scripts/vibesec/zap_automation.py"
+      ],
+      "workflow_source": "templates/github-actions/dast-baseline.yml",
+      "workflow_destination": ".github/workflows/vibesec-dast-baseline.yml"
     }
   }
 }

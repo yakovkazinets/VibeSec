@@ -93,7 +93,7 @@ def validate_installation_manifest(payload: Any) -> dict[str, Any]:
         raise ManifestError("installation manifest schema or fields are unsupported")
     profile = payload["profile"]
     stage = payload["stage"]
-    if (profile, stage) not in {("minimal", "all"), ("standard", "support"), ("standard", "workflow")}:
+    if (profile, stage) not in {("minimal", "all"), ("standard", "support"), ("standard", "workflow"), ("dast-baseline", "addon")}:
         raise ManifestError("installation profile/stage combination is invalid")
     if payload["source_type"] not in {"source_tree", "bundle"}:
         raise ManifestError("installation source type is invalid")

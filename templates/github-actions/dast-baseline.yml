@@ -1,0 +1,68 @@
+name: VibeSec Passive DAST Baseline
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vibesec-dast-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dast-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out trusted DAST harness without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Run isolated passive baseline
+        id: dast
+        continue-on-error: true
+        env:
+          VIBESEC_DAST_IMAGE_REFERENCE: ${{ vars.VIBESEC_DAST_IMAGE_REFERENCE }}
+          VIBESEC_DAST_CONTAINER_PORT: ${{ vars.VIBESEC_DAST_CONTAINER_PORT || '8080' }}
+          VIBESEC_DAST_BASE_PATH: ${{ vars.VIBESEC_DAST_BASE_PATH || '/' }}
+          VIBESEC_DAST_ENFORCEMENT: observe
+          VIBESEC_DAST_MIN_SEVERITY: high
+          VIBESEC_DAST_RESULTS: ${{ runner.temp }}/vibesec-dast-results
+        run: |
+          mkdir -p "$VIBESEC_DAST_RESULTS"
+          set +e
+          python3 scripts/run_dast_baseline.py "$VIBESEC_DAST_RESULTS"
+          scan_exit=$?
+          set -e
+          case "$scan_exit" in 0|1|2|3) ;; *) scan_exit=3 ;; esac
+          exit_file="$(mktemp "$VIBESEC_DAST_RESULTS/.scan-exit-code.XXXXXX")"
+          printf '%s\n' "$scan_exit" > "$exit_file"
+          mv "$exit_file" "$VIBESEC_DAST_RESULTS/scan-exit-code.txt"
+          echo "exit_code=$scan_exit" >> "$GITHUB_OUTPUT"
+      - name: Validate sanitized DAST artifacts
+        if: always() && steps.dast.outcome != 'skipped'
+        env:
+          VIBESEC_DAST_RESULTS: ${{ runner.temp }}/vibesec-dast-results
+        run: |
+          state="ran"
+          case "${{ steps.dast.outputs.exit_code }}" in 2|3) state="tool_error" ;; esac
+          if [[ -z "${{ vars.VIBESEC_DAST_IMAGE_REFERENCE }}" ]]; then state="not_configured"; fi
+          python3 scripts/validate_dast_artifacts.py --results "$VIBESEC_DAST_RESULTS" --expect-state "$state"
+      - name: Upload sanitized DAST artifacts
+        if: always() && steps.dast.outcome != 'skipped'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vibesec-dast-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/vibesec-dast-results/normalized.json
+            ${{ runner.temp }}/vibesec-dast-results/coverage.json
+            ${{ runner.temp }}/vibesec-dast-results/report.md
+            ${{ runner.temp }}/vibesec-dast-results/policy-result.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve DAST exit contract
+        if: always() && steps.dast.outcome != 'skipped'
+        env:
+          VIBESEC_DAST_RESULTS: ${{ runner.temp }}/vibesec-dast-results
+        run: python3 scripts/preserve_scan_exit.py "$VIBESEC_DAST_RESULTS/scan-exit-code.txt"

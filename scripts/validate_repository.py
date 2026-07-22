@@ -12,15 +12,22 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.bundle import validate_catalog  # noqa: E402
+from vibesec.dast import load_config  # noqa: E402
 from vibesec.strict_json import loads_strict  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
+from vibesec.zap_automation import (  # noqa: E402
+    CONTAINER_ZAP_HOME, JOB_TYPES, REPORT_FILENAME, REPORT_TEMPLATE,
+    RUNTIME_ADDON_OPTIONS, build_passive_plan, trusted_zap_command,
+    validate_passive_plan,
+)
 from validate_security_capabilities import validate_matrix  # noqa: E402
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
-EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "cosign", "checkov"}
+EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "cosign", "checkov", "zap-baseline", "dast-fixture-python"}
 EXPECTED_VIBESEC_VARIABLES = {
     "VIBESEC_ENFORCEMENT", "VIBESEC_MIN_SEVERITY", "VIBESEC_TOOL_DIR", "VIBESEC_NETWORK_MODE",
     "VIBESEC_OSV_DATABASE_DIR", "VIBESEC_OSV_DATABASE_DATE", "VIBESEC_OSV_MAX_DATABASE_AGE_DAYS",
-    "VIBESEC_IMAGE_REFERENCE",
+    "VIBESEC_IMAGE_REFERENCE", "VIBESEC_DAST_IMAGE_REFERENCE", "VIBESEC_DAST_CONTAINER_PORT",
+    "VIBESEC_DAST_BASE_PATH", "VIBESEC_DAST_ENFORCEMENT", "VIBESEC_DAST_MIN_SEVERITY",
 }
 
 
@@ -82,12 +89,18 @@ def validate_policy() -> None:
     standard_baseline = load_object(ROOT / "policy/standard-baseline.json")
     if standard_baseline.get("profile") != "standard" or not isinstance(standard_baseline.get("fingerprints"), list):
         raise ValueError("policy/standard-baseline.json must contain a Standard fingerprints array")
+    dast_baseline = load_object(ROOT / "policy/dast-baseline.json")
+    if dast_baseline.get("profile") != "dast-baseline" or not isinstance(dast_baseline.get("fingerprints"), list):
+        raise ValueError("policy/dast-baseline.json must contain a DAST Baseline fingerprints array")
+    dast_suppressions = load_object(ROOT / "policy/dast-suppressions.json")
+    if dast_suppressions.get("profile") != "dast-baseline" or not isinstance(dast_suppressions.get("suppressions"), list):
+        raise ValueError("policy/dast-suppressions.json must contain a DAST Baseline suppressions array")
 
 
 def validate_references() -> None:
     required = (
-        ".github/workflows/ci.yml", "templates/github-actions/security-baseline.yml",
-        "templates/github-actions/security-standard.yml",
+        ".github/workflows/ci.yml", ".github/workflows/dast-integration.yml", "templates/github-actions/security-baseline.yml",
+        "templates/github-actions/security-standard.yml", "templates/github-actions/dast-baseline.yml",
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
         "scripts/install_standard_tools.sh", "scripts/run_standard_profile.py", "scripts/detect_repository.py",
         "scripts/validate_sbom.py", "scripts/validate_opengrep_rules.py",
@@ -100,9 +113,12 @@ def validate_references() -> None:
         "scripts/verify_installation.py", "scripts/vibesec_doctor.py", "scripts/plan_vibesec_upgrade.py",
         "scripts/validate_security_capabilities.py", "scripts/run_security_accountability.py",
         "scripts/validate_security_artifacts.py", "config/security-capabilities.json", "config/self-scan-scope.json",
+        "scripts/run_dast_baseline.py", "scripts/test_dast_container.py", "scripts/validate_dast_artifacts.py",
+        "scripts/vibesec/dast.py", "scripts/vibesec/zap_automation.py", "scripts/vibesec/zap_diagnostics.py",
+        "config/zap-passive-plan-schema.json",
         "config/environment-variables.json", "docs/quickstart.md", "docs/profile-selection.md",
         "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md", "docs/distribution.md",
-        "docs/installation-verification.md", "docs/doctor.md",
+        "docs/installation-verification.md", "docs/doctor.md", "docs/dast-baseline.md", "docs/dast-threat-model.md",
         "docs/security-validation-policy.md", "docs/security-capability-matrix.md", "docs/self-hosted-validation.md",
         "examples/reports/README.md",
         "skills/appsec-guardian/SKILL.md",
@@ -115,6 +131,40 @@ def validate_references() -> None:
         raise ValueError("requirements.txt must contain the reviewed PyYAML pin")
 
 
+def validate_dast_command_contract() -> None:
+    config = load_config(ROOT)
+    command = trusted_zap_command()
+    if command != ["zap.sh", "-cmd", "-silent", "-dir", CONTAINER_ZAP_HOME,
+                   "-autorun", "/zap/wrk/vibesec-zap-plan.yaml"]:
+        raise ValueError("DAST command must contain only the reviewed Automation Framework arguments")
+    if command.count("-dir") != 1 or command[command.index("-dir") + 1] != "/zap/vibesec-home":
+        raise ValueError("DAST command must use exactly one explicit ephemeral ZAP home")
+    if RUNTIME_ADDON_OPTIONS.intersection(command) or any("proxy" in item.casefold() for item in command):
+        raise ValueError("DAST command must not update add-ons or configure a proxy")
+    plan = build_passive_plan(
+        port=8080, base_path="/", spider_minutes=config["spider_duration_minutes"],
+        passive_wait_minutes=config["passive_scan_timeout_minutes"],
+    )
+    validate_passive_plan(
+        plan, port=8080, base_path="/", spider_minutes=config["spider_duration_minutes"],
+        passive_wait_minutes=config["passive_scan_timeout_minutes"],
+    )
+    if tuple(job["type"] for job in plan["jobs"]) != JOB_TYPES:
+        raise ValueError("DAST plan job order differs from the reviewed passive sequence")
+    report = plan["jobs"][2]
+    if report["parameters"]["template"] != REPORT_TEMPLATE or report["parameters"]["reportFile"] != REPORT_FILENAME:
+        raise ValueError("DAST plan must use only the traditional JSON private report")
+    schema = load_object(ROOT / "config/zap-passive-plan-schema.json")
+    if schema.get("additionalProperties") is not False or schema.get("properties", {}).get("jobs", {}).get("maxItems") != 4:
+        raise ValueError("trusted ZAP plan schema does not preserve the closed four-job contract")
+    for relative in ("scripts/run_dast_baseline.py", "scripts/test_dast_container.py"):
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        if "trusted_zap_container_command(" not in source or "zap-baseline.py" in source or "zap-full-scan.py" in source:
+            raise ValueError(f"{relative} must use only the shared trusted ZAP Automation Framework builder")
+        if "PLAN_FILENAME" not in source and relative.endswith("run_dast_baseline.py"):
+            raise ValueError("production DAST runner must create and delete the trusted plan")
+
+
 def validate_adoption_metadata() -> None:
     version = read_version(ROOT)
     if version != "0.3.0-dev":
@@ -122,8 +172,9 @@ def validate_adoption_metadata() -> None:
     adoption = validate_catalog(loads_strict((ROOT / "config/adoption-files.json").read_bytes()))
     common = adoption.get("common")
     profiles = adoption.get("profiles")
-    if not isinstance(common, list) or not isinstance(profiles, dict) or set(profiles) != {"minimal", "standard"}:
-        raise ValueError("adoption catalog must define common, Minimal, and Standard files")
+    addons = adoption.get("addons")
+    if not isinstance(common, list) or not isinstance(profiles, dict) or set(profiles) != {"minimal", "standard"} or not isinstance(addons, dict) or set(addons) != {"dast-baseline"}:
+        raise ValueError("adoption catalog must define common, Minimal, Standard, and the DAST Baseline add-on")
     for profile, config in profiles.items():
         if not isinstance(config, dict) or not isinstance(config.get("support"), list):
             raise ValueError(f"adoption catalog profile {profile} is malformed")
@@ -132,9 +183,16 @@ def validate_adoption_metadata() -> None:
                 raise ValueError(f"adoption catalog contains unsafe path {relative!r}")
             if not (ROOT / relative).is_file():
                 raise ValueError(f"adoption catalog references missing file {relative}")
+    for addon, config in addons.items():
+        for relative in [*config["support"], config["workflow_source"]]:
+            if not isinstance(relative, str) or not relative or relative.startswith("/") or ".." in Path(relative).parts or not (ROOT / relative).is_file():
+                raise ValueError(f"adoption catalog add-on {addon} references invalid file {relative!r}")
     executable = set(adoption["executable_files"])
     selected = set(common) | set(adoption["bundle_additional"])
     for config in profiles.values():
+        selected.update(config["support"])
+        selected.add(config["workflow_source"])
+    for config in addons.values():
         selected.update(config["support"])
         selected.add(config["workflow_source"])
     if not executable <= selected:
@@ -156,6 +214,7 @@ def main() -> int:
         validate_tools()
         validate_policy()
         validate_references()
+        validate_dast_command_contract()
         validate_adoption_metadata()
         validate_matrix()
     except (OSError, ValueError) as exc:

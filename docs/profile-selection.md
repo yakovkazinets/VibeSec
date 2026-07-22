@@ -1,6 +1,10 @@
 # Choosing Minimal or Standard
 
+The Passive DAST Baseline is an independent add-on, not a profile-selection criterion. Add it only when an owner can supply an authorized non-production digest-pinned non-root image and operate a disposable trusted Docker runner. Its passive unauthenticated crawl does not replace SAST, SCA, IaC review, threat modeling, or penetration testing.
+
 More scanners are not automatically better. Choose the smallest profile that adds useful, maintainable coverage beyond controls already present.
+
+Profile selection and project capabilities are separate decisions. Complete the `[Y/n]` questionnaire first. Explicit No answers prevent inapplicable scanners from running even when filename heuristics suggest otherwise; detection can narrow but never override the manifest. Secrets scanning remains broadly applicable. See [project capabilities](project-capabilities.md).
 
 | Decision area | Minimal | Standard |
 |---|---|---|

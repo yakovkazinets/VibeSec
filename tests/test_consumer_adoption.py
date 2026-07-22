@@ -36,7 +36,15 @@ class ConsumerAdoptionTests(unittest.TestCase):
         command = ["python3", str(INIT), "--profile", profile, "--target", str(self.target), "--write"]
         if stage:
             command += ["--stage", stage]
+        else:
+            command.append("--all-capabilities")
         return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+
+    def initialize_dast(self):
+        return subprocess.run(
+            ["python3", str(INIT), "--addon", "dast-baseline", "--target", str(self.target), "--write"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
 
     def write_fake_tools(self) -> None:
         source = r'''#!/usr/bin/env python3
@@ -184,6 +192,24 @@ elif name == "docker":
                     self.assertRegex(reference.rsplit("@", 1)[1], FULL_SHA)
             for prohibited in ("docker build", "terraform apply", "terraform plan", "npm install", "npm ci", "pip install -r", "mvn package", "gradle build"):
                 self.assertNotIn(prohibited, text)
+        addon = catalog["addons"]["dast-baseline"]
+        for path in [*addon["support"], addon["workflow_source"]]:
+            self.assertTrue((ROOT / path).is_file(), path)
+        text = (ROOT / addon["workflow_source"]).read_text(encoding="utf-8")
+        self.assertNotIn("pull_request:", text)
+        self.assertNotIn("secrets.", text)
+        self.assertNotIn("docker build", text)
+        self.assertIn("validate_dast_artifacts.py", text)
+
+    def test_dast_addon_is_opt_in_and_does_not_replace_minimal(self):
+        self.assertNotEqual(self.initialize_dast().returncode, 0)
+        self.assertEqual(self.initialize("minimal").returncode, 0)
+        completed = self.initialize_dast()
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertTrue((self.target / ".github/workflows/vibesec-minimal.yml").is_file())
+        self.assertTrue((self.target / ".github/workflows/vibesec-dast-baseline.yml").is_file())
+        manifest = json.loads((self.target / ".vibesec/install-addon-dast-baseline.json").read_text(encoding="utf-8"))
+        self.assertEqual((manifest["profile"], manifest["stage"]), ("dast-baseline", "addon"))
 
     def test_fixture_inventory_matches_documented_expectations(self):
         for fixture in sorted(path for path in FIXTURES.iterdir() if path.is_dir()):

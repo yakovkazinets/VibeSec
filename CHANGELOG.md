@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add a separate opt-in passive OWASP ZAP Baseline add-on with immutable non-root target validation, internal Docker isolation, strict normalization, independent policy, sanitized artifacts, accountability fixtures, consumer installation, documentation, and a manual starter workflow.
+- Add a strict project-capability questionnaire and manifest with Yes-by-default interactive answers, explicit non-interactive input, manifest-driven scanner applicability, preservation-aware upgrades, and VibeSec DAST reported as `not_applicable`.
+
 All notable changes will be documented here. The project follows semantic versioning after its first tagged release.
 
 ## Unreleased

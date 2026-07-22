@@ -33,10 +33,21 @@ class DistributionLifecycleTests(unittest.TestCase):
 
     def init(self, target, profile="minimal", stage=None, bundle=True, write=True):
         command = ["python3", "scripts/init_vibesec.py", "--profile", profile, "--target", str(target)]
+        if stage != "workflow":
+            command.append("--all-capabilities")
         if bundle:
             command += ["--bundle", str(self.bundle)]
         if stage:
             command += ["--stage", stage]
+        if write:
+            command.append("--write")
+        completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+        return completed, json.loads(completed.stdout)
+
+    def init_addon(self, target, bundle=True, write=True):
+        command = ["python3", "scripts/init_vibesec.py", "--addon", "dast-baseline", "--target", str(target)]
+        if bundle:
+            command += ["--bundle", str(self.bundle)]
         if write:
             command.append("--write")
         completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
@@ -77,6 +88,41 @@ class DistributionLifecycleTests(unittest.TestCase):
         state = verify_installation(target)
         self.assertEqual(state.status, "valid", state.errors)
         self.assertEqual({item["stage"] for item in state.manifests}, {"support", "workflow"})
+
+    def test_dast_addon_requires_base_and_coexists_with_each_profile(self):
+        empty = self.target("empty-addon")
+        refused, _ = self.init_addon(empty)
+        self.assertEqual(refused.returncode, 3)
+        self.assertEqual(list(empty.iterdir()), [])
+        for profile in ("minimal", "standard"):
+            target = self.target(f"{profile}-dast")
+            self.assertEqual(self.init(target, profile, "support" if profile == "standard" else None)[0].returncode, 0)
+            if profile == "standard":
+                self.assertEqual(self.init(target, profile, "workflow")[0].returncode, 0)
+            installed, payload = self.init_addon(target)
+            self.assertEqual(installed.returncode, 0, payload)
+            state = verify_installation(target)
+            self.assertEqual(state.status, "valid", state.errors)
+            self.assertEqual(set(state.profiles), {profile, "dast-baseline"})
+            self.assertTrue((target / ".github/workflows/vibesec-dast-baseline.yml").is_file())
+            self.assertTrue((target / ".vibesec/install-addon-dast-baseline.json").is_file())
+
+    def test_dast_addon_conflict_is_atomic_and_upgrade_preserves_policy(self):
+        target = self.target("addon-conflict")
+        self.init(target)
+        conflict = target / "scripts/run_dast_baseline.py"
+        conflict.write_text("local\n", encoding="utf-8")
+        before = {path.relative_to(target): path.read_bytes() for path in target.rglob("*") if path.is_file()}
+        refused, _ = self.init_addon(target)
+        after = {path.relative_to(target): path.read_bytes() for path in target.rglob("*") if path.is_file()}
+        self.assertEqual(refused.returncode, 2)
+        self.assertEqual(before, after)
+        conflict.unlink()
+        self.assertEqual(self.init_addon(target)[0].returncode, 0)
+        completed, payload = self.command_json("scripts/plan_vibesec_upgrade.py", "--target", target, "--bundle", self.bundle)
+        self.assertIn(completed.returncode, {0, 1})
+        self.assertIn("policy/dast-baseline.json", payload["result"]["files_to_preserve"])
+        self.assertIn("policy/dast-suppressions.json", payload["result"]["files_to_preserve"])
 
     def test_invalid_bundle_is_rejected_before_target_planning(self):
         target = self.target()
@@ -168,6 +214,32 @@ class DistributionLifecycleTests(unittest.TestCase):
         self.assertTrue(payload["result"]["read_only"])
         self.assertIn("policy/baseline.json", payload["result"]["files_to_preserve"])
         self.assertEqual(before, after)
+
+    def test_upgrade_preserves_explicit_no_answers(self):
+        target = self.target("capability-upgrade")
+        answers = self.root / "answers.json"
+        payload = {
+            "schema_version": 1,
+            "capabilities": {
+                "web_application": False, "api": False, "container_image": False,
+                "kubernetes": False, "infrastructure_as_code": True, "github_actions": True,
+                "javascript_typescript": False, "python": True, "java": False,
+                "public_runtime": False, "authentication": False, "database": False,
+                "secrets_configuration": True, "dast_target": False,
+            },
+        }
+        answers.write_text(json.dumps(payload), encoding="utf-8")
+        command = ["python3", "scripts/init_vibesec.py", "--profile", "minimal", "--target", str(target),
+                   "--bundle", str(self.bundle), "--capabilities-file", str(answers), "--write"]
+        installed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        before = (target / ".vibesec/project-capabilities.json").read_bytes()
+        completed, plan = self.command_json("scripts/plan_vibesec_upgrade.py", "--target", target, "--bundle", self.bundle)
+        self.assertIn(completed.returncode, {0, 1})
+        self.assertIn(".vibesec/project-capabilities.json", plan["result"]["files_to_preserve"])
+        record = next(item for item in plan["result"]["files"] if item["path"] == ".vibesec/project-capabilities.json")
+        self.assertEqual(record["classification"], "capability_preserve")
+        self.assertEqual((target / ".vibesec/project-capabilities.json").read_bytes(), before)
 
     def test_upgrade_invalid_bundle_is_code_two_and_target_unchanged(self):
         target = self.target(); self.init(target)

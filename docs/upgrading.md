@@ -1,5 +1,9 @@
 # Upgrading VibeSec
 
+The planner classifies `.vibesec/project-capabilities.json` as `capability_preserve`. Existing answers, especially No, are never reset to Yes. If a future schema adds questions, interactive upgrades default those new questions to Yes, but non-interactive upgrades must supply explicit reviewed answers. No upgrade command silently infers answers from repository detection.
+
+Upgrade planning treats `policy/dast-baseline.json` and `policy/dast-suppressions.json` as preservation-sensitive and never applies a plan. Review add-on workflow, image pins, isolation bounds, baseline, and suppressions manually with the version-compatible support set.
+
 VibeSec has no destructive automatic upgrader and no `--apply` mode. Create a working branch, back up policy files and local modifications, verify a newer local bundle, and generate a read-only plan:
 
 ```shell
@@ -17,7 +21,7 @@ Post-v0.2.0 consumer hardening on `main` is unreleased development and does not 
 
 ## Plan classifications
 
-The planner compares manifest expectations, current bytes, and proposed bundle bytes. It reports `unchanged`, `add`, `upstream_changed_local_unmodified`, `locally_modified_upstream_unchanged`, `both_modified`, `remove_candidate`, preservation-specific baseline/suppression states, `policy_review_required`, workflow/support mismatch, unknown legacy state, conflict, or unsafe path. `both_modified` always needs manual three-way review.
+The planner compares manifest expectations, current bytes, and proposed bundle bytes. It reports `unchanged`, `add`, `upstream_changed_local_unmodified`, `locally_modified_upstream_unchanged`, `both_modified`, `remove_candidate`, `capability_preserve`, preservation-specific baseline/suppression states, `policy_review_required`, workflow/support mismatch, unknown legacy state, conflict, or unsafe path. `both_modified` always needs manual three-way review.
 
 Preserve baselines, suppressions, user-modified policy and ignore files, and user-modified workflows. Review scanner and action pin changes against upstream records. Compare network behavior, OSV metadata transmission, registry access, SBOM retention, and artifact privacy before adoption. The plan contains no replacement commands and does not write the target.
 

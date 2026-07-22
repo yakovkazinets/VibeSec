@@ -12,7 +12,8 @@ SCRIPT_ROOT = Path(__file__).resolve().parent
 ROOT = SCRIPT_ROOT.parent
 sys.path.insert(0, str(SCRIPT_ROOT))
 from vibesec.coverage import STATES  # noqa: E402
-from vibesec.detection import DetectionError, ImageStateError, derive_image_expectation, inventory  # noqa: E402
+from vibesec.capabilities import CapabilityError, load_capabilities_file  # noqa: E402
+from vibesec.detection import DetectionError, ImageExpectation, ImageStateError, derive_image_expectation, inventory  # noqa: E402
 from vibesec.self_scan import (  # noqa: E402
     SelfScanError, build_product_view, load_scope, make_removable,
 )
@@ -31,18 +32,23 @@ def main() -> int:
             try:
                 build_product_view(ROOT, view, exclusions)
                 repository = inventory(view)
-                expectation = derive_image_expectation(
+                capabilities = load_capabilities_file(view / ".vibesec/project-capabilities.json")
+                derived = derive_image_expectation(
                     github_actions=True,
                     github_event=args.github_event,
                     image_reference=args.image_reference,
                     has_dockerfile=bool(repository["dockerfiles"]),
                     strict_event=True,
                 )
+                if not capabilities["capabilities"]["container_image"]:
+                    expectation = ImageExpectation("not_applicable", "project capability manifest declares container_image=false")
+                else:
+                    expectation = derived
                 if expectation.state not in STATES:
                     raise ImageStateError("derived state is outside the supported coverage vocabulary")
             finally:
                 make_removable(view)
-    except (DetectionError, ImageStateError, OSError, SelfScanError) as exc:
+    except (CapabilityError, DetectionError, ImageStateError, OSError, SelfScanError) as exc:
         print(f"VibeSec self-scan expectation failed closed: {exc}", file=sys.stderr)
         return 3
     print(f"TRIVY_IMAGE_STATE={expectation.state}")

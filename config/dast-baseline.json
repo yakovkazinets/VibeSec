@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "target_hostname": "target",
+  "default_target_port": 8080,
+  "default_base_path": "/",
+  "startup_timeout_seconds": 60,
+  "spider_duration_minutes": 1,
+  "passive_scan_timeout_minutes": 3,
+  "total_scan_timeout_minutes": 5,
+  "maximum_normalized_findings": 1000,
+  "maximum_raw_report_bytes": 5000000,
+  "maximum_response_bytes": 1048576,
+  "container_cpu_limit": 1,
+  "container_memory_megabytes": 1024,
+  "container_pid_limit": 256,
+  "application_tmpfs_megabytes": 64,
+  "zap_tmpfs_megabytes": 512,
+  "zap_home_tmpfs_megabytes": 256,
+  "rule_disposition_file": "config/zap-baseline.conf",
+  "output_schema_version": 1
+}

@@ -1,5 +1,7 @@
 # Troubleshooting
 
+For Passive DAST, `not_configured` means no immutable image was supplied or the event is a pull request; it is not a pass. Exit `2` means Docker, pull, startup, readiness, ZAP, timeout, or cleanup failed. Exit `3` means trusted configuration or scanner evidence was invalid. Do not fix either by using a tag, overriding a root image user, publishing a port, adding credentials, allowing egress, mounting source or the Docker socket, enabling active scan, or uploading raw output.
+
 Run a read-only preflight from the consumer repository:
 
 ```shell

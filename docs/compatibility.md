@@ -1,5 +1,7 @@
 # Compatibility matrix
 
+The DAST Baseline requires a Linux Docker host capable of internal bridge networks and immutable OCI pulls. The target must speak plain HTTP on one known internal port, start from its image defaults without secrets or a command override, and declare a non-root user. TLS-only, authenticated, multi-container, browser-only, external, root-only, and custom-startup targets are outside supported scope.
+
 Status meanings: **tested** has an automated fixture; **supported but not fully exercised** is routed by current code but lacks an end-to-end real-tool fixture; **detected only** influences inventory/coverage but has no dedicated semantic scanner claim; **not supported** is outside deterministic routing. Application code is never executed.
 
 ## Languages

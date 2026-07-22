@@ -26,6 +26,14 @@ _remove_script_path = SCRIPT_DIRECTORY not in sys.path
 if _remove_script_path:
     sys.path.insert(0, SCRIPT_DIRECTORY)
 from vibesec.bundle import BundleError, VerifiedBundle, validate_catalog, verify_bundle  # noqa: E402
+from vibesec.capabilities import (  # noqa: E402
+    MANIFEST_PATH as CAPABILITY_MANIFEST_PATH,
+    CapabilityError,
+    all_capabilities,
+    ask_capabilities,
+    capability_bytes,
+    load_capabilities_file,
+)
 from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED  # noqa: E402
 from vibesec.manifest import file_record, installation_manifest_bytes  # noqa: E402
 from vibesec.paths import UnsafePath, safe_posix_path  # noqa: E402
@@ -134,7 +142,7 @@ class PlanEntry:
 def result() -> dict[str, Any]:
     return {
         "schema_version": 1, "would_create": [], "created": [], "conflict": [],
-        "skipped": [], "warning": [], "error": [], "source": {},
+        "skipped": [], "warning": [], "error": [], "source": {}, "project_capabilities": None,
     }
 
 
@@ -239,7 +247,8 @@ def overlap_warnings(target: Path) -> list[str]:
 
 
 def build_plan(catalog: dict[str, Any], profile: str, stage: str,
-               source: ConsumerSource | None = None) -> list[PlanEntry]:
+               source: ConsumerSource | None = None,
+               project_capabilities: bytes | None = None) -> list[PlanEntry]:
     provider = source or tree_source()
     config = catalog["profiles"].get(profile)
     if not isinstance(config, dict):
@@ -263,6 +272,10 @@ def build_plan(catalog: dict[str, Any], profile: str, stage: str,
             raise InvalidTarget(f"source mode does not match reviewed catalog: {source_path}")
         entries.append(PlanEntry(source_path, destination, mode, data))
         records.append(file_record(destination.as_posix(), data, mode))
+    if project_capabilities is not None:
+        capability_destination = Path(CAPABILITY_MANIFEST_PATH)
+        entries.append(PlanEntry(None, capability_destination, 0o644, project_capabilities))
+        records.append(file_record(CAPABILITY_MANIFEST_PATH, project_capabilities, 0o644))
     manifest_relative = Path(f".vibesec/install-{profile}-{stage}.json")
     manifest_data = installation_manifest_bytes(
         profile=profile, stage=stage, source_type=provider.source_type,
@@ -272,6 +285,42 @@ def build_plan(catalog: dict[str, Any], profile: str, stage: str,
     )
     entries.append(PlanEntry(None, manifest_relative, 0o644, manifest_data))
     return sorted(entries, key=lambda item: item.destination.as_posix())
+
+
+def build_addon_plan(catalog: dict[str, Any], addon: str,
+                     source: ConsumerSource | None = None) -> list[PlanEntry]:
+    provider = source or tree_source()
+    config = catalog["addons"].get(addon)
+    if not isinstance(config, dict):
+        raise InvalidTarget(f"unknown add-on: {addon}")
+    executable = set(catalog["executable_files"])
+    mappings = [(value, safe_relative(value)) for value in config["support"]]
+    mappings.append((config["workflow_source"], safe_relative(config["workflow_destination"])))
+    entries: list[PlanEntry] = []
+    records: list[dict[str, Any]] = []
+    for source_path, destination in sorted(mappings, key=lambda item: item[1].as_posix()):
+        data, source_mode = source_entry(Path(source_path), provider, executable)
+        mode = 0o755 if source_path in executable else 0o644
+        if source_mode != mode:
+            raise InvalidTarget(f"source mode does not match reviewed catalog: {source_path}")
+        entries.append(PlanEntry(source_path, destination, mode, data))
+        records.append(file_record(destination.as_posix(), data, mode))
+    manifest_relative = Path(f".vibesec/install-addon-{addon}.json")
+    manifest_data = installation_manifest_bytes(
+        profile=addon, stage="addon", source_type=provider.source_type,
+        development_version=provider.version, source_commit=provider.source_commit,
+        bundle_manifest_sha256=provider.bundle_manifest_sha256,
+        manifest_path=manifest_relative.as_posix(), installed=records,
+    )
+    entries.append(PlanEntry(None, manifest_relative, 0o644, manifest_data))
+    return sorted(entries, key=lambda item: item.destination.as_posix())
+
+
+def verify_addon_prerequisites(target: Path, catalog: dict[str, Any]) -> None:
+    required = [safe_relative(value) for value in catalog["common"]]
+    missing = [path.as_posix() for path in required if not (target / path).is_file() or (target / path).is_symlink()]
+    if missing:
+        raise InvalidTarget("DAST add-on requires an existing VibeSec installation: " + ", ".join(missing))
 
 
 def verify_standard_workflow_prerequisites(target: Path, catalog: dict[str, Any]) -> None:
@@ -355,13 +404,36 @@ def write_plan(target: Path, plan: list[PlanEntry], output: dict[str, Any]) -> N
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", required=True, choices=("minimal", "standard"))
+    selection = parser.add_mutually_exclusive_group(required=True)
+    selection.add_argument("--profile", choices=("minimal", "standard"))
+    selection.add_argument("--addon", choices=("dast-baseline",))
     parser.add_argument("--target", required=True, type=Path)
     parser.add_argument("--stage", choices=("support", "workflow"), help="Standard only; defaults to support")
     parser.add_argument("--bundle", type=Path, help="verified local consumer ZIP")
     parser.add_argument("--source-commit", help="optional source-tree full commit SHA")
+    capabilities = parser.add_mutually_exclusive_group()
+    capabilities.add_argument("--capabilities-file", type=Path, help="trusted local project capability JSON")
+    capabilities.add_argument("--all-capabilities", action="store_true", help="non-interactively answer Yes to every capability")
     parser.add_argument("--write", action="store_true", help="create files after a conflict-free preview")
     return parser.parse_args()
+
+
+def requested_capabilities(args: argparse.Namespace, target: Path, stage: str) -> dict[str, Any]:
+    existing = target / CAPABILITY_MANIFEST_PATH
+    if args.addon or stage == "workflow":
+        if args.capabilities_file or args.all_capabilities:
+            raise InvalidTarget("capability options are only valid when creating the project capability manifest")
+        try:
+            return load_capabilities_file(existing)
+        except CapabilityError as exc:
+            raise InvalidTarget(f"an existing valid project capability manifest is required: {exc}") from exc
+    if args.capabilities_file:
+        return load_capabilities_file(args.capabilities_file)
+    if args.all_capabilities:
+        return all_capabilities()
+    if not sys.stdin.isatty():
+        raise InvalidTarget("non-interactive initialization requires --capabilities-file or --all-capabilities")
+    return ask_capabilities(sys.stdin, sys.stderr)
 
 
 def main() -> int:
@@ -386,12 +458,30 @@ def main() -> int:
         }
         target = validate_target(args.target, SOURCE_ROOT if source.source_type == "source_tree" else None)
         catalog = load_catalog(source)
+        if args.addon and args.stage is not None:
+            raise InvalidTarget("--stage cannot be combined with --addon")
         if args.profile == "minimal" and args.stage is not None:
             raise InvalidTarget("--stage is only valid with --profile standard")
-        stage = args.stage or ("all" if args.profile == "minimal" else "support")
-        if args.profile == "standard" and stage == "workflow":
-            verify_standard_workflow_prerequisites(target, catalog)
-        plan = build_plan(catalog, args.profile, stage, source)
+        if args.addon:
+            verify_addon_prerequisites(target, catalog)
+            stage = "addon"
+        else:
+            stage = args.stage or ("all" if args.profile == "minimal" else "support")
+            if args.profile == "standard" and stage == "workflow":
+                verify_standard_workflow_prerequisites(target, catalog)
+        capabilities = requested_capabilities(args, target, stage)
+        output["project_capabilities"] = capabilities
+        if args.addon:
+            if not capabilities["capabilities"]["dast_target"]:
+                output["skipped"].append(
+                    "dast-baseline = not_applicable: project capability manifest declares no runnable web application target"
+                )
+                print(json.dumps(output, indent=2, sort_keys=True))
+                return SUCCESS
+            plan = build_addon_plan(catalog, args.addon, source)
+        else:
+            manifest_data = None if stage == "workflow" else capability_bytes(capabilities)
+            plan = build_plan(catalog, args.profile, stage, source, manifest_data)
         output["warning"].extend(overlap_warnings(target))
         if args.profile == "standard" and stage == "support":
             output["warning"].append("Standard uses a two-stage bootstrap: merge support files before initializing the workflow stage.")
@@ -404,7 +494,7 @@ def main() -> int:
         output["error"].append(str(exc))
         print(json.dumps(output, indent=2, sort_keys=True))
         return VERIFICATION_FAILED
-    except (InvalidTarget, VersionError, UnsafePath) as exc:
+    except (InvalidTarget, CapabilityError, VersionError, UnsafePath) as exc:
         output["error"].append(str(exc))
         print(json.dumps(output, indent=2, sort_keys=True))
         return INVALID_INPUT

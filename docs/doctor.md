@@ -1,5 +1,7 @@
 # VibeSec doctor
 
+For an installed DAST add-on, doctor validates redacted image-reference syntax, port, base path, enforcement settings, and Docker availability. It does not pull or inspect an image, start containers, contact a registry, or assert that the target is secure. Runtime image-user validation remains part of the trusted-event runner.
+
 The doctor performs bounded, read-only, offline diagnostics:
 
 ```shell
@@ -8,6 +10,8 @@ python3 scripts/vibesec_doctor.py --target /path/to/app --profile standard --jso
 ```
 
 It starts with installation verification, then checks runtime assumptions, profile/stage consistency, configuration and policy parsing, action pins and workflow safety, optional Docker relevance, OSV offline metadata, immutable image references, fork restrictions, security-workflow overlap, development-version drift, and unsupported-repository indicators.
+
+Doctor also validates the strict project capability manifest and detects missing or malformed data, unknown capabilities, dependency conflicts, changes since installation, partial installation, DAST installed while `dast_target=false`, and missing DAST support while `dast_target=true`. It reports `not_applicable` separately from `not_configured` and never translates either into a clean scan.
 
 Every diagnostic contains a stable code, component, severity, explanation, next action, and documentation reference. `error` is blocking; `warning` records drift, reduced coverage, or a review decision; `informational` records context; `not_applicable` is not a pass.
 

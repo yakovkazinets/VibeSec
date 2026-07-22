@@ -12,6 +12,7 @@
     "java": false,
     "public_runtime": false,
     "authentication": false,
+    "authenticated_security_testing": false,
     "database": false,
     "secrets_configuration": true,
     "dast_target": false,

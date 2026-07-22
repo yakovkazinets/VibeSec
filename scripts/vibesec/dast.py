@@ -14,6 +14,7 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from .model import Finding
+from .authenticated import annotate_findings, authentication_evidence, validate_publishable_bytes
 from .policy import active_suppressions, evaluate
 from .strict_json import StrictJSONError, canonical_json, loads_strict
 
@@ -189,6 +190,8 @@ def normalize_zap_payload(payload: Any, *, port: int, maximum_findings: int) -> 
                                       severity=RISK[risk_key], file=path, description=name,
                                       confidence=CONFIDENCE[confidence_key]).to_dict()
                 base["method"] = method
+                base["status_class"] = "unknown"
+                base["contract_class"] = "passive-response-header"
                 base["cwe"] = _scalar(alert["cweid"], "cweid", 16) if alert.get("cweid") not in (None, "", "-1") else None
                 base["wasc"] = _scalar(alert["wascid"], "wascid", 16) if alert.get("wascid") not in (None, "", "-1") else None
                 base["remediation"] = _scalar(alert.get("solution") or "Add an anti-clickjacking response header.", "solution", 300)
@@ -224,9 +227,12 @@ def tool_error(reason: str) -> dict[str, Any]:
 def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event: str,
                     digest: str | None, port: int, base_path: str, findings: list[dict[str, Any]],
                     duration_seconds: int, url_count: int, exit_code: int,
-                    enforcement: str, minimum_severity: str) -> None:
+                    enforcement: str, minimum_severity: str, authenticated: bool = False,
+                    authentication_applied: bool | None = None) -> None:
     if state not in {"ran", "not_configured", "not_applicable", "tool_error"}:
         raise DastError("DAST coverage state is invalid")
+    applied = authenticated if authentication_applied is None else authentication_applied
+    findings = annotate_findings(findings, authenticated=authenticated)
     payload_results = {"schema_version": 1, "profile": "dast-baseline", "results": findings}
     baseline = loads_strict((root / "policy/dast-baseline.json").read_bytes())
     suppressions_payload = loads_strict((root / "policy/dast-suppressions.json").read_bytes())
@@ -249,7 +255,7 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
         "target_type": "isolated_immutable_container", "target_digest": digest,
         "target_port": port, "base_path": base_path, "trusted_event": event,
         "network_mode": "internal_only", "active_scanning": False, "traditional_spider": True,
-        "ajax_spider": False, "authentication": False, "external_egress": False,
+        "ajax_spider": False, "authentication": authenticated, "external_egress": False,
         "scanner_mode": "automation_framework", "automation_plan_jobs": ["spider", "passiveScan-wait", "report", "exitStatus"],
         "report_template": "traditional-json", "runtime_addon_updates": False,
         "zap_home_mode": "ephemeral_tmpfs", "zap_home_path": "/zap/vibesec-home",
@@ -260,21 +266,28 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
         "limitations": ["Passive unauthenticated crawling cannot prove an application is secure or assess authorization, business logic, or injection resistance."],
         "scan_duration_seconds": max(0, duration_seconds), "url_count": max(0, url_count),
         "normalized_finding_count": len([item for item in findings if item.get("result_type") == "finding"]),
+        **authentication_evidence(authenticated, applied),
     }
     policy_result = {"schema_version": 1, "profile": "dast-baseline", "exit_code": exit_code,
-                     "exit_category": category, "clean": exit_code == 0, "security_guarantee": False,
+                     "exit_category": category, "clean": state == "ran" and exit_code == 0, "security_guarantee": False,
                      "findings": len(evaluation["findings"]), "violations": len(evaluation["violations"]),
                      "tool_errors": len(evaluation["tool_errors"]), "expired_suppressions": len(expired)}
     lines = ["# VibeSec DAST baseline", "", f"Status: **{category}**", "",
              f"- Coverage: {state}", f"- Passive findings: {len(evaluation['findings'])}",
-             f"- Policy violations: {len(evaluation['violations'])}", "- Active scanning: false", "- External egress: false", "",
+             f"- Policy violations: {len(evaluation['violations'])}", "- Active scanning: false",
+             f"- Authentication: {'bearer' if authenticated else 'none'}", "- External egress: false", "",
              "A passing passive scan does not prove the application is secure."]
     if evaluation["findings"]:
         lines += ["", "## Findings", "", "| Severity | Rule | Path | Method | Description |", "|---|---|---|---|---|"]
         for item in evaluation["findings"]:
             safe = lambda value: str(value or "").replace("|", "\\|").replace("<", "&lt;").replace(">", "&gt;")[:300]
             lines.append("| " + " | ".join(safe(value) for value in (item["severity"], item["rule_id"], item["file"], item.get("method"), item["description"])) + " |")
-    atomic_write(results / "normalized.json", canonical_json(payload_results))
-    atomic_write(results / "coverage.json", canonical_json(coverage))
-    atomic_write(results / "policy-result.json", canonical_json(policy_result))
-    atomic_write(results / "report.md", ("\n".join(lines) + "\n").encode("utf-8"))
+    artifacts = {
+        "normalized.json": canonical_json(payload_results), "coverage.json": canonical_json(coverage),
+        "policy-result.json": canonical_json(policy_result), "report.md": ("\n".join(lines) + "\n").encode("utf-8"),
+    }
+    if authenticated:
+        for data in artifacts.values():
+            validate_publishable_bytes(data)
+    for name, data in artifacts.items():
+        atomic_write(results / name, data)

@@ -10,6 +10,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.dast import DastError, DIGEST, sanitize_url  # noqa: E402
+from vibesec.authenticated import validate_publishable_bytes  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
 
 REQUIRED = {"normalized.json", "coverage.json", "report.md", "policy-result.json"}
@@ -29,8 +30,9 @@ def validate(results: Path, expected_state: str) -> None:
         raise DastError("normalized DAST artifact is malformed")
     if not isinstance(coverage, dict) or coverage.get("profile") != "dast-baseline" or coverage.get("state") != expected_state:
         raise DastError("DAST coverage profile or exact state differs")
+    authenticated = coverage.get("authentication_mode") == "bearer"
     fixed = {"network_mode": "internal_only", "active_scanning": False, "traditional_spider": True,
-             "ajax_spider": False, "authentication": False, "external_egress": False,
+             "ajax_spider": False, "authentication": authenticated, "external_egress": False,
              "application_source_built": False, "project_dependencies_installed": False,
              "scanner_mode": "automation_framework", "report_template": "traditional-json",
              "runtime_addon_updates": False,
@@ -48,9 +50,9 @@ def validate(results: Path, expected_state: str) -> None:
             raise DastError("DAST normalized result is malformed")
         if item["result_type"] == "finding":
             sanitize_url(f"http://target:{coverage['target_port']}{item.get('file', '')}", port=coverage["target_port"])
-    serialized = ((results / "normalized.json").read_text(encoding="utf-8") +
-                  (results / "coverage.json").read_text(encoding="utf-8") +
-                  (results / "report.md").read_text(encoding="utf-8")).casefold()
+    raw_artifacts = b"".join((results / name).read_bytes() for name in REQUIRED)
+    validate_publishable_bytes(raw_artifacts)
+    serialized = raw_artifacts.decode("utf-8").casefold()
     if any(marker.casefold() in serialized for marker in PROHIBITED):
         raise DastError("DAST artifacts contain prohibited raw or sensitive material")
     if re.search(r"https?://", serialized):

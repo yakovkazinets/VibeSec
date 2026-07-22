@@ -20,13 +20,16 @@
     {"name":"VIBESEC_API_BASE_PATH","profiles":["api-security-baseline"],"type":"string","default":"installed add-on configuration","accepted":["absolute path without URL, query, fragment, credentials, or traversal"],"event_restriction":"trusted workflow configuration only","security_effect":"forces the internal scanner origin path","privacy_effect":"sanitized path may appear in coverage","failure":"invalid value exits 3","sensitive":false,"example":"/api"},
     {"name":"VIBESEC_API_SAFE_METHODS_ONLY","profiles":["api-security-baseline"],"type":"boolean","default":"true","accepted":["true","false"],"event_restriction":"trusted workflow configuration only","security_effect":"true restricts execution to GET, HEAD, and OPTIONS; false explicitly enables reviewed mutating methods","privacy_effect":"none","failure":"invalid value exits 3","sensitive":false,"example":"true"},
     {"name":"VIBESEC_API_ENFORCEMENT","profiles":["api-security-baseline"],"type":"enum","default":"observe","accepted":["observe","new","all"],"event_restriction":"none","security_effect":"controls independent API policy enforcement","privacy_effect":"none","failure":"unsupported value exits 3","sensitive":false,"example":"new"},
-    {"name":"VIBESEC_API_MIN_SEVERITY","profiles":["api-security-baseline"],"type":"enum","default":"high","accepted":["low","medium","high","critical"],"event_restriction":"none","security_effect":"sets the minimum API severity eligible for enforcement","privacy_effect":"none","failure":"unsupported value exits 3","sensitive":false,"example":"high"}
+    {"name":"VIBESEC_API_MIN_SEVERITY","profiles":["api-security-baseline"],"type":"enum","default":"high","accepted":["low","medium","high","critical"],"event_restriction":"none","security_effect":"sets the minimum API severity eligible for enforcement","privacy_effect":"none","failure":"unsupported value exits 3","sensitive":false,"example":"high"},
+    {"name":"VIBESEC_AUTH_MODE","profiles":["dast-baseline","api-security-baseline"],"type":"enum","default":"none","accepted":["none","bearer"],"event_restriction":"workflow_dispatch or schedule only","security_effect":"selects the trusted bearer comparison path","privacy_effect":"contains no credential","failure":"unknown values exit 3","sensitive":false,"example":"bearer"}
   ],
   "workflow_internal": [
     {"name":"VIBESEC_ROOT","profile":"standard","purpose":"trusted base-revision harness directory"},
     {"name":"VIBESEC_RESULTS","profile":"standard","purpose":"runner-temporary report directory"},
     {"name":"VIBESEC_TOOLS","profile":"standard","purpose":"verified executable directory"},
     {"name":"VIBESEC_DAST_RESULTS","profile":"dast-baseline","purpose":"runner-temporary sanitized report directory"},
-    {"name":"VIBESEC_API_RESULTS","profile":"api-security-baseline","purpose":"runner-temporary sanitized report directory"}
+    {"name":"VIBESEC_API_RESULTS","profile":"api-security-baseline","purpose":"runner-temporary sanitized report directory"},
+    {"name":"VIBESEC_AUTH_BEARER_TOKEN","profile":"authenticated-security-testing","purpose":"scanner-step-only opaque GitHub Actions secret; consumed and unset in memory"},
+    {"name":"VIBESEC_AUTH_SINGLE_RUN","profile":"authenticated-security-testing","purpose":"private recursion guard for the trusted paired runner"}
   ]
 }

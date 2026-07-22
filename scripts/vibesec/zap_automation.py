@@ -18,12 +18,38 @@ REPORT_FILENAME = "zap-report.json"
 CONTAINER_WORKDIR = "/zap/wrk"
 CONTAINER_PLAN = f"{CONTAINER_WORKDIR}/{PLAN_FILENAME}"
 CONTAINER_ZAP_HOME = "/zap/vibesec-home"
+CONTAINER_RAW = "/zap/vibesec-raw"
 REPORT_TEMPLATE = "traditional-json"
 JOB_TYPES = ("spider", "passiveScan-wait", "report", "exitStatus")
 COMMAND_OPERATIONS = {"autorun": "-autorun", "autocheck": "-autocheck"}
 RUNTIME_ADDON_OPTIONS = {"-addonupdate", "-addoninstall", "-addoninstallall", "-addonuninstall"}
 MAX_PLAN_BYTES = 32_768
 DOCKER_NAME = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,127}$")
+AUTHENTICATED_LAUNCHER = r'''import os,re,subprocess,sys
+token=sys.stdin.readline(16385).rstrip("\n")
+if not token or len(token.encode())>16384 or any(ord(c)<32 or ord(c)==127 for c in token): raise SystemExit(3)
+if sys.stdin.read(1): raise SystemExit(3)
+env=os.environ.copy()
+env["ZAP_AUTH_HEADER"]="Authorization"
+env["ZAP_AUTH_HEADER_VALUE"]="Bearer "+token
+env["ZAP_AUTH_HEADER_SITE"]="target"
+with open(os.devnull,"wb") as null:
+ completed=subprocess.run(sys.argv[1:],stdin=subprocess.DEVNULL,stdout=null,stderr=null,env=env,check=False)
+raw="/zap/vibesec-raw/zap-report.json"
+if not os.path.isfile(raw): raise SystemExit(completed.returncode if completed.returncode not in (0,1,2) else 3)
+data=open(raw,"rb").read(25000001)
+if not 0<len(data)<=25000000: raise SystemExit(3)
+secret=token.encode()
+data=data.replace(secret,b"[REDACTED]")
+data=re.sub(rb"(?i)authorization\s*:\s*bearer\s+[^\s\"'<>]{1,16384}",b"[REDACTED AUTHORIZATION]",data)
+if secret in data or re.search(rb"(?i)authorization\s*:\s*bearer\s+[^\s\"'<>]{1,16384}",data): raise SystemExit(3)
+if re.search(rb"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])",data): raise SystemExit(3)
+out="/zap/wrk/zap-report.json"
+fd=os.open(out,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+with os.fdopen(fd,"wb") as stream: stream.write(data); stream.flush(); os.fsync(stream.fileno())
+os.remove(raw)
+raise SystemExit(completed.returncode)
+'''
 
 
 def _target(port: int, base_path: str) -> tuple[str, str, str]:
@@ -44,7 +70,7 @@ def _validate_durations(spider_minutes: int, passive_wait_minutes: int) -> None:
 
 
 def _expected_plan(*, port: int, base_path: str, spider_minutes: int,
-                   passive_wait_minutes: int) -> dict[str, Any]:
+                   passive_wait_minutes: int, authenticated: bool = False) -> dict[str, Any]:
     origin, target, include = _target(port, base_path)
     return {
         "env": {
@@ -67,7 +93,7 @@ def _expected_plan(*, port: int, base_path: str, spider_minutes: int,
             {"type": "passiveScan-wait", "parameters": {"maxDuration": passive_wait_minutes}},
             {"type": "report", "parameters": {
                 "template": REPORT_TEMPLATE,
-                "reportDir": CONTAINER_WORKDIR,
+                "reportDir": CONTAINER_RAW if authenticated else CONTAINER_WORKDIR,
                 "reportFile": REPORT_FILENAME,
                 "displayReport": False,
             }, "sites": [origin]},
@@ -83,27 +109,27 @@ def _expected_plan(*, port: int, base_path: str, spider_minutes: int,
 
 
 def build_passive_plan(*, port: int, base_path: str, spider_minutes: int,
-                       passive_wait_minutes: int) -> dict[str, Any]:
+                       passive_wait_minutes: int, authenticated: bool = False) -> dict[str, Any]:
     """Build the complete plan from bounded scalar values; no fragments are accepted."""
     _validate_durations(spider_minutes, passive_wait_minutes)
     plan = _expected_plan(
         port=port, base_path=base_path, spider_minutes=spider_minutes,
-        passive_wait_minutes=passive_wait_minutes,
+        passive_wait_minutes=passive_wait_minutes, authenticated=authenticated,
     )
     validate_passive_plan(
         plan, port=port, base_path=base_path, spider_minutes=spider_minutes,
-        passive_wait_minutes=passive_wait_minutes,
+        passive_wait_minutes=passive_wait_minutes, authenticated=authenticated,
     )
     return plan
 
 
 def validate_passive_plan(plan: Any, *, port: int, base_path: str, spider_minutes: int,
-                          passive_wait_minutes: int) -> dict[str, Any]:
+                          passive_wait_minutes: int, authenticated: bool = False) -> dict[str, Any]:
     """Fail closed unless the plan is byte-semantically equal to the reviewed shape."""
     _validate_durations(spider_minutes, passive_wait_minutes)
     expected = _expected_plan(
         port=port, base_path=base_path, spider_minutes=spider_minutes,
-        passive_wait_minutes=passive_wait_minutes,
+        passive_wait_minutes=passive_wait_minutes, authenticated=authenticated,
     )
     if plan != expected:
         raise DastError("trusted ZAP automation plan differs from the complete reviewed passive shape")
@@ -111,10 +137,10 @@ def validate_passive_plan(plan: Any, *, port: int, base_path: str, spider_minute
 
 
 def write_passive_plan(path: Path, *, port: int, base_path: str, spider_minutes: int,
-                       passive_wait_minutes: int) -> dict[str, Any]:
+                       passive_wait_minutes: int, authenticated: bool = False) -> dict[str, Any]:
     plan = build_passive_plan(
         port=port, base_path=base_path, spider_minutes=spider_minutes,
-        passive_wait_minutes=passive_wait_minutes,
+        passive_wait_minutes=passive_wait_minutes, authenticated=authenticated,
     )
     if path.name != PLAN_FILENAME or path.parent.is_symlink() or not path.parent.is_dir():
         raise DastError("trusted ZAP plan path is unsafe")
@@ -135,12 +161,12 @@ def write_passive_plan(path: Path, *, port: int, base_path: str, spider_minutes:
         temporary.unlink(missing_ok=True)
     return load_passive_plan(
         path, port=port, base_path=base_path, spider_minutes=spider_minutes,
-        passive_wait_minutes=passive_wait_minutes,
+        passive_wait_minutes=passive_wait_minutes, authenticated=authenticated,
     )
 
 
 def load_passive_plan(path: Path, *, port: int, base_path: str, spider_minutes: int,
-                      passive_wait_minutes: int) -> dict[str, Any]:
+                      passive_wait_minutes: int, authenticated: bool = False) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file() or stat.S_IMODE(path.stat().st_mode) != 0o600:
         raise DastError("trusted ZAP plan must be a restrictive regular file")
     try:
@@ -149,7 +175,7 @@ def load_passive_plan(path: Path, *, port: int, base_path: str, spider_minutes: 
         raise DastError(f"trusted ZAP plan serialization is invalid: {exc}") from exc
     return validate_passive_plan(
         payload, port=port, base_path=base_path, spider_minutes=spider_minutes,
-        passive_wait_minutes=passive_wait_minutes,
+        passive_wait_minutes=passive_wait_minutes, authenticated=authenticated,
     )
 
 
@@ -165,7 +191,7 @@ def trusted_zap_command(operation: str = "autorun") -> list[str]:
 
 def trusted_zap_container_command(*, docker: str, container_name: str, network: str,
                                   workspace: Path, image: str, config: dict[str, Any],
-                                  operation: str = "autorun") -> list[str]:
+                                  operation: str = "autorun", authenticated: bool = False) -> list[str]:
     """Build the full scanner container command shared by production and accountability."""
     uid = os.getuid()
     gid = os.getgid()
@@ -180,7 +206,7 @@ def trusted_zap_container_command(*, docker: str, container_name: str, network: 
     home_tmpfs = config["zap_home_tmpfs_megabytes"]
     if isinstance(home_tmpfs, bool) or not isinstance(home_tmpfs, int) or not 128 <= home_tmpfs <= 1024:
         raise DastError("trusted ZAP home tmpfs bound is invalid")
-    return [
+    command = [
         docker, "run", "--name", container_name, "--network", network,
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
         "--cpus", str(config["container_cpu_limit"]),
@@ -190,8 +216,14 @@ def trusted_zap_container_command(*, docker: str, container_name: str, network: 
         "--tmpfs", f"/tmp:rw,noexec,nosuid,nodev,size={tmpfs}m",
         "--tmpfs", f"{CONTAINER_ZAP_HOME}:rw,noexec,nosuid,nodev,size={home_tmpfs}m,uid={uid},gid={gid},mode=0700",
         "--mount", f"type=bind,src={workspace},dst={CONTAINER_WORKDIR}",
-        image, *trusted_zap_command(operation),
     ]
+    if authenticated:
+        command.extend(("--tmpfs", f"{CONTAINER_RAW}:rw,noexec,nosuid,nodev,size={tmpfs}m,uid={uid},gid={gid},mode=0700",
+                        "--interactive", "--entrypoint", "python3", image, "-c", AUTHENTICATED_LAUNCHER,
+                        *trusted_zap_command(operation)))
+    else:
+        command.extend((image, *trusted_zap_command(operation)))
+    return command
 
 
 def validate_private_workspace(directory: Path, *, report_required: bool) -> tuple[Path, Path]:

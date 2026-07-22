@@ -1,1 +1,236 @@
-{"schema_version":1,"capability_id":"standard.opengrep-sast","expected_tool":"opengrep","positive":{"expected_findings":[{"id":"vibesec.go.shell-command","path":"tests/security-fixtures/opengrep/positive/main.go","severity":"high"},{"id":"vibesec.java.runtime-exec","path":"tests/security-fixtures/opengrep/positive/Example.java","severity":"high"},{"id":"vibesec.javascript.dangerous-eval","path":"tests/security-fixtures/opengrep/positive/javascript.js","severity":"high"},{"id":"vibesec.python.subprocess-shell-true","path":"tests/security-fixtures/opengrep/positive/python.py","severity":"high"}],"expected_finding_ids":["vibesec.go.shell-command","vibesec.java.runtime-exec","vibesec.javascript.dangerous-eval","vibesec.python.subprocess-shell-true"],"expected_count":4,"expected_coverage":"ran","expected_exit_category":"finding"},"negative":{"expected_findings":[],"expected_finding_ids":[],"expected_count":0,"expected_coverage":"ran","expected_exit_category":"clean"},"required_normalized_fields":["tool","category","rule_id","severity","file","line","description","confidence","fingerprint","result_type"],"failure_modes":["nonzero_exit","missing_executable","malformed_output","truncated_output","oversized_output","wrong_schema","stale_output"],"privacy_classification":"local_source_no_upload","fake_secret_pattern":null}
+{
+  "schema_version": 1,
+  "capability_id": "standard.opengrep-sast",
+  "expected_tool": "opengrep",
+  "positive": {
+    "expected_findings": [
+      {
+        "id": "vibesec.go.shell-command",
+        "path": "tests/security-fixtures/opengrep/positive/main.go",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.java.runtime-exec",
+        "path": "tests/security-fixtures/opengrep/positive/Example.java",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.java.spring-actuator-permit-all",
+        "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.java.spring-native-query-concatenation",
+        "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.java.spring-object-input-stream",
+        "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.java.spring-permissive-cors",
+        "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+        "severity": "medium"
+      },
+      {
+        "id": "vibesec.java.spring-request-command",
+        "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.java.spring-request-file-path",
+        "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.java.spring-request-redirect",
+        "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.javascript.dangerous-eval",
+        "path": "tests/security-fixtures/opengrep/positive/javascript.js",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.javascript.express-permissive-cors",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+        "severity": "medium"
+      },
+      {
+        "id": "vibesec.javascript.express-request-command",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.javascript.express-request-template",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.javascript.express-untrusted-file-path",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.javascript.express-untrusted-redirect",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.javascript.next-public-secret",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.javascript.next-request-file-path",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.javascript.next-untrusted-redirect",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.javascript.react-dangerous-html",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.django-csrf-exempt",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "medium"
+      },
+      {
+        "id": "vibesec.python.django-raw-sql-concatenation",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.django-unsafe-mark-safe",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.fastapi-permissive-cors",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.fastapi-request-command",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.fastapi-request-deserialization",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.fastapi-untrusted-file-response",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.flask-debug-mode",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.flask-request-command",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.flask-request-deserialization",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.flask-untrusted-redirect",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.flask-untrusted-send-file",
+        "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+        "severity": "high"
+      },
+      {
+        "id": "vibesec.python.subprocess-shell-true",
+        "path": "tests/security-fixtures/opengrep/positive/python.py",
+        "severity": "high"
+      }
+    ],
+    "expected_finding_ids": [
+      "vibesec.go.shell-command",
+      "vibesec.java.runtime-exec",
+      "vibesec.java.spring-actuator-permit-all",
+      "vibesec.java.spring-native-query-concatenation",
+      "vibesec.java.spring-object-input-stream",
+      "vibesec.java.spring-permissive-cors",
+      "vibesec.java.spring-request-command",
+      "vibesec.java.spring-request-file-path",
+      "vibesec.java.spring-request-redirect",
+      "vibesec.javascript.dangerous-eval",
+      "vibesec.javascript.express-permissive-cors",
+      "vibesec.javascript.express-request-command",
+      "vibesec.javascript.express-request-template",
+      "vibesec.javascript.express-untrusted-file-path",
+      "vibesec.javascript.express-untrusted-redirect",
+      "vibesec.javascript.next-public-secret",
+      "vibesec.javascript.next-request-file-path",
+      "vibesec.javascript.next-untrusted-redirect",
+      "vibesec.javascript.react-dangerous-html",
+      "vibesec.python.django-csrf-exempt",
+      "vibesec.python.django-raw-sql-concatenation",
+      "vibesec.python.django-unsafe-mark-safe",
+      "vibesec.python.fastapi-permissive-cors",
+      "vibesec.python.fastapi-request-command",
+      "vibesec.python.fastapi-request-deserialization",
+      "vibesec.python.fastapi-untrusted-file-response",
+      "vibesec.python.flask-debug-mode",
+      "vibesec.python.flask-request-command",
+      "vibesec.python.flask-request-deserialization",
+      "vibesec.python.flask-untrusted-redirect",
+      "vibesec.python.flask-untrusted-send-file",
+      "vibesec.python.subprocess-shell-true"
+    ],
+    "expected_count": 32,
+    "expected_coverage": "ran",
+    "expected_exit_category": "finding"
+  },
+  "negative": {
+    "expected_findings": [],
+    "expected_finding_ids": [],
+    "expected_count": 0,
+    "expected_coverage": "ran",
+    "expected_exit_category": "clean"
+  },
+  "required_normalized_fields": [
+    "tool",
+    "category",
+    "rule_id",
+    "severity",
+    "file",
+    "line",
+    "description",
+    "confidence",
+    "fingerprint",
+    "result_type"
+  ],
+  "failure_modes": [
+    "nonzero_exit",
+    "missing_executable",
+    "malformed_output",
+    "truncated_output",
+    "oversized_output",
+    "wrong_schema",
+    "stale_output"
+  ],
+  "privacy_classification": "local_source_no_upload",
+  "fake_secret_pattern": null
+}

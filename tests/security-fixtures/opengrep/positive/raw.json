@@ -1,1 +1,836 @@
-{"results":[{"check_id":"vibesec.javascript.dangerous-eval","path":"tests/security-fixtures/opengrep/positive/javascript.js","start":{"line":1},"extra":{"severity":"ERROR","message":"Avoid eval; parse or dispatch explicitly instead."}},{"check_id":"vibesec.python.subprocess-shell-true","path":"tests/security-fixtures/opengrep/positive/python.py","start":{"line":2},"extra":{"severity":"ERROR","message":"Avoid subprocess shell=True; pass an argument vector to the executable."}},{"check_id":"vibesec.java.runtime-exec","path":"tests/security-fixtures/opengrep/positive/Example.java","start":{"line":1},"extra":{"severity":"ERROR","message":"Avoid Runtime.exec; use a fixed ProcessBuilder argument list."}},{"check_id":"vibesec.go.shell-command","path":"tests/security-fixtures/opengrep/positive/main.go","start":{"line":3},"extra":{"severity":"ERROR","message":"Avoid invoking a command shell; execute a fixed program."}}]}
+{
+  "results": [
+    {
+      "check_id": "vibesec.go.shell-command",
+      "path": "tests/security-fixtures/opengrep/positive/main.go",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Avoid invoking a command shell; execute a fixed program and argument list.",
+        "metadata": {
+          "category": "command-injection",
+          "confidence": "high",
+          "cwe": "CWE-78",
+          "framework": "language-generic",
+          "language": "go",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Call exec.Command with the intended executable and validated arguments.",
+          "false_positive_notes": "A constant command passed through a shell remains risky but may not be externally exploitable.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.java.runtime-exec",
+      "path": "tests/security-fixtures/opengrep/positive/Example.java",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Avoid Runtime.exec; prefer a fixed ProcessBuilder argument list with validated values.",
+        "metadata": {
+          "category": "command-injection",
+          "confidence": "medium",
+          "cwe": "CWE-78",
+          "framework": "language-generic",
+          "language": "java",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Use ProcessBuilder with a fixed argument list and validated values.",
+          "false_positive_notes": "A fixed command string may be safe but Runtime.exec remains difficult to review.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.java.spring-actuator-permit-all",
+      "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not grant unauthenticated access to every actuator endpoint.",
+        "metadata": {
+          "category": "actuator-exposure",
+          "confidence": "high",
+          "cwe": "CWE-284",
+          "framework": "spring",
+          "language": "java",
+          "owasp": "A01:2021-Broken-Access-Control",
+          "remediation": "Restrict actuator routes to required health endpoints and strong administrative authorization.",
+          "false_positive_notes": "A separately isolated management network may reduce exposure but still requires review.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.java.spring-native-query-concatenation",
+      "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not concatenate values into a native SQL query.",
+        "metadata": {
+          "category": "sql-injection",
+          "confidence": "high",
+          "cwe": "CWE-89",
+          "framework": "spring",
+          "language": "java",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Use a parameterized query and bind each value separately.",
+          "false_positive_notes": "A value chosen solely from a fixed server-side mapping may be safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.java.spring-object-input-stream",
+      "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Avoid native Java object deserialization for untrusted data.",
+        "metadata": {
+          "category": "insecure-deserialization",
+          "confidence": "medium",
+          "cwe": "CWE-502",
+          "framework": "spring",
+          "language": "java",
+          "owasp": "A08:2021-Software-and-Data-Integrity-Failures",
+          "remediation": "Use a constrained serialization format with strict schema validation.",
+          "false_positive_notes": "A stream from a fully trusted internal source may be safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.java.spring-permissive-cors",
+      "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "WARNING",
+        "message": "Avoid wildcard origins on a Spring request handler.",
+        "metadata": {
+          "category": "permissive-cors",
+          "confidence": "high",
+          "cwe": "CWE-942",
+          "framework": "spring",
+          "language": "java",
+          "owasp": "A05:2021-Security-Misconfiguration",
+          "remediation": "Configure a reviewed explicit origin allowlist.",
+          "false_positive_notes": "A public unauthenticated endpoint may intentionally permit all origins.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.java.spring-request-command",
+      "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not construct a process from a request parameter.",
+        "metadata": {
+          "category": "command-injection",
+          "confidence": "high",
+          "cwe": "CWE-78",
+          "framework": "spring",
+          "language": "java",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Execute a fixed program with validated individual arguments.",
+          "false_positive_notes": "A request value mapped to a fixed server-side command may be safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.java.spring-request-file-path",
+      "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not construct a filesystem path directly from a request parameter.",
+        "metadata": {
+          "category": "path-traversal",
+          "confidence": "high",
+          "cwe": "CWE-22",
+          "framework": "spring",
+          "language": "java",
+          "owasp": "A01:2021-Broken-Access-Control",
+          "remediation": "Resolve an opaque identifier beneath a fixed root and verify containment.",
+          "false_positive_notes": "Prior canonicalization and containment validation may make the path safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.java.spring-request-redirect",
+      "path": "tests/security-fixtures/opengrep/positive/FrameworkExamples.java",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not construct a Spring redirect from a request parameter.",
+        "metadata": {
+          "category": "open-redirect",
+          "confidence": "high",
+          "cwe": "CWE-601",
+          "framework": "spring",
+          "language": "java",
+          "owasp": "A01:2021-Broken-Access-Control",
+          "remediation": "Select redirects from a fixed allowlist of application routes.",
+          "false_positive_notes": "A separately validated local path may be safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.javascript.dangerous-eval",
+      "path": "tests/security-fixtures/opengrep/positive/javascript.js",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Avoid eval; parse or dispatch explicitly instead.",
+        "metadata": {
+          "category": "code-injection",
+          "confidence": "high",
+          "cwe": "CWE-95",
+          "framework": "language-generic",
+          "language": "javascript-typescript",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Replace dynamic evaluation with explicit parsing or dispatch.",
+          "false_positive_notes": "Generated parsers and intentionally sandboxed interpreters require manual review.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.javascript.express-permissive-cors",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "WARNING",
+        "message": "An argument-free CORS middleware call permits every origin by default.",
+        "metadata": {
+          "category": "permissive-cors",
+          "confidence": "high",
+          "cwe": "CWE-942",
+          "framework": "express",
+          "language": "javascript-typescript",
+          "owasp": "A05:2021-Security-Misconfiguration",
+          "remediation": "Configure an explicit reviewed origin allowlist and credential policy.",
+          "false_positive_notes": "A public unauthenticated API may intentionally permit all origins.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.javascript.express-request-command",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not execute request-controlled input as a child-process command.",
+        "metadata": {
+          "category": "command-injection",
+          "confidence": "high",
+          "cwe": "CWE-78",
+          "framework": "express",
+          "language": "javascript-typescript",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Execute a fixed program with a validated argument array and no command shell.",
+          "false_positive_notes": "A request field constrained to a closed server-side allowlist may be safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.javascript.express-request-template",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not use a request-controlled template name.",
+        "metadata": {
+          "category": "template-injection",
+          "confidence": "high",
+          "cwe": "CWE-1336",
+          "framework": "express",
+          "language": "javascript-typescript",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Select templates through a fixed server-side mapping.",
+          "false_positive_notes": "A closed allowlist applied before this call may make the value safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.javascript.express-untrusted-file-path",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not pass a request-controlled path directly to Express sendFile.",
+        "metadata": {
+          "category": "path-traversal",
+          "confidence": "high",
+          "cwe": "CWE-22",
+          "framework": "express",
+          "language": "javascript-typescript",
+          "owasp": "A01:2021-Broken-Access-Control",
+          "remediation": "Map an opaque identifier to a fixed file below a trusted root.",
+          "false_positive_notes": "Framework root constraints and prior canonicalization may make a path safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.javascript.express-untrusted-redirect",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not redirect directly to a request-controlled destination.",
+        "metadata": {
+          "category": "open-redirect",
+          "confidence": "high",
+          "cwe": "CWE-601",
+          "framework": "express",
+          "language": "javascript-typescript",
+          "owasp": "A01:2021-Broken-Access-Control",
+          "remediation": "Resolve redirect destinations through a fixed allowlist of local paths.",
+          "false_positive_notes": "A separately validated request property may be safe and requires manual review.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.javascript.next-public-secret",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not expose a secret-shaped value through a NEXT_PUBLIC environment variable.",
+        "metadata": {
+          "category": "secret-exposure",
+          "confidence": "high",
+          "cwe": "CWE-200",
+          "framework": "nextjs",
+          "language": "javascript-typescript",
+          "owasp": "A02:2021-Cryptographic-Failures",
+          "remediation": "Keep secrets in server-only environment variables and never serialize them to clients.",
+          "false_positive_notes": "A value named token may be intentionally public and non-sensitive.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.javascript.next-request-file-path",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not pass request-controlled input directly to a filesystem read.",
+        "metadata": {
+          "category": "path-traversal",
+          "confidence": "high",
+          "cwe": "CWE-22",
+          "framework": "nextjs",
+          "language": "javascript-typescript",
+          "owasp": "A01:2021-Broken-Access-Control",
+          "remediation": "Map an opaque identifier to a fixed path below a trusted root.",
+          "false_positive_notes": "Prior path canonicalization and containment checks may make the path safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.javascript.next-untrusted-redirect",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not redirect a Next.js response directly to request-controlled input.",
+        "metadata": {
+          "category": "open-redirect",
+          "confidence": "high",
+          "cwe": "CWE-601",
+          "framework": "nextjs",
+          "language": "javascript-typescript",
+          "owasp": "A01:2021-Broken-Access-Control",
+          "remediation": "Resolve the destination through a fixed allowlist of application routes.",
+          "false_positive_notes": "A URL parsed and restricted to the application origin may be safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.javascript.react-dangerous-html",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.jsx",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Review React dangerous HTML injection and ensure the value is sanitized.",
+        "metadata": {
+          "category": "cross-site-scripting",
+          "confidence": "medium",
+          "cwe": "CWE-79",
+          "framework": "react",
+          "language": "javascript-typescript",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Render structured elements or sanitize HTML with a reviewed allowlist sanitizer.",
+          "false_positive_notes": "Constant or correctly sanitized HTML may be safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.django-csrf-exempt",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "WARNING",
+        "message": "Review disabled Django CSRF protection on this view.",
+        "metadata": {
+          "category": "csrf-disabled",
+          "confidence": "high",
+          "cwe": "CWE-352",
+          "framework": "django",
+          "language": "python",
+          "owasp": "A01:2021-Broken-Access-Control",
+          "remediation": "Retain CSRF protection or use an explicitly reviewed non-cookie authentication design.",
+          "false_positive_notes": "A webhook with independent signature verification may intentionally omit CSRF checks.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.django-raw-sql-concatenation",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not concatenate values into a Django raw SQL query.",
+        "metadata": {
+          "category": "sql-injection",
+          "confidence": "high",
+          "cwe": "CWE-89",
+          "framework": "django",
+          "language": "python",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Use Django query APIs or parameterized raw queries.",
+          "false_positive_notes": "A value selected solely from a fixed server-side mapping may be safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.django-unsafe-mark-safe",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not mark request-controlled content as safe HTML.",
+        "metadata": {
+          "category": "cross-site-scripting",
+          "confidence": "high",
+          "cwe": "CWE-79",
+          "framework": "django",
+          "language": "python",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Preserve template escaping or sanitize with a reviewed HTML allowlist.",
+          "false_positive_notes": "A value produced by a trusted sanitizer may be safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.fastapi-permissive-cors",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not combine wildcard CORS origins with credential support.",
+        "metadata": {
+          "category": "permissive-cors",
+          "confidence": "high",
+          "cwe": "CWE-942",
+          "framework": "fastapi",
+          "language": "python",
+          "owasp": "A05:2021-Security-Misconfiguration",
+          "remediation": "Configure a reviewed explicit origin allowlist.",
+          "false_positive_notes": "None; browsers reject some wildcard credential combinations but the configuration is misleading and unsafe to extend.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.fastapi-request-command",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not execute a FastAPI request value as an operating-system command.",
+        "metadata": {
+          "category": "command-injection",
+          "confidence": "high",
+          "cwe": "CWE-78",
+          "framework": "fastapi",
+          "language": "python",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Use a fixed executable with validated arguments and no command shell.",
+          "false_positive_notes": "A closed server-side command mapping may make the value safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.fastapi-request-deserialization",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not deserialize request data with pickle.",
+        "metadata": {
+          "category": "insecure-deserialization",
+          "confidence": "high",
+          "cwe": "CWE-502",
+          "framework": "fastapi",
+          "language": "python",
+          "owasp": "A08:2021-Software-and-Data-Integrity-Failures",
+          "remediation": "Use a constrained format and validate the request schema.",
+          "false_positive_notes": "Cryptographic authentication does not remove unsafe object-construction risk.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.fastapi-untrusted-file-response",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not return a request-controlled filesystem path.",
+        "metadata": {
+          "category": "path-traversal",
+          "confidence": "high",
+          "cwe": "CWE-22",
+          "framework": "fastapi",
+          "language": "python",
+          "owasp": "A01:2021-Broken-Access-Control",
+          "remediation": "Map an opaque identifier to a fixed file under a trusted directory.",
+          "false_positive_notes": "Prior canonicalization and containment validation may make the path safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.flask-debug-mode",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not enable the Flask debugger in a deployed application.",
+        "metadata": {
+          "category": "debug-mode",
+          "confidence": "high",
+          "cwe": "CWE-489",
+          "framework": "flask",
+          "language": "python",
+          "owasp": "A05:2021-Security-Misconfiguration",
+          "remediation": "Disable debug mode and use environment-specific development configuration.",
+          "false_positive_notes": "A development-only entry point may be acceptable if it cannot be deployed.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.flask-request-command",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not execute request-controlled input as an operating-system command.",
+        "metadata": {
+          "category": "command-injection",
+          "confidence": "high",
+          "cwe": "CWE-78",
+          "framework": "flask",
+          "language": "python",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Use a fixed executable and validated argument list without a shell.",
+          "false_positive_notes": "A closed server-side command mapping may make the value safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.flask-request-deserialization",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not deserialize request data with pickle.",
+        "metadata": {
+          "category": "insecure-deserialization",
+          "confidence": "high",
+          "cwe": "CWE-502",
+          "framework": "flask",
+          "language": "python",
+          "owasp": "A08:2021-Software-and-Data-Integrity-Failures",
+          "remediation": "Use a constrained data format and validate its schema.",
+          "false_positive_notes": "Cryptographic authentication does not remove all unsafe object-construction risk.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.flask-untrusted-redirect",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not redirect directly to a request-controlled destination.",
+        "metadata": {
+          "category": "open-redirect",
+          "confidence": "high",
+          "cwe": "CWE-601",
+          "framework": "flask",
+          "language": "python",
+          "owasp": "A01:2021-Broken-Access-Control",
+          "remediation": "Select destinations from a fixed allowlist of local application routes.",
+          "false_positive_notes": "A separately validated same-origin URL may be safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.flask-untrusted-send-file",
+      "path": "tests/security-fixtures/opengrep/positive/frameworks.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Do not send a request-controlled file path directly.",
+        "metadata": {
+          "category": "path-traversal",
+          "confidence": "high",
+          "cwe": "CWE-22",
+          "framework": "flask",
+          "language": "python",
+          "owasp": "A01:2021-Broken-Access-Control",
+          "remediation": "Map an opaque identifier to a fixed file under a trusted directory.",
+          "false_positive_notes": "Prior canonicalization and containment validation may make the path safe.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    },
+    {
+      "check_id": "vibesec.python.subprocess-shell-true",
+      "path": "tests/security-fixtures/opengrep/positive/python.py",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Avoid subprocess shell=True; pass an argument vector to the executable.",
+        "metadata": {
+          "category": "command-injection",
+          "confidence": "high",
+          "cwe": "CWE-78",
+          "framework": "language-generic",
+          "language": "python",
+          "owasp": "A03:2021-Injection",
+          "remediation": "Invoke the program directly with a fixed argument sequence.",
+          "false_positive_notes": "A constant command with no externally influenced data may be safe but shell parsing remains risky.",
+          "license": "Apache-2.0",
+          "provenance": "original-vibesec"
+        }
+      }
+    }
+  ]
+}

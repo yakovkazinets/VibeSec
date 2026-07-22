@@ -13,7 +13,9 @@ import re
 import tempfile
 from typing import Any
 
-from .finding_intelligence import FindingIntelligenceError, SourceDocument, build as build_finding_intelligence
+from .finding_intelligence import (
+    FindingIntelligenceError, SourceDocument, build as build_finding_intelligence, validate_documents,
+)
 from .strict_json import StrictJSONError, canonical_json, loads_strict
 
 AUTH_ENVIRONMENT_VARIABLE = "VIBESEC_AUTH_BEARER_TOKEN"
@@ -202,17 +204,27 @@ def _validate_child_exit_contract(label: str, coverage: dict[str, Any], policy: 
 def combine_result_directories(unauthenticated: Path, authenticated: Path, output: Path, *,
                                unauthenticated_exit_code: int, authenticated_exit_code: int) -> int:
     """Publish one sanitized comparison from two completed same-scanner runs."""
-    required = {"normalized.json", "coverage.json", "policy-result.json", "report.md"}
+    required = {
+        "normalized.json", "coverage.json", "policy-result.json", "report.md",
+        "finding-groups.json", "prioritized-findings.json",
+    }
     documents: dict[str, dict[str, Any]] = {}
     for label, directory in (("unauthenticated", unauthenticated), ("authenticated", authenticated)):
         observed = {item.name for item in directory.iterdir() if item.is_file()}
-        if not required <= observed:
-            raise AuthenticatedSecurityError(f"{label} comparison artifacts are incomplete")
+        if observed != required:
+            raise AuthenticatedSecurityError(f"{label} comparison artifact set differs from the reviewed contract")
         for name in required:
             validate_publishable_bytes((directory / name).read_bytes())
         normalized = loads_strict((directory / "normalized.json").read_bytes())
         coverage = loads_strict((directory / "coverage.json").read_bytes())
         policy = loads_strict((directory / "policy-result.json").read_bytes())
+        try:
+            validate_documents(
+                loads_strict((directory / "finding-groups.json").read_bytes()),
+                loads_strict((directory / "prioritized-findings.json").read_bytes()),
+            )
+        except FindingIntelligenceError as exc:
+            raise AuthenticatedSecurityError(f"{label} finding intelligence is malformed: {exc}") from exc
         if (not isinstance(normalized, dict) or not isinstance(normalized.get("results"), list)
                 or not isinstance(coverage, dict) or not isinstance(policy, dict)
                 or normalized.get("profile") != coverage.get("profile")

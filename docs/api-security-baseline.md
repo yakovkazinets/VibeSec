@@ -1,6 +1,6 @@
 # API Security Baseline
 
-When bearer-authenticated comparison is explicitly enabled, the runner additionally publishes sanitized `finding-groups.json` and `prioritized-findings.json`; unauthenticated API behavior and its four mandatory artifacts are unchanged.
+Every run publishes sanitized `finding-groups.json` and `prioritized-findings.json` alongside the four core artifacts, including clean, not-configured, not-applicable, and tool-error states. Bearer-authenticated comparison rebuilds those views from both child result documents while retaining every original finding.
 
 The opt-in `api-security-baseline` add-on performs contract-driven testing of one local OpenAPI 3.0.x or 3.1.x document against one already-built immutable, non-root API image. It is separate from Minimal, Standard, and Passive DAST Baseline. It runs only on `workflow_dispatch` or `schedule`, never against VibeSec itself, a pull request, a public URL, or a host service. Optional authentication supports only the separately configured static bearer model.
 

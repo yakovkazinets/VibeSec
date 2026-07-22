@@ -97,7 +97,7 @@
       "negative_fixture": "tests/security-fixtures/opengrep/negative",
       "expected_metadata": "tests/security-fixtures/opengrep/expected.json",
       "expected_coverage": "ran",
-      "expected_finding_ids": ["vibesec.go.shell-command", "vibesec.java.runtime-exec", "vibesec.javascript.dangerous-eval", "vibesec.python.subprocess-shell-true"],
+      "expected_finding_ids": ["vibesec.go.shell-command", "vibesec.java.runtime-exec", "vibesec.java.spring-actuator-permit-all", "vibesec.java.spring-native-query-concatenation", "vibesec.java.spring-object-input-stream", "vibesec.java.spring-permissive-cors", "vibesec.java.spring-request-command", "vibesec.java.spring-request-file-path", "vibesec.java.spring-request-redirect", "vibesec.javascript.dangerous-eval", "vibesec.javascript.express-permissive-cors", "vibesec.javascript.express-request-command", "vibesec.javascript.express-request-template", "vibesec.javascript.express-untrusted-file-path", "vibesec.javascript.express-untrusted-redirect", "vibesec.javascript.next-public-secret", "vibesec.javascript.next-request-file-path", "vibesec.javascript.next-untrusted-redirect", "vibesec.javascript.react-dangerous-html", "vibesec.python.django-csrf-exempt", "vibesec.python.django-raw-sql-concatenation", "vibesec.python.django-unsafe-mark-safe", "vibesec.python.fastapi-permissive-cors", "vibesec.python.fastapi-request-command", "vibesec.python.fastapi-request-deserialization", "vibesec.python.fastapi-untrusted-file-response", "vibesec.python.flask-debug-mode", "vibesec.python.flask-request-command", "vibesec.python.flask-request-deserialization", "vibesec.python.flask-untrusted-redirect", "vibesec.python.flask-untrusted-send-file", "vibesec.python.subprocess-shell-true"],
       "expected_artifacts": ["normalized.json", "coverage.json", "report.md"],
       "network_behavior": "none_after_install",
       "trusted_event_only": false,
@@ -105,7 +105,7 @@
       "limitations_document": "docs/tool-selection.md",
       "ci_enforcement": ["self-scan-standard", "scanner-accountability", "scripts/test_opengrep_rules.py"],
       "status": "enforced",
-      "status_reason": "All four local language rules have exact-count positive and zero-count negative tests."
+      "status_reason": "All 32 local language and framework rules have exact positive metadata and zero-finding negative accountability."
     },
     {
       "id": "standard.osv-dependencies",

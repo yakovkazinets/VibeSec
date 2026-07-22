@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlsplit
 import yaml
 
 from .authenticated import annotate_findings, authentication_evidence, validate_publishable_bytes
+from .finding_intelligence import FindingIntelligenceError, SourceDocument, build as build_finding_intelligence
 from .model import Finding
 from .policy import active_suppressions, evaluate
 from .strict_json import StrictJSONError, canonical_json, loads_strict
@@ -466,6 +467,13 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
     scanner = loads_strict((root / "config/tools.json").read_bytes())["schemathesis"]
     config = load_config(root)
     normalized = {"schema_version": 1, "profile": "api-security-baseline", "results": findings}
+    try:
+        finding_groups, prioritized_findings = build_finding_intelligence([
+            SourceDocument("api-security-baseline", "normalized.json", normalized,
+                           "authenticated" if authenticated else "unauthenticated"),
+        ], baseline=set(baseline["fingerprints"]), suppressions=active)
+    except FindingIntelligenceError as exc:
+        raise ApiSecurityError(f"API finding intelligence failed: {exc}") from exc
     coverage = {
         "schema_version": 1, "profile": "api-security-baseline", "tool": "schemathesis",
         "scanner_version": scanner["version"], "scanner_image_digest": scanner["digest"],
@@ -479,7 +487,7 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
         "state": state, "reason": reason, "operation_count": operation_count,
         "normalized_finding_count": len([item for item in findings if item.get("result_type") == "finding"]),
         "scan_duration_seconds": max(duration_seconds, 0),
-        "output_artifacts": ["normalized.json", "coverage.json", "policy-result.json", "report.md"],
+        "output_artifacts": ["normalized.json", "coverage.json", "policy-result.json", "report.md", "finding-groups.json", "prioritized-findings.json"],
         "limitations": ["Contract-driven testing with one static bearer identity does not prove that an API is secure or authorize role comparisons."],
         **authentication_evidence(authenticated, applied),
     }
@@ -499,6 +507,8 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
     artifacts = {
         "normalized.json": canonical_json(normalized), "coverage.json": canonical_json(coverage),
         "policy-result.json": canonical_json(policy), "report.md": ("\n".join(lines) + "\n").encode(),
+        "finding-groups.json": canonical_json(finding_groups),
+        "prioritized-findings.json": canonical_json(prioritized_findings),
     }
     if authenticated:
         for data in artifacts.values():

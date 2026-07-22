@@ -22,6 +22,7 @@ from vibesec.authenticated import (  # noqa: E402
 from vibesec.bundle import build_bundle_bytes  # noqa: E402
 from vibesec.capabilities import CapabilityError, all_capabilities, capability_bytes, scanner_applicability  # noqa: E402
 from vibesec.dast import load_config as load_dast_config  # noqa: E402
+from vibesec.finding_intelligence import SourceDocument, build as build_finding_intelligence  # noqa: E402
 from vibesec.schemathesis_runtime import trusted_scanner_container_command, trusted_schemathesis_command  # noqa: E402
 from vibesec.zap_automation import build_passive_plan, trusted_zap_container_command  # noqa: E402
 from vibesec_doctor import _auth_workflow_problems  # noqa: E402
@@ -289,6 +290,11 @@ class AuthenticatedSecurityTestingTests(unittest.TestCase):
             }
             for name, document in documents.items():
                 (directory / name).write_text(json.dumps(document) + "\n", encoding="utf-8")
+            groups, priorities = build_finding_intelligence([
+                SourceDocument("dast-baseline", "normalized.json", documents["normalized.json"]),
+            ])
+            (directory / "finding-groups.json").write_text(json.dumps(groups) + "\n", encoding="utf-8")
+            (directory / "prioritized-findings.json").write_text(json.dumps(priorities) + "\n", encoding="utf-8")
             (directory / "report.md").write_text("sanitized\n", encoding="utf-8")
 
         unauthenticated = self.root / "unauthenticated"

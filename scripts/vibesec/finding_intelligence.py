@@ -47,6 +47,11 @@ FAMILY_BY_CWE = {
     "CWE-352": "csrf", "CWE-502": "insecure-deserialization", "CWE-601": "open-redirect",
     "CWE-942": "cors-misconfiguration", "CWE-1336": "template-injection",
 }
+SCANNER_EXACT_EVIDENCE_FIELDS = (
+    "original_rule_id", "category", "vulnerability_family", "cwe", "sink_category",
+    "file", "start_line", "end_line", "method", "path_template", "authentication_context",
+    "package_ecosystem", "package_name", "installed_version", "advisory_id", "direct_dependency",
+)
 
 
 class FindingIntelligenceError(ValueError):
@@ -188,10 +193,23 @@ def _overlaps_or_adjacent(left: dict[str, Any], right: dict[str, Any]) -> bool:
     return left["start_line"] <= right["end_line"] + 1 and right["start_line"] <= left["end_line"] + 1
 
 
+def _scanner_fingerprint_conflicts(left: dict[str, Any], right: dict[str, Any]) -> tuple[str, ...] | None:
+    """Return reviewed identity conflicts for a same-scanner fingerprint, or None otherwise."""
+    if (left["original_scanner"] != right["original_scanner"]
+            or left["scanner_fingerprint"] != right["scanner_fingerprint"]):
+        return None
+    return tuple(field for field in SCANNER_EXACT_EVIDENCE_FIELDS if left[field] != right[field])
+
+
 def _correlation(left: dict[str, Any], right: dict[str, Any]) -> tuple[str, str, list[dict[str, str]]] | None:
-    if (left["original_scanner"] == right["original_scanner"]
-            and left["scanner_fingerprint"] == right["scanner_fingerprint"]):
-        return "scanner-exact", "exact", [{"factor": "scanner_fingerprint", "evidence": "identical scanner fingerprint"}]
+    fingerprint_conflicts = _scanner_fingerprint_conflicts(left, right)
+    if fingerprint_conflicts is not None:
+        if fingerprint_conflicts:
+            return None
+        return "scanner-exact", "exact", [
+            {"factor": "scanner_fingerprint", "evidence": "identical scanner fingerprint"},
+            {"factor": "reviewed_identity", "evidence": "all reviewed correlation evidence agrees"},
+        ]
     if (left["file"] and left["file"] == right["file"] and _overlaps_or_adjacent(left, right)
             and left["vulnerability_family"] is not None
             and left["vulnerability_family"] == right["vulnerability_family"]
@@ -277,6 +295,7 @@ def build(documents: list[SourceDocument], *, baseline: set[str] | None = None,
                 raise FindingIntelligenceError("finding count exceeds limit")
     findings.sort(key=lambda item: item["source_reference"])
     parent = list(range(len(findings)))
+    component_members = {index: {index} for index in range(len(findings))}
     decisions: dict[tuple[int, int], tuple[str, str, list[dict[str, str]]]] = {}
 
     def root(index: int) -> int:
@@ -306,13 +325,32 @@ def build(documents: list[SourceDocument], *, baseline: set[str] | None = None,
                 candidates.add((left_index, right_index))
                 if len(candidates) > MAX_CANDIDATE_PAIRS:
                     raise FindingIntelligenceError("correlation candidate count exceeds limit")
+    fingerprint_collisions: dict[tuple[int, int], tuple[str, ...]] = {}
+    blocked_by: dict[int, set[int]] = {}
     for left_index, right_index in sorted(candidates):
+        conflicts = _scanner_fingerprint_conflicts(findings[left_index], findings[right_index])
+        if conflicts:
+            fingerprint_collisions[(left_index, right_index)] = conflicts
+            blocked_by.setdefault(left_index, set()).add(right_index)
+            blocked_by.setdefault(right_index, set()).add(left_index)
+
+    def components_have_collision(left_members: set[int], right_members: set[int]) -> bool:
+        if len(left_members) > len(right_members):
+            left_members, right_members = right_members, left_members
+        return any(blocked_by.get(index, set()) & right_members for index in left_members)
+
+    for left_index, right_index in sorted(candidates):
+        if (left_index, right_index) in fingerprint_collisions:
+            continue
         decision = _correlation(findings[left_index], findings[right_index])
         if decision is None:
             continue
         left_root, right_root = root(left_index), root(right_index)
         if left_root != right_root:
+            if components_have_collision(component_members[left_root], component_members[right_root]):
+                continue
             parent[right_root] = left_root
+            component_members[left_root].update(component_members.pop(right_root))
         decisions[(left_index, right_index)] = decision
 
     components: dict[int, list[int]] = {}
@@ -340,6 +378,17 @@ def build(documents: list[SourceDocument], *, baseline: set[str] | None = None,
                     "left": findings[left_index]["source_reference"],
                     "right": findings[right_index]["source_reference"],
                     "rule": decision[0], "classification": decision[1], "evidence": decision[2],
+                })
+        for (left_index, right_index), conflicts in sorted(fingerprint_collisions.items()):
+            if left_index in indexes or right_index in indexes:
+                provenance.append({
+                    "left": findings[left_index]["source_reference"],
+                    "right": findings[right_index]["source_reference"],
+                    "rule": "scanner-fingerprint-collision", "classification": "none",
+                    "evidence": [
+                        {"factor": "scanner_fingerprint", "evidence": "identical fingerprint was not sufficient"},
+                        {"factor": "conflicting_fields", "evidence": ", ".join(conflicts)},
+                    ],
                 })
         if not provenance:
             reason = "missing compatible correlation evidence"

@@ -37,6 +37,39 @@ class FindingIntelligenceTests(unittest.TestCase):
         self.assertEqual(groups["groups"][0]["correlation_classification"], "exact")
         self.assertEqual(priorities["groups"][0]["priority"], "high")
 
+    def test_same_scanner_fingerprint_collision_with_conflicting_evidence_stays_separate(self):
+        fingerprint = "a" * 64
+        original = finding(fingerprint=fingerprint, rule="RULE-1", line=10, category="command-injection")
+        collision = finding(fingerprint=fingerprint, rule="RULE-2", line=40, category="open-redirect")
+        groups, priorities = build([source(original, collision)])
+        self.assertEqual(len(groups["findings"]), 2)
+        self.assertEqual(len(groups["groups"]), 2)
+        self.assertTrue(all(group["correlation_classification"] == "none" for group in groups["groups"]))
+        self.assertTrue(all(group["correlation_rules"] == ["singleton"] for group in groups["groups"]))
+        for group in groups["groups"]:
+            collision_decisions = [
+                item for item in group["decision_provenance"]
+                if item["rule"] == "scanner-fingerprint-collision"
+            ]
+            self.assertEqual(len(collision_decisions), 1)
+            evidence = {item["factor"]: item["evidence"] for item in collision_decisions[0]["evidence"]}
+            self.assertIn("original_rule_id", evidence["conflicting_fields"])
+            self.assertIn("category", evidence["conflicting_fields"])
+        self.assertEqual(len(priorities["groups"]), 2)
+
+    def test_same_scanner_fingerprint_missing_vs_present_identity_stays_separate(self):
+        fingerprint = "b" * 64
+        missing = finding(fingerprint=fingerprint)
+        present = finding(fingerprint=fingerprint, cwe="CWE-78")
+        groups, _ = build([source(missing, present)])
+        self.assertEqual(len(groups["groups"]), 2)
+        for group in groups["groups"]:
+            collision = next(item for item in group["decision_provenance"]
+                             if item["rule"] == "scanner-fingerprint-collision")
+            fields = next(item["evidence"] for item in collision["evidence"]
+                          if item["factor"] == "conflicting_fields")
+            self.assertEqual(fields, "cwe")
+
     def test_cross_scanner_code_location_requires_family_sink_and_adjacent_lines(self):
         left = finding(vulnerability_family="command-injection", sink_category="command-injection")
         right = finding("trivy", "2" * 64, line=11, rule="RULE-2",

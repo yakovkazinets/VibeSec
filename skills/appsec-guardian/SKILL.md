@@ -62,7 +62,7 @@ When Standard results include `finding-groups.json` and `prioritized-findings.js
 - Preserve the isolated internal network, no published port, read-only filesystems, dropped capabilities, `no-new-privileges`, resource/time bounds, and no source, credential, or Docker-socket mounts.
 - Run only ZAP traditional-spider passive baseline behavior. Never enable active scanning, AJAX spidering, browser automation, arbitrary ZAP arguments, or production targeting. Authentication is permitted only when `authentication=true` and `authenticated_security_testing=true`, using the fixed static bearer mechanism and scanner-step-only GitHub secret described below.
 - Interpret `ran` as structurally validated passive coverage only. Treat `not_configured`, `tool_error`, invalid input, startup/readiness failure, cleanup failure, a missing expected finding, and a passing result as distinct states. A clean passive result is not evidence that authorization, business logic, authenticated paths, or injection resistance were tested.
-- Retain the four mandatory sanitized runtime artifacts; authenticated comparison may add only `finding-groups.json` and `prioritized-findings.json`. Never upload raw ZAP reports, evidence, bodies, headers, cookies, credentials, queries, full URLs, registry data, or host paths.
+- Retain exactly six mandatory sanitized runtime artifacts: `normalized.json`, `coverage.json`, `policy-result.json`, `report.md`, `finding-groups.json`, and `prioritized-findings.json`. Authenticated comparison must rebuild the two intelligence views from both child results. Never upload raw ZAP reports, bodies, headers, cookies, credentials, queries, full URLs, registry data, or host paths.
 
 ## Imported skill boundary
 

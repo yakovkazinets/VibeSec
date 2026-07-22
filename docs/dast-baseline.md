@@ -1,6 +1,6 @@
 # Passive DAST Baseline add-on
 
-When bearer-authenticated comparison is explicitly enabled, the runner additionally publishes sanitized `finding-groups.json` and `prioritized-findings.json`; unauthenticated DAST behavior and its four mandatory artifacts are unchanged.
+Every run publishes sanitized `finding-groups.json` and `prioritized-findings.json` alongside the four core artifacts, including clean, not-configured, not-applicable, and tool-error states. Bearer-authenticated comparison rebuilds those views from both child result documents while retaining every original finding.
 
 The DAST Baseline is a separate, opt-in, `conditionally_enforced` add-on for an existing VibeSec Minimal or Standard installation. Installation requires authoritative `web_application=true` and `dast_target=true` capability answers. `dast_target=false` leaves the add-on uninstalled and reports `not_applicable`; it is not a clean result. The add-on accepts one explicitly configured immutable application image, starts it as its declared non-root user, and runs the pinned OWASP ZAP Automation Framework in a passive-only mode. It does not build a Dockerfile, install dependencies, run setup commands, publish a host port, or scan an external URL. Optional authentication supports only the separately configured static bearer model described in [authenticated security testing](authenticated-security-testing.md). VibeSec itself declares both runtime capabilities false.
 

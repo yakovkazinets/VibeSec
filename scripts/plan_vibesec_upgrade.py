@@ -24,6 +24,11 @@ CLASSIFICATIONS = {
     "policy_review_required", "workflow_support_version_mismatch", "unknown_legacy_state",
     "conflict", "unsafe_path",
     "capability_preserve",
+    "release_metadata_preserve",
+}
+RELEASE_METADATA_PATHS = {
+    ".vibesec/release-verification.json",
+    ".vibesec/provenance.intoto.jsonl",
 }
 RECOVERABLE_ACTION_ERRORS = (
     "workflow action does not match the approved immutable pin:",
@@ -59,6 +64,11 @@ def desired_files(bundle: VerifiedBundle, state: InstallationState) -> dict[str,
 def classify_plan(state: InstallationState, bundle: VerifiedBundle) -> dict[str, Any]:
     proposed = desired_files(bundle, state)
     current = {item["path"]: item for item in state.files}
+    for relative in sorted(RELEASE_METADATA_PATHS):
+        path = state.target / relative
+        if path.is_file() and not path.is_symlink():
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            current[relative] = {"path": relative, "expected_sha256": digest, "actual_sha256": digest}
     paths = sorted(set(proposed) | set(current))
     records: list[dict[str, Any]] = []
     installed_version = state.version
@@ -68,7 +78,9 @@ def classify_plan(state: InstallationState, bundle: VerifiedBundle) -> dict[str,
         expected_old = old.get("expected_sha256") if old else None
         actual = old.get("actual_sha256") if old else None
         expected_new = new.get("sha256") if new else None
-        if path in {".vibesec/project-capabilities.json", ".vibesec/api-security-baseline.json", ".vibesec/authenticated-security-testing.json"}:
+        if path in RELEASE_METADATA_PATHS:
+            classification = "release_metadata_preserve"
+        elif path in {".vibesec/project-capabilities.json", ".vibesec/api-security-baseline.json", ".vibesec/authenticated-security-testing.json"}:
             classification = "capability_preserve"
         elif path in {"policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json", "policy/api-security-baseline.json"}:
             classification = "baseline_preserve"
@@ -94,7 +106,7 @@ def classify_plan(state: InstallationState, bundle: VerifiedBundle) -> dict[str,
             classification = "both_modified"
         else:
             classification = "conflict"
-        preservation = path == ".vibesec/project-capabilities.json" or path in PRESERVATION_SENSITIVE or path.startswith("policy/") or path.startswith(".github/workflows/") or "ignore" in path
+        preservation = path == ".vibesec/project-capabilities.json" or path in RELEASE_METADATA_PATHS or path in PRESERVATION_SENSITIVE or path.startswith("policy/") or path.startswith(".github/workflows/") or "ignore" in path
         records.append({
             "path": path, "classification": classification,
             "current_expected_sha256": expected_old, "current_actual_sha256": actual,
@@ -104,7 +116,7 @@ def classify_plan(state: InstallationState, bundle: VerifiedBundle) -> dict[str,
     for record in records:
         counts[record["classification"]] = counts.get(record["classification"], 0) + 1
     manual = [record["path"] for record in records if record["classification"] in {
-        "both_modified", "baseline_preserve", "suppression_preserve", "capability_preserve", "policy_review_required",
+        "both_modified", "baseline_preserve", "suppression_preserve", "capability_preserve", "release_metadata_preserve", "policy_review_required",
         "workflow_support_version_mismatch", "unknown_legacy_state", "conflict", "unsafe_path",
     }]
     additions = [record["path"] for record in records if record["classification"] == "add"]

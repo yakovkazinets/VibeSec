@@ -13,6 +13,14 @@ python3 scripts/verify_consumer_bundle.py /path/to/new-vibesec-consumer.zip
 python3 scripts/plan_vibesec_upgrade.py --target /path/to/app --bundle /path/to/new-vibesec-consumer.zip
 ```
 
+For a signed distribution, first verify the complete closed release directory
+with a separately trusted `verify_release_artifacts.py`, including certificate
+identity and issuer, and then pass its already verified inner consumer ZIP to
+the planner. Signed metadata supplements but never bypasses existing strict ZIP
+verification. Preserve `.vibesec/release-verification.json` and matching
+provenance during review; replace them only from the newly verified release set
+after the upgrade is accepted.
+
 ## v0.1.0 Minimal to current Minimal
 
 Preserve `policy/baseline.json` and `policy/suppressions.yml`. Compare the workflow, pinned tools, normalization, result writer, policy gate, and `scripts/vibesec/` as a version-compatible set. Adopt the safer initializer manifest without overwriting existing files: preview against a clean temporary copy or compare files manually, then apply reviewed differences. Confirm the workflow still starts in the intended enforcement mode.

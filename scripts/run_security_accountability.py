@@ -14,6 +14,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.detection import inventory  # noqa: E402
+from vibesec.finding_intelligence import SourceDocument, build as build_finding_intelligence  # noqa: E402
 from vibesec.authenticated import annotate_findings  # noqa: E402
 from vibesec.dast import normalize_zap_report  # noqa: E402
 from vibesec.api_security import CHECKS, load_config as load_api_config, normalize_schemathesis_report, operation_index, validate_openapi_schema  # noqa: E402
@@ -152,6 +153,18 @@ def internal_evidence(capability: dict[str, Any], expected: dict[str, Any]) -> d
         bad = load_json(negative / "scenario.json")
         if good.get("minimal_profile") != "minimal" or good.get("standard_profile") != "standard" or bad.get("minimal_profile") != "standard":
             raise AccountabilityError("profile baseline fixture distinction failed")
+    elif identifier == "standard.finding-intelligence":
+        correlated, priority = build_finding_intelligence([
+            SourceDocument("standard", "positive/scenario.json", load_json(positive / "scenario.json")),
+        ])
+        separate, _ = build_finding_intelligence([
+            SourceDocument("standard", "negative/scenario.json", load_json(negative / "scenario.json")),
+        ])
+        if (len(correlated["findings"]) != 2 or len(correlated["groups"]) != 1
+                or correlated["groups"][0]["correlation_classification"] != "heuristic"
+                or priority["groups"][0]["independent_scanner_count"] != 2
+                or len(separate["groups"]) != 2):
+            raise AccountabilityError("finding intelligence positive/negative distinction failed")
     elif identifier.startswith("dast."):
         good = load_json(positive / "scenario.json")
         bad = load_json(negative / "scenario.json")

@@ -9,7 +9,8 @@ import re
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from vibesec.policy import ConfigurationError, active_suppressions, evaluate, load_json_yaml  # noqa: E402
+from vibesec.finding_intelligence import FindingIntelligenceError, validate_documents  # noqa: E402
+from vibesec.policy import ConfigurationError, active_suppressions, evaluate, evaluate_priority, load_json_yaml  # noqa: E402
 
 
 def safe_markdown_cell(value: object, limit: int = 240) -> str:
@@ -18,17 +19,40 @@ def safe_markdown_cell(value: object, limit: int = 240) -> str:
     return text.replace("|", "\\|").replace("<", "&lt;").replace(">", "&gt;").replace("`", "'")
 
 
-def write_markdown(path: Path, evaluation: dict, expired: list[str], profile: str = "minimal") -> None:
+def write_markdown(path: Path, evaluation: dict, expired: list[str], profile: str = "minimal",
+                   finding_groups: dict | None = None, prioritized: dict | None = None) -> None:
     lines = [f"# VibeSec {profile} profile", "", f"Status: **{evaluation['status']}**", ""]
     lines += [
         f"- Findings: {len(evaluation['findings'])}",
         f"- New findings: {len(evaluation['new_findings'])}",
         f"- Policy violations: {len(evaluation['violations'])}",
         f"- Tool errors: {len(evaluation['tool_errors'])}",
+        f"- Priority policy violations: {len(evaluation.get('priority_violations', []))}",
         f"- Expired suppressions: {len(expired)}",
         "",
         "A pass means only that configured scanners completed without a policy violation. It is not a security guarantee.",
     ]
+    if finding_groups is not None and prioritized is not None:
+        group_index = {item["correlation_key"]: item for item in finding_groups["groups"]}
+        lines += ["", "## Prioritized finding groups", ""]
+        if not prioritized["groups"]:
+            lines.append("No finding groups were produced.")
+        for item in prioritized["groups"]:
+            group = group_index[item["correlation_key"]]
+            reasons = ", ".join(
+                f"{reason.get('factor')}: {reason.get('evidence')}" for reason in item["priority_reasons"]
+            )
+            references = ", ".join(reference[:12] for reference in item["member_references"])
+            lines += [
+                f"### {safe_markdown_cell(item['priority']).title()} `{safe_markdown_cell(item['correlation_key'], 64)}`",
+                "",
+                f"- Correlation: {safe_markdown_cell(group['correlation_classification'])}",
+                f"- Underlying findings: {item['member_count']}",
+                f"- Contributing scanners: {safe_markdown_cell(', '.join(item['contributing_scanners']))}",
+                f"- Evidence reasons: {safe_markdown_cell(reasons, 500)}",
+                f"- Original finding references: {safe_markdown_cell(references, 500)}",
+                "",
+            ]
     if evaluation["findings"]:
         lines += ["", "## Findings", "", "| Tool | Severity | Rule | Location | Confidence | Description |", "|---|---|---|---|---|---|"]
         for item in evaluation["findings"]:
@@ -58,6 +82,8 @@ def main() -> int:
     parser.add_argument("--enforcement")
     parser.add_argument("--profile", choices=("minimal", "standard"), default="minimal")
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--finding-groups", type=Path)
+    parser.add_argument("--prioritized-findings", type=Path)
     args = parser.parse_args()
     try:
         result_payload = load_json_yaml(args.results)
@@ -79,13 +105,27 @@ def main() -> int:
             enforcement=args.enforcement or policy.get("enforcement", "observe"), baseline=set(baseline),
             suppressions=suppressions, today=date.today(),
         )
-        write_markdown(args.report, evaluation, expired, args.profile)
-    except ConfigurationError as exc:
+        finding_groups = prioritized = None
+        if bool(args.finding_groups) != bool(args.prioritized_findings):
+            raise ConfigurationError("both finding intelligence artifacts are required together")
+        if args.finding_groups:
+            finding_groups = load_json_yaml(args.finding_groups)
+            prioritized = load_json_yaml(args.prioritized_findings)
+            validate_documents(finding_groups, prioritized)
+            evaluation["priority_violations"] = evaluate_priority(
+                prioritized["groups"], policy.get("finding_intelligence")
+            )
+            if evaluation["priority_violations"] and evaluation["status"] == "pass":
+                evaluation["status"] = "policy_violation"
+        else:
+            evaluation["priority_violations"] = []
+        write_markdown(args.report, evaluation, expired, args.profile, finding_groups, prioritized)
+    except (ConfigurationError, FindingIntelligenceError) as exc:
         print(str(exc), file=sys.stderr)
         return 3
     if evaluation["tool_errors"]:
         return 2
-    return 1 if evaluation["violations"] else 0
+    return 1 if evaluation["violations"] or evaluation["priority_violations"] else 0
 
 
 if __name__ == "__main__":

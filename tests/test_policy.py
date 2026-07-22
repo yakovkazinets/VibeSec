@@ -1,7 +1,7 @@
 from datetime import date
 import unittest
 
-from scripts.vibesec.policy import ConfigurationError, active_suppressions, evaluate
+from scripts.vibesec.policy import ConfigurationError, active_suppressions, evaluate, evaluate_priority
 
 
 def finding(fingerprint="new", severity="high", result_type="finding"):
@@ -37,6 +37,18 @@ class PolicyTests(unittest.TestCase):
     def test_invalid_result_type_is_rejected(self):
         with self.assertRaises(ConfigurationError):
             evaluate([{"result_type": "clean"}], minimum_severity="high", enforcement="observe", baseline=set(), suppressions=set(), today=date(2026, 7, 20))
+
+    def test_finding_intelligence_policy_is_optional_and_deterministic(self):
+        group = {"priority": "high", "independent_scanner_count": 2, "confirmed_runtime": True}
+        disabled = {"enabled": False, "minimum_priority": "high", "minimum_independent_scanners": None, "require_confirmed_runtime": False}
+        enabled = {**disabled, "enabled": True, "minimum_independent_scanners": 2, "require_confirmed_runtime": True}
+        self.assertEqual(evaluate_priority([group], disabled), [])
+        self.assertEqual(evaluate_priority([group], enabled), [group])
+        self.assertEqual(evaluate_priority([{**group, "confirmed_runtime": False}], enabled), [])
+
+    def test_malformed_priority_policy_fails_closed(self):
+        with self.assertRaises(ConfigurationError):
+            evaluate_priority([], {"enabled": True})
 
 
 if __name__ == "__main__":

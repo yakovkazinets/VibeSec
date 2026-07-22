@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlsplit
 
 from .model import Finding
 from .authenticated import annotate_findings, authentication_evidence, validate_publishable_bytes
+from .finding_intelligence import FindingIntelligenceError, SourceDocument, build as build_finding_intelligence
 from .policy import active_suppressions, evaluate
 from .strict_json import StrictJSONError, canonical_json, loads_strict
 
@@ -190,9 +191,10 @@ def normalize_zap_payload(payload: Any, *, port: int, maximum_findings: int) -> 
                                       severity=RISK[risk_key], file=path, description=name,
                                       confidence=CONFIDENCE[confidence_key]).to_dict()
                 base["method"] = method
+                base["path_template"] = path
                 base["status_class"] = "unknown"
                 base["contract_class"] = "passive-response-header"
-                base["cwe"] = _scalar(alert["cweid"], "cweid", 16) if alert.get("cweid") not in (None, "", "-1") else None
+                base["cwe"] = f"CWE-{_scalar(alert['cweid'], 'cweid', 16)}" if alert.get("cweid") not in (None, "", "-1") else None
                 base["wasc"] = _scalar(alert["wascid"], "wascid", 16) if alert.get("wascid") not in (None, "", "-1") else None
                 base["remediation"] = _scalar(alert.get("solution") or "Add an anti-clickjacking response header.", "solution", 300)
                 stable = "\0".join(("zap-baseline", rule_id, path, method)).encode("utf-8")
@@ -243,6 +245,13 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
     suppressions, expired = active_suppressions(suppressions_payload, date.today())
     evaluation = evaluate(findings, minimum_severity=minimum_severity, enforcement=enforcement,
                           baseline=set(baseline["fingerprints"]), suppressions=suppressions, today=date.today())
+    try:
+        finding_groups, prioritized_findings = build_finding_intelligence([
+            SourceDocument("dast-baseline", "normalized.json", payload_results,
+                           "authenticated" if authenticated else "unauthenticated"),
+        ], baseline=set(baseline["fingerprints"]), suppressions=suppressions)
+    except FindingIntelligenceError as exc:
+        raise DastError(f"DAST finding intelligence failed: {exc}") from exc
     category = {0: "pass", 1: "policy_violation", 2: "tool_error", 3: "invalid_input"}.get(exit_code)
     if category is None:
         raise DastError("DAST exit code is outside the reviewed contract")
@@ -262,7 +271,7 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
         "zap_home_tmpfs_megabytes": dast_config["zap_home_tmpfs_megabytes"],
         "application_code_executed": state in {"ran", "tool_error"} and digest is not None,
         "application_source_built": False, "project_dependencies_installed": False,
-        "state": state, "reason": reason, "output_artifacts": ["normalized.json", "report.md", "coverage.json", "policy-result.json"],
+        "state": state, "reason": reason, "output_artifacts": ["normalized.json", "report.md", "coverage.json", "policy-result.json", "finding-groups.json", "prioritized-findings.json"],
         "limitations": ["Passive unauthenticated crawling cannot prove an application is secure or assess authorization, business logic, or injection resistance."],
         "scan_duration_seconds": max(0, duration_seconds), "url_count": max(0, url_count),
         "normalized_finding_count": len([item for item in findings if item.get("result_type") == "finding"]),
@@ -285,6 +294,8 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
     artifacts = {
         "normalized.json": canonical_json(payload_results), "coverage.json": canonical_json(coverage),
         "policy-result.json": canonical_json(policy_result), "report.md": ("\n".join(lines) + "\n").encode("utf-8"),
+        "finding-groups.json": canonical_json(finding_groups),
+        "prioritized-findings.json": canonical_json(prioritized_findings),
     }
     if authenticated:
         for data in artifacts.values():

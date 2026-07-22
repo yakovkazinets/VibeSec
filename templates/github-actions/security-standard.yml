@@ -77,6 +77,8 @@ jobs:
             ${{ runner.temp }}/vibesec-results/normalized.json
             ${{ runner.temp }}/vibesec-results/coverage.json
             ${{ runner.temp }}/vibesec-results/inventory.json
+            ${{ runner.temp }}/vibesec-results/finding-groups.json
+            ${{ runner.temp }}/vibesec-results/prioritized-findings.json
             ${{ runner.temp }}/vibesec-results/report.md
           if-no-files-found: error
           retention-days: 14

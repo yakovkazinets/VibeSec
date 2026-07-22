@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -21,7 +22,9 @@ from vibesec.detection import (  # noqa: E402
     IMAGE_DIGEST, DetectionError, ImageStateError, derive_image_expectation, inventory,
 )
 from vibesec.model import Finding  # noqa: E402
+from vibesec.finding_intelligence import FindingIntelligenceError, SourceDocument, build as build_finding_intelligence  # noqa: E402
 from vibesec.normalize import normalize_file  # noqa: E402
+from vibesec.policy import active_suppressions  # noqa: E402
 from vibesec.osv_database import validate_offline_database  # noqa: E402
 from vibesec.sbom import sanitize_repository_paths, validate_cyclonedx, validate_spdx  # noqa: E402
 
@@ -30,6 +33,7 @@ DIAGNOSTIC_DOCS = "docs/self-hosted-validation.md"
 CHECKOV_CONTAINER_CONFIG = "/vibesec/checkov-standard.yaml"
 KNOWN_OUTPUTS = (
     "normalized.json", "coverage.json", "inventory.json", "report.md", "policy-result.json",
+    "finding-groups.json", "prioritized-findings.json",
     "sbom.cyclonedx.json", "sbom.spdx.json",
     "raw/opengrep.json", "raw/osv.json", "raw/checkov.json", "raw/trivy.json",
     "raw/gitleaks.json", "raw/actionlint.txt", "raw/trivy-image.json",
@@ -596,13 +600,32 @@ def main() -> int:
     except ValueError as exc:
         diagnostic("coverage", "invalid_input", f"coverage output failed validation: {exc}", "coverage.json")
         return 3
+    try:
+        baseline_payload = json.loads((vibesec_root / "policy/standard-baseline.json").read_text(encoding="utf-8"))
+        suppression_payload = json.loads((vibesec_root / "policy/suppressions.yml").read_text(encoding="utf-8"))
+        baseline_values = baseline_payload.get("fingerprints")
+        if not isinstance(baseline_values, list) or not all(isinstance(item, str) for item in baseline_values):
+            raise FindingIntelligenceError("Standard baseline fingerprints are malformed")
+        active, _ = active_suppressions(suppression_payload, date.today())
+        finding_groups, prioritized_findings = build_finding_intelligence([
+            SourceDocument("standard", "normalized.json", normalized_payload),
+        ], baseline=set(baseline_values), suppressions=active)
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        diagnostic("finding-intelligence", "invalid_input", f"finding intelligence failed validation: {exc}", "finding-groups.json,prioritized-findings.json")
+        return 3
     atomic_json(results / "normalized.json", normalized_payload)
     atomic_json(results / "coverage.json", coverage_payload)
+    atomic_json(results / "finding-groups.json", finding_groups)
+    atomic_json(results / "prioritized-findings.json", prioritized_findings)
     policy = command(
         sys.executable, vibesec_root / "scripts/policy_gate.py", "--results", results / "normalized.json",
         "--policy", vibesec_root / "policy/severity-thresholds.yml", "--baseline", vibesec_root / "policy/standard-baseline.json",
         "--suppressions", vibesec_root / "policy/suppressions.yml", "--minimum-severity", args.minimum_severity,
         "--enforcement", args.enforcement, "--profile", "standard", "--report", results / "report.md")
+    policy.extend([
+        "--finding-groups", str(results / "finding-groups.json"),
+        "--prioritized-findings", str(results / "prioritized-findings.json"),
+    ])
     try:
         completed = subprocess.run(policy, cwd=root, stdin=subprocess.DEVNULL, check=False)
     except OSError as exc:

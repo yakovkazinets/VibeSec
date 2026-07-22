@@ -4,6 +4,8 @@ For an installed DAST add-on, doctor validates redacted image-reference syntax, 
 
 The doctor performs bounded, read-only, offline diagnostics:
 
+Standard installation manifests include the finding-intelligence generator, model, and schemas. Missing or locally changed files remain visible as installation errors or warnings; source-tree development does not require generated scan artifacts to exist.
+
 ```shell
 python3 scripts/vibesec_doctor.py --target /path/to/app
 python3 scripts/vibesec_doctor.py --target /path/to/app --profile standard --json

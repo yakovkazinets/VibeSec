@@ -128,6 +128,8 @@ class DastBaselineTests(unittest.TestCase):
         for prohibited in ("private=value", "fragment", "sensitive evidence", "Sensitive raw description", "param"):
             self.assertNotIn(prohibited, serialized)
         self.assertEqual(findings[0]["method"], "GET")
+        self.assertEqual(findings[0]["path_template"], "/positive")
+        self.assertEqual(findings[0]["cwe"], "CWE-1021")
         clean, count = normalize_zap_report(FIXTURE / "negative/raw.json", port=8080, maximum_bytes=5_000_000, maximum_findings=100)
         self.assertEqual((clean, count), ([], 0))
 
@@ -166,6 +168,13 @@ class DastBaselineTests(unittest.TestCase):
                 self.assertEqual(coverage["target_digest"], "sha256:" + "a" * 64)
                 self.assertNotIn("registry.example", json.dumps(coverage))
                 self.assertFalse((results / "zap-report.json").exists())
+                self.assertEqual(
+                    {path.name for path in results.iterdir()},
+                    {"normalized.json", "coverage.json", "policy-result.json", "report.md",
+                     "finding-groups.json", "prioritized-findings.json"},
+                )
+                self.assertEqual(json.loads((results / "finding-groups.json").read_text())["model"],
+                                 "vibesec-finding-groups")
 
     def test_policy_is_independent_from_zap_exit(self):
         completed, results = self.run_profile(zap_exit="2", enforcement="all")
@@ -178,6 +187,8 @@ class DastBaselineTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         normalized = json.loads((results / "normalized.json").read_text(encoding="utf-8"))
         self.assertEqual(normalized["results"], [])
+        self.assertEqual(json.loads((results / "finding-groups.json").read_text())["groups"], [])
+        self.assertEqual(json.loads((results / "prioritized-findings.json").read_text())["groups"], [])
 
     def test_runtime_commands_enforce_isolation(self):
         completed, results = self.run_profile()
@@ -410,6 +421,7 @@ class DastBaselineTests(unittest.TestCase):
             self.assertFalse(self.log.exists())
             coverage = json.loads((results / "coverage.json").read_text(encoding="utf-8"))
             self.assertEqual(coverage["state"], "not_configured")
+            self.assertEqual(json.loads((results / "finding-groups.json").read_text())["groups"], [])
 
     def test_automation_exit_one_without_report_is_runtime_failure(self):
         completed, results = self.run_profile(mode="missing_report", zap_exit="1")
@@ -427,6 +439,7 @@ class DastBaselineTests(unittest.TestCase):
                 self.assertEqual(coverage["state"], "tool_error")
                 normalized = json.loads((results / "normalized.json").read_text(encoding="utf-8"))
                 self.assertEqual(normalized["results"][0]["result_type"], "tool_error")
+                self.assertEqual(json.loads((results / "finding-groups.json").read_text())["groups"], [])
 
     def test_sanitized_artifact_validator_accepts_only_final_contract(self):
         completed, results = self.run_profile()
@@ -436,6 +449,14 @@ class DastBaselineTests(unittest.TestCase):
             cwd=ROOT, text=True, capture_output=True, check=False,
         )
         self.assertEqual(valid.returncode, 0, valid.stderr)
+        priority_bytes = (results / "prioritized-findings.json").read_bytes()
+        (results / "prioritized-findings.json").unlink()
+        missing_intelligence = subprocess.run(
+            [sys.executable, "scripts/validate_dast_artifacts.py", "--results", str(results), "--expect-state", "ran"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(missing_intelligence.returncode, 3)
+        (results / "prioritized-findings.json").write_bytes(priority_bytes)
         (results / "raw-zap.json").write_text("{}\n", encoding="utf-8")
         rejected = subprocess.run(
             [sys.executable, "scripts/validate_dast_artifacts.py", "--results", str(results), "--expect-state", "ran"],

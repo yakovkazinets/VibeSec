@@ -28,6 +28,25 @@ class ReportTests(unittest.TestCase):
         self.assertIn("actionlint", text)
         self.assertIn("Expired suppressions", text)
 
+    def test_report_orders_and_explains_finding_groups(self):
+        evaluation = {"status": "pass", "findings": [], "new_findings": [], "violations": [], "tool_errors": [], "priority_violations": []}
+        key = "a" * 64
+        groups = {"groups": [{"correlation_key": key, "correlation_classification": "heuristic"}]}
+        prioritized = {"groups": [{
+            "correlation_key": key, "priority": "high", "member_count": 2,
+            "contributing_scanners": ["opengrep", "trivy"],
+            "priority_reasons": [{"factor": "independent_scanners", "evidence": "2"}],
+            "member_references": ["1" * 64, "2" * 64],
+        }]}
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "report.md"
+            write_markdown(report, evaluation, [], "standard", groups, prioritized)
+            text = report.read_text(encoding="utf-8")
+        self.assertIn("Prioritized finding groups", text)
+        self.assertIn("Underlying findings: 2", text)
+        self.assertIn("Correlation: heuristic", text)
+        self.assertIn("independent_scanners", text)
+
 
 if __name__ == "__main__":
     unittest.main()

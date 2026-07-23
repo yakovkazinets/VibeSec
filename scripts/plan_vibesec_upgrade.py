@@ -80,11 +80,11 @@ def classify_plan(state: InstallationState, bundle: VerifiedBundle) -> dict[str,
         expected_new = new.get("sha256") if new else None
         if path in RELEASE_METADATA_PATHS:
             classification = "release_metadata_preserve"
-        elif path in {".vibesec/project-capabilities.json", ".vibesec/api-security-baseline.json", ".vibesec/authenticated-security-testing.json"}:
+        elif path in {".vibesec/project-capabilities.json", ".vibesec/api-security-baseline.json", ".vibesec/api-fuzzing.json", ".vibesec/authenticated-security-testing.json"}:
             classification = "capability_preserve"
-        elif path in {"policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json", "policy/api-security-baseline.json"}:
+        elif path in {"policy/baseline.json", "policy/standard-baseline.json", "policy/dast-baseline.json", "policy/api-security-baseline.json", "policy/api-fuzzing-baseline.json"}:
             classification = "baseline_preserve"
-        elif path in {"policy/suppressions.yml", "policy/dast-suppressions.json", "policy/api-security-suppressions.json"}:
+        elif path in {"policy/suppressions.yml", "policy/dast-suppressions.json", "policy/api-security-suppressions.json", "policy/api-fuzzing-suppressions.json"}:
             classification = "suppression_preserve"
         elif old is None:
             classification = "add"

@@ -13,12 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.bundle import validate_catalog  # noqa: E402
 from vibesec.api_security import load_config as load_api_config  # noqa: E402
+from vibesec.api_fuzzing import load_config as load_fuzzing_config, load_payload_registry  # noqa: E402
 from vibesec.dast import load_config  # noqa: E402
 from vibesec.github_actions import (  # noqa: E402
     GitHubActionsError, audit_tracked_files, load_inventory,
 )
 from vibesec.strict_json import loads_strict  # noqa: E402
-from vibesec.schemathesis_runtime import trusted_schemathesis_command  # noqa: E402
+from vibesec.schemathesis_runtime import trusted_active_schemathesis_command, trusted_schemathesis_command  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
 from vibesec.zap_automation import (  # noqa: E402
     CONTAINER_ZAP_HOME, JOB_TYPES, REPORT_FILENAME, REPORT_TEMPLATE,
@@ -36,6 +37,7 @@ EXPECTED_VIBESEC_VARIABLES = {
     "VIBESEC_API_IMAGE_REFERENCE", "VIBESEC_API_SCHEMA_PATH", "VIBESEC_API_CONTAINER_PORT",
     "VIBESEC_API_BASE_PATH", "VIBESEC_API_SAFE_METHODS_ONLY", "VIBESEC_API_ENFORCEMENT",
     "VIBESEC_API_MIN_SEVERITY", "VIBESEC_AUTH_MODE",
+    "VIBESEC_API_FUZZING_ENFORCEMENT", "VIBESEC_API_FUZZING_MIN_SEVERITY",
 }
 
 
@@ -118,13 +120,19 @@ def validate_policy() -> None:
     api_suppressions = load_object(ROOT / "policy/api-security-suppressions.json")
     if api_suppressions.get("profile") != "api-security-baseline" or not isinstance(api_suppressions.get("suppressions"), list):
         raise ValueError("policy/api-security-suppressions.json must contain API suppressions")
+    fuzzing_baseline = load_object(ROOT / "policy/api-fuzzing-baseline.json")
+    if fuzzing_baseline.get("profile") != "api-fuzzing" or not isinstance(fuzzing_baseline.get("fingerprints"), list):
+        raise ValueError("policy/api-fuzzing-baseline.json must contain active API fingerprints")
+    fuzzing_suppressions = load_object(ROOT / "policy/api-fuzzing-suppressions.json")
+    if fuzzing_suppressions.get("profile") != "api-fuzzing" or not isinstance(fuzzing_suppressions.get("suppressions"), list):
+        raise ValueError("policy/api-fuzzing-suppressions.json must contain active API suppressions")
 
 
 def validate_references() -> None:
     required = (
-        ".github/workflows/ci.yml", ".github/workflows/dast-integration.yml", ".github/workflows/api-security-integration.yml",
+        ".github/workflows/ci.yml", ".github/workflows/dast-integration.yml", ".github/workflows/api-security-integration.yml", ".github/workflows/api-fuzzing-integration.yml",
         ".github/workflows/authenticated-dast-integration.yml", ".github/workflows/authenticated-api-integration.yml", ".github/workflows/release-candidate.yml", "templates/github-actions/security-baseline.yml",
-        "templates/github-actions/security-standard.yml", "templates/github-actions/dast-baseline.yml", "templates/github-actions/api-security-baseline.yml",
+        "templates/github-actions/security-standard.yml", "templates/github-actions/dast-baseline.yml", "templates/github-actions/api-security-baseline.yml", "templates/github-actions/api-fuzzing.yml",
         "scripts/install_tools.sh", "scripts/run_minimal_profile.sh", "scripts/normalize_results.py",
         "scripts/install_standard_tools.sh", "scripts/run_standard_profile.py", "scripts/detect_repository.py",
         "scripts/validate_sbom.py", "scripts/validate_opengrep_rules.py",
@@ -141,6 +149,9 @@ def validate_references() -> None:
         "scripts/vibesec/dast.py", "scripts/vibesec/zap_automation.py", "scripts/vibesec/zap_diagnostics.py",
         "scripts/run_api_security_baseline.py", "scripts/validate_api_security_artifacts.py",
         "scripts/vibesec/api_security.py", "scripts/vibesec/schemathesis_runtime.py",
+        "scripts/run_api_fuzzing.py", "scripts/validate_api_fuzzing_artifacts.py", "scripts/test_api_fuzzing_container.py",
+        "scripts/vibesec/api_fuzzing.py", "scripts/vibesec/api_fuzzing_launcher.py", "config/api-fuzzing.json",
+        "config/api-fuzzing-result-schema.json", "config/injection-payloads.json",
         "scripts/vibesec/authenticated.py", "tests/test_authenticated_security_testing.py",
         "scripts/generate_finding_intelligence.py", "scripts/vibesec/finding_intelligence.py",
         "config/finding-groups-schema.json", "config/prioritized-findings-schema.json",
@@ -152,6 +163,7 @@ def validate_references() -> None:
         "docs/compatibility.md", "docs/configuration.md", "docs/upgrading.md", "docs/distribution.md",
         "docs/installation-verification.md", "docs/doctor.md", "docs/dast-baseline.md", "docs/dast-threat-model.md",
         "docs/api-security-baseline.md", "docs/api-security-threat-model.md", "scripts/test_api_security_container.py",
+        "docs/api-fuzzing.md", "docs/injection-testing.md", "docs/fuzzing-threat-model.md",
         "docs/authenticated-security-testing.md", "docs/authenticated-security-threat-model.md",
         "docs/software-supply-chain-assurance.md", "docs/release-signing.md", "docs/provenance.md", "docs/release-threat-model.md",
         "scripts/install_release_tools.sh", "scripts/prepare_release_artifacts.py", "scripts/sign_release_artifacts.py", "scripts/verify_release_artifacts.py", "scripts/validate_supply_chain_posture.py",
@@ -219,6 +231,19 @@ def validate_api_command_contract() -> None:
     for relative in ("scripts/run_api_security_baseline.py", "tests/test_api_security_baseline.py"):
         if "trusted_scanner_container_command(" not in (ROOT / relative).read_text(encoding="utf-8"):
             raise ValueError(f"{relative} must use the shared Schemathesis command builder")
+    fuzzing_config = load_fuzzing_config(ROOT)
+    load_payload_registry(ROOT)
+    active = trusted_active_schemathesis_command(port=8080, base_path="/", config=fuzzing_config,
+                                                  mode="combined", safe_methods_only=True)
+    active_flattened = " ".join(active)
+    active_required = ("--phases examples,coverage,fuzzing", "--workers 1", "--max-examples 25",
+                       "--max-failures 25", "--request-timeout 5", "--generation-allow-x00 false")
+    if any(item not in active_flattened for item in active_required) or any(item in active_flattened for item in prohibited):
+        raise ValueError("active API command differs from its reviewed deterministic contract")
+    for relative in ("scripts/run_api_fuzzing.py", "tests/test_api_fuzzing.py"):
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        if "trusted_active_scanner_container_command(" not in source or "trusted_injection_container_command(" not in source:
+            raise ValueError(f"{relative} must use both trusted active API command builders")
 
 
 def validate_adoption_metadata() -> None:
@@ -229,8 +254,8 @@ def validate_adoption_metadata() -> None:
     common = adoption.get("common")
     profiles = adoption.get("profiles")
     addons = adoption.get("addons")
-    if not isinstance(common, list) or not isinstance(profiles, dict) or set(profiles) != {"minimal", "standard"} or not isinstance(addons, dict) or set(addons) != {"dast-baseline", "api-security-baseline"}:
-        raise ValueError("adoption catalog must define common, Minimal, Standard, and both runtime add-ons")
+    if not isinstance(common, list) or not isinstance(profiles, dict) or set(profiles) != {"minimal", "standard"} or not isinstance(addons, dict) or set(addons) != {"dast-baseline", "api-security-baseline", "api-fuzzing"}:
+        raise ValueError("adoption catalog must define common, Minimal, Standard, and all reviewed runtime add-ons")
     for profile, config in profiles.items():
         if not isinstance(config, dict) or not isinstance(config.get("support"), list):
             raise ValueError(f"adoption catalog profile {profile} is malformed")
@@ -286,7 +311,7 @@ def validate_github_actions_documentation() -> None:
     if any(marker not in runtime for marker in markers):
         raise ValueError("GitHub Actions runtime documentation is incomplete")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts]"
+    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts]"
     if expected not in ci or ci.count("\n  validate:\n") != 1:
         raise ValueError("validate must remain the single required aggregate CI job")
 

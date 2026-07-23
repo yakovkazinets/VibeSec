@@ -94,7 +94,8 @@ def validate_installation_manifest(payload: Any) -> dict[str, Any]:
     profile = payload["profile"]
     stage = payload["stage"]
     if (profile, stage) not in {("minimal", "all"), ("standard", "support"), ("standard", "workflow"),
-                                ("dast-baseline", "addon"), ("api-security-baseline", "addon")}:
+                                ("dast-baseline", "addon"), ("api-security-baseline", "addon"),
+                                ("api-fuzzing", "addon")}:
         raise ManifestError("installation profile/stage combination is invalid")
     if payload["source_type"] not in {"source_tree", "bundle"}:
         raise ManifestError("installation source type is invalid")

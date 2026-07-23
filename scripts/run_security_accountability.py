@@ -18,6 +18,7 @@ from vibesec.finding_intelligence import SourceDocument, build as build_finding_
 from vibesec.authenticated import annotate_findings  # noqa: E402
 from vibesec.dast import normalize_zap_report  # noqa: E402
 from vibesec.api_security import CHECKS, load_config as load_api_config, normalize_schemathesis_report, operation_index, validate_openapi_schema  # noqa: E402
+from vibesec.api_fuzzing import load_config as load_fuzzing_config, load_payload_registry, normalize_events  # noqa: E402
 from vibesec.normalize import normalize_file  # noqa: E402
 from vibesec.policy import evaluate  # noqa: E402
 from vibesec.results import _validate_document  # noqa: E402
@@ -197,6 +198,20 @@ def internal_evidence(capability: dict[str, Any], expected: dict[str, Any]) -> d
                 or bad.get("secret_source") != "literal" or bad.get("target") != "public"
                 or bad.get("token_persisted") is not True):
             raise AccountabilityError(f"{identifier} authenticated fixture distinction failed")
+    elif identifier == "fuzzing.bounded-active-api":
+        registry = load_payload_registry(ROOT)
+        config = load_fuzzing_config(ROOT)
+        findings, operations, failed = normalize_events(
+            positive / "events.ndjson", schema_source="openapi.yaml", mode="combined", registry=registry,
+            maximum_bytes=config["maximum_raw_report_bytes"], maximum_findings=config["maximum_normalized_findings"],
+        )
+        clean, negative_operations, negative_failed = normalize_events(
+            negative / "events.ndjson", schema_source="openapi.yaml", mode="combined", registry=registry,
+            maximum_bytes=config["maximum_raw_report_bytes"], maximum_findings=config["maximum_normalized_findings"],
+        )
+        if (sorted(item["rule_id"] for item in findings) != ["api-fuzzing.controlled_5xx", "api-fuzzing.reflected_marker", "api-fuzzing.semantic_mismatch"]
+                or clean or failed or negative_failed or operations != 3 or negative_operations != 3):
+            raise AccountabilityError("bounded active API fixture distinction failed")
     else:
         raise AccountabilityError(f"no fixture handler exists for {identifier}")
     return {

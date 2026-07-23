@@ -64,6 +64,20 @@ class DistributionLifecycleTests(unittest.TestCase):
         completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
         return completed, json.loads(completed.stdout)
 
+    def init_fuzzing_addon(self, target, bundle=True, write=True, mode="contract"):
+        command = ["python3", "scripts/init_vibesec.py", "--addon", "api-fuzzing", "--target", str(target),
+                   "--fuzzing-mode", mode]
+        if mode in {"fuzz", "combined"}:
+            command.append("--fuzzing-enabled")
+        if mode in {"injection", "combined"}:
+            command.append("--injection-testing-enabled")
+        if bundle:
+            command += ["--bundle", str(self.bundle)]
+        if write:
+            command.append("--write")
+        completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+        return completed, json.loads(completed.stdout) if completed.stdout.strip() else {"stderr": completed.stderr}
+
     def command_json(self, script, *arguments, env=None):
         completed = subprocess.run(["python3", script, *map(str, arguments), "--json"], cwd=ROOT, text=True, capture_output=True, env=env)
         return completed, json.loads(completed.stdout)
@@ -174,6 +188,37 @@ class DistributionLifecycleTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 3)
         self.assertTrue(payload["error"])
         self.assertFalse((target / ".vibesec/api-security-baseline.json").exists())
+
+    def test_api_fuzzing_addon_requires_api_baseline_and_preserves_bounded_configuration(self):
+        target = self.target("api-fuzzing-addon")
+        self.assertEqual(self.init(target)[0].returncode, 0)
+        refused, _ = self.init_fuzzing_addon(target)
+        self.assertEqual(refused.returncode, 3)
+        self.assertFalse((target / ".vibesec/api-fuzzing.json").exists())
+        (target / "openapi.yaml").write_bytes((ROOT / "tests/security-fixtures/api-security/openapi.yaml").read_bytes())
+        self.assertEqual(self.init_api_addon(target)[0].returncode, 0)
+        preview, payload = self.init_fuzzing_addon(target, write=False, mode="combined")
+        self.assertEqual(preview.returncode, 0, (preview.stderr, payload))
+        self.assertIn(".vibesec/api-fuzzing.json", payload["would_create"])
+        installed, _ = self.init_fuzzing_addon(target, mode="combined")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        state = verify_installation(target)
+        self.assertEqual(state.status, "valid", state.errors)
+        self.assertEqual(set(state.profiles), {"minimal", "api-security-baseline", "api-fuzzing"})
+        configuration = json.loads((target / ".vibesec/api-fuzzing.json").read_text())
+        self.assertEqual(configuration["mode"], "combined")
+        self.assertTrue(configuration["fuzzing_enabled"])
+        self.assertTrue(configuration["injection_testing_enabled"])
+        completed, plan = self.command_json("scripts/plan_vibesec_upgrade.py", "--target", target, "--bundle", self.bundle)
+        self.assertIn(completed.returncode, {0, 1})
+        self.assertIn(".vibesec/api-fuzzing.json", plan["result"]["files_to_preserve"])
+        self.assertIn("policy/api-fuzzing-baseline.json", plan["result"]["files_to_preserve"])
+        self.assertIn("policy/api-fuzzing-suppressions.json", plan["result"]["files_to_preserve"])
+        configuration["max_examples_per_operation"] = 26
+        (target / ".vibesec/api-fuzzing.json").write_text(json.dumps(configuration) + "\n", encoding="utf-8")
+        doctor, diagnosis = self.command_json("scripts/vibesec_doctor.py", "--target", target)
+        self.assertEqual(doctor.returncode, 2)
+        self.assertIn("FUZZING_CONFIG_UNSAFE", {item["code"] for item in diagnosis["result"]["diagnostics"]})
 
     def test_api_doctor_detects_unsafe_schema_and_custom_image_variable(self):
         target = self.target("api-doctor")
@@ -300,6 +345,7 @@ class DistributionLifecycleTests(unittest.TestCase):
                 "javascript_typescript": False, "python": True, "java": False,
                 "public_runtime": False, "authentication": False, "authenticated_security_testing": False, "database": False,
                 "secrets_configuration": True, "dast_target": False, "api_security_target": False,
+                "api_fuzzing_target": False,
             },
         }
         answers.write_text(json.dumps(payload), encoding="utf-8")

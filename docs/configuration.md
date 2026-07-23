@@ -1,5 +1,9 @@
 # Configuration reference
 
+Active API settings live in `.vibesec/api-fuzzing.json`; see [bounded API fuzzing](api-fuzzing.md). Values may only reduce reviewed ceilings. Unknown fields, custom payload paths, public target URLs, stateful testing, raw-body publication, authentication-header mutation, and implicit mutating methods are invalid.
+
+`VIBESEC_API_FUZZING_ENFORCEMENT` accepts `observe`, `new`, or `all`; `VIBESEC_API_FUZZING_MIN_SEVERITY` accepts `low`, `medium`, `high`, or `critical`. The generated workflow uses `VIBESEC_FUZZING_RESULTS` only as its runner-temporary sanitized output directory.
+
 Project scope is declared separately in `.vibesec/project-capabilities.json`; see [project capabilities](project-capabilities.md). Exact Boolean answers are authoritative over detection. Validate edits with `python3 scripts/validate_project_capabilities.py`. A declared absent scope becomes `not_applicable`, while an applicable but unavailable optional input is `not_configured`; neither means clean.
 
 Authenticated runtime testing stores only its GitHub Actions secret name in `.vibesec/authenticated-security-testing.json`. `VIBESEC_AUTH_MODE` defaults to `none` and accepts only `none` or `bearer`. `VIBESEC_AUTH_BEARER_TOKEN` is an internal scanner-step-only secret with no repository default. `VIBESEC_AUTH_SINGLE_RUN` is an internal trusted-runner recursion guard. The token value is never a supported configuration value, workflow input, repository variable, or CLI argument. See [authenticated security testing](authenticated-security-testing.md).

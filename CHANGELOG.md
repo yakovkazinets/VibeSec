@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add bounded opt-in API fuzzing and injection-oriented testing with strict capability dependencies, deterministic Schemathesis orchestration, reviewed inert payloads, isolated runtime controls, separate policy and artifacts, consumer adoption, accountability, and manual live integration.
+
 - Add strict release manifests, deterministic checksums, SLSA-aligned provenance, SBOM linkage, keyless Cosign signing preparation, offline posture validation, a manual trusted release-candidate workflow, consumer verification guidance, and tampering accountability without publishing a release.
 - Expand framework-aware Opengrep coverage for Express, Next.js, React, Flask, Django, FastAPI, and Spring with exact positive/negative fixture accountability.
 - Add deterministic finding grouping, provenance, explainable priority, optional backward-compatible group policy, schemas, reports, and consumer lifecycle support.

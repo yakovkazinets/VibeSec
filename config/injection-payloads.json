@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "profile": "safe-v1",
+  "families": [
+    {
+      "family_id": "command-marker",
+      "payload": "VIBESEC_CMD_MARKER|",
+      "marker_id": "VIBESEC_CMD_MARKER",
+      "locations": ["body", "path", "query"],
+      "expected_safe_handling": "The value is rejected or treated only as inert data.",
+      "severity": "high",
+      "limitation": "A response anomaly is evidence of an input-handling weakness, not proof of command execution."
+    },
+    {
+      "family_id": "header-marker",
+      "payload": "VIBESEC_HEADER_MARKER%0D%0A",
+      "marker_id": "VIBESEC_HEADER_MARKER",
+      "locations": ["header"],
+      "expected_safe_handling": "The encoded delimiter is rejected or remains inert and is not reflected as a response header.",
+      "severity": "medium",
+      "limitation": "The Authorization header is never selected or mutated."
+    },
+    {
+      "family_id": "path-marker",
+      "payload": "../VIBESEC_PATH_MARKER",
+      "marker_id": "VIBESEC_PATH_MARKER",
+      "locations": ["body", "path", "query"],
+      "expected_safe_handling": "The traversal-shaped marker is rejected or treated only as inert data.",
+      "severity": "high",
+      "limitation": "No filesystem access or file creation is attempted or inferred."
+    },
+    {
+      "family_id": "sql-marker",
+      "payload": "VIBESEC_SQL_MARKER'\"",
+      "marker_id": "VIBESEC_SQL_MARKER",
+      "locations": ["body", "path", "query"],
+      "expected_safe_handling": "The quote-shaped marker is rejected or handled without a database error or server failure.",
+      "severity": "high",
+      "limitation": "Sending this inert marker does not prove that SQL was evaluated."
+    },
+    {
+      "family_id": "template-marker",
+      "payload": "{{VIBESEC_TEMPLATE_MARKER}}",
+      "marker_id": "VIBESEC_TEMPLATE_MARKER",
+      "locations": ["body", "path", "query"],
+      "expected_safe_handling": "The template-shaped marker remains literal and inert.",
+      "severity": "high",
+      "limitation": "Reflection alone is not proof of server-side template evaluation."
+    }
+  ]
+}

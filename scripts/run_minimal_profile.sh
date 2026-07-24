@@ -60,6 +60,7 @@ python3 "${vibesec_root}/scripts/normalize_results.py" \
 normalize_status=$?
 if [[ $normalize_status -ne 0 ]]; then
   write_coverage yes || true
+  python3 "${vibesec_root}/scripts/write_minimal_artifacts.py" normalized --profile minimal --exit-code 3 --output "${results_dir}/normalized.json" || true
   python3 "${vibesec_root}/scripts/write_minimal_artifacts.py" policy --profile minimal --exit-code 3 --output "${results_dir}/policy-result.json" || true
   python3 "${vibesec_root}/scripts/write_minimal_artifacts.py" report --profile minimal --exit-code 3 --output "${results_dir}/report.md" || true
   exit 3
@@ -75,6 +76,7 @@ fi
 append_status=$?
 if [[ $append_status -ne 0 ]]; then
   write_coverage yes || true
+  python3 "${vibesec_root}/scripts/write_minimal_artifacts.py" normalized --profile minimal --exit-code 3 --output "${results_dir}/normalized.json" || true
   python3 "${vibesec_root}/scripts/write_minimal_artifacts.py" policy --profile minimal --exit-code 3 --output "${results_dir}/policy-result.json" || true
   python3 "${vibesec_root}/scripts/write_minimal_artifacts.py" report --profile minimal --exit-code 3 --output "${results_dir}/report.md" || true
   exit 3

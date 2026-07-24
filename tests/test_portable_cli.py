@@ -120,20 +120,32 @@ printf '[]\n' > "$report"
             path.write_text(textwrap.dedent(source), encoding="utf-8")
             path.chmod(0o755)
         cases = (("clean", 0, "success"), ("finding", 1, "policy_violation"), ("tool", 2, "tool_error"), ("invalid", 3, "invalid_input"))
-        for mode, expected_code, expected_status in cases:
-            results = Path(self.temporary.name) / f"results-{mode}"
-            environment = dict(os.environ)
-            environment["FAKE_MODE"] = mode
-            if mode == "finding":
-                environment["VIBESEC_ENFORCEMENT"] = "all"
-            completed = subprocess.run([
-                str(ROOT / "vibesec"), "scan", "--profile", "minimal", "--execution-mode", "native",
-                "--target", str(target), "--results", str(results), "--tool-dir", str(tools), "--json",
-            ], cwd=ROOT, env=environment, text=True, capture_output=True, check=False)
-            self.assertEqual(completed.returncode, expected_code, completed.stderr + completed.stdout)
-            self.assertEqual(json.loads(completed.stdout)["status"], expected_status)
-            self.assertTrue((results / "normalized.json").is_file())
-            self.assertTrue((results / "report.md").is_file())
+        for execution_mode in ("native", "auto"):
+            for mode, expected_code, expected_status in cases:
+                with self.subTest(execution_mode=execution_mode, exit_category=mode):
+                    results = Path(self.temporary.name) / f"results-{execution_mode}-{mode}"
+                    environment = dict(os.environ)
+                    environment["FAKE_MODE"] = mode
+                    if mode == "finding":
+                        environment["VIBESEC_ENFORCEMENT"] = "all"
+                    completed = subprocess.run([
+                        str(ROOT / "vibesec"), "scan", "--profile", "minimal", "--execution-mode", execution_mode,
+                        "--target", str(target), "--results", str(results), "--tool-dir", str(tools), "--json",
+                    ], cwd=ROOT, env=environment, text=True, capture_output=True, check=False)
+                    self.assertEqual(completed.returncode, expected_code, completed.stderr + completed.stdout)
+                    self.assertEqual(json.loads(completed.stdout)["status"], expected_status)
+                    for artifact in ("normalized.json", "coverage.json", "report.md", "policy-result.json"):
+                        self.assertTrue((results / artifact).is_file(), artifact)
+                    normalized_bytes = (results / "normalized.json").read_bytes()
+                    self.assertTrue(normalized_bytes.endswith(b"\n"))
+                    normalized = json.loads(normalized_bytes)
+                    policy = json.loads((results / "policy-result.json").read_text(encoding="utf-8"))
+                    self.assertEqual(policy["exit_code"], expected_code)
+                    if expected_code == 3:
+                        self.assertEqual(normalized["scan_status"], "invalid_input")
+                        self.assertEqual(normalized["results"], [])
+                    else:
+                        self.assertNotIn("scan_status", normalized)
 
 
 if __name__ == "__main__":

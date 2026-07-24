@@ -1,5 +1,7 @@
 # Authenticated security testing
 
+Authenticated API fuzzing additionally requires `api_fuzzing_target=true` and a valid active-testing configuration. The bearer value remains scanner-step-only, is delivered through stdin, and is never selected as a fuzzing header or written to replay metadata or artifacts. See [bounded API fuzzing](api-fuzzing.md).
+
 Paired authenticated and unauthenticated runs also publish `finding-groups.json` and `prioritized-findings.json`. These preserve both original child findings before the backward-compatible combined `normalized.json` correlation. Route grouping requires the same sanitized method, path template, reviewed vulnerability family, and authentication context; ambiguous relationships remain separate.
 
 Authenticated security testing is an opt-in extension of Passive DAST Baseline and OpenAPI API Security Baseline. It supports exactly one model: a static GitHub Actions secret sent as `Authorization: Bearer <secret>`. Browser login, forms, cookies, OAuth, refresh tokens, session scraping, CSRF automation, usernames, passwords, and role or multi-user comparisons are out of scope.

@@ -24,6 +24,7 @@ from vibesec.authenticated import (  # noqa: E402
     AUTH_ENVIRONMENT_VARIABLE, AuthenticatedSecurityError, BEARER, LIKELY_JWT,
     load_configuration as load_auth_configuration,
 )
+from vibesec.api_fuzzing import ApiFuzzingError, load_config as load_fuzzing_config, load_installed_config as load_fuzzing_install  # noqa: E402
 from vibesec.installation import InstallationError, verify_installation  # noqa: E402
 from vibesec.github_actions import KNOWN_NODE20_PINS, MAX_AUDIT_FILE_BYTES  # noqa: E402
 from vibesec.output import emit, envelope, safe_text  # noqa: E402
@@ -281,6 +282,20 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
             diagnostics.append(diagnostic("api_security", "API_SECURITY_NOT_APPLICABLE", "not_applicable",
                                           "Project capability manifest declares no runnable OpenAPI API target.",
                                           "No action unless the project later gains an eligible API target.", "docs/api-security-baseline.md"))
+        fuzzing_enabled = project_capabilities["capabilities"]["api_fuzzing_target"]
+        fuzzing_installed = "api-fuzzing" in profiles
+        if fuzzing_installed and not fuzzing_enabled:
+            diagnostics.append(diagnostic("api_fuzzing", "FUZZING_INSTALLED_NOT_APPLICABLE", "error",
+                                          "API fuzzing is installed while api_fuzzing_target=false.",
+                                          "Remove the add-on or explicitly review and enable the capability.", "docs/api-fuzzing.md"))
+        if fuzzing_enabled and not fuzzing_installed:
+            diagnostics.append(diagnostic("api_fuzzing", "FUZZING_SUPPORT_MISSING", "error",
+                                          "api_fuzzing_target=true but bounded active API support is not installed.",
+                                          "Install the API baseline first, then the active-testing add-on.", "docs/api-fuzzing.md"))
+        if not fuzzing_enabled:
+            diagnostics.append(diagnostic("api_fuzzing", "FUZZING_NOT_APPLICABLE", "not_applicable",
+                                          "Project capability manifest declares no bounded active API target.",
+                                          "No action unless the project later gains an eligible isolated API target.", "docs/api-fuzzing.md"))
         auth_enabled = project_capabilities["capabilities"]["authenticated_security_testing"]
         auth_config = None
         try:
@@ -296,7 +311,7 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
                                           "Project capability manifest excludes authenticated runtime security testing.",
                                           "No action unless the project later gains an eligible authenticated target.",
                                           "docs/authenticated-security-testing.md"))
-        for workflow_name in ("vibesec-dast-baseline.yml", "vibesec-api-security-baseline.yml"):
+        for workflow_name in ("vibesec-dast-baseline.yml", "vibesec-api-security-baseline.yml", "vibesec-api-fuzzing.yml"):
             workflow = state.target / ".github/workflows" / workflow_name
             if not workflow.is_file() or workflow.is_symlink():
                 continue
@@ -467,6 +482,22 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
                     diagnostics.append(diagnostic("api_security", "API_TARGET_USER_UNSAFE", "error",
                                                   "The locally available target image declares a root or unspecified user.",
                                                   "Publish an immutable target image with an explicit non-root user.", "docs/api-security-baseline.md"))
+    if "api-fuzzing" in profiles:
+        try:
+            load_fuzzing_install(state.target, load_fuzzing_config(ROOT))
+        except (ApiFuzzingError, OSError, StrictJSONError):
+            diagnostics.append(diagnostic("api_fuzzing", "FUZZING_CONFIG_UNSAFE", "error",
+                                          "Active API configuration is missing, malformed, exceeds a hard ceiling, or requests a prohibited target, payload, method, stateful, header, or raw-artifact option.",
+                                          "Restore the generated bounded configuration and review every active-testing opt-in.", "docs/fuzzing-threat-model.md"))
+        workflow = state.target / ".github/workflows/vibesec-api-fuzzing.yml"
+        if workflow.is_file() and not workflow.is_symlink():
+            text = workflow.read_text(encoding="utf-8", errors="replace").casefold()
+            prohibited = ("pull_request:", "pull_request_target:", "push:", "--network host", "--publish",
+                          "request_body", "response_body", "schemathesis.ndjson", "fuzzing-events.ndjson")
+            if any(marker in text for marker in prohibited):
+                diagnostics.append(diagnostic("api_fuzzing", "FUZZING_WORKFLOW_UNSAFE", "error",
+                                              "Active API workflow enables an untrusted trigger, public networking, or raw evidence publication.",
+                                              "Restore the manual/scheduled internal-network workflow and sanitized artifact allowlist.", "docs/fuzzing-threat-model.md"))
     if os.getenv("GITHUB_ACTIONS", "").casefold() == "true" and os.getenv("GITHUB_EVENT_NAME", "") == "pull_request":
         diagnostics.append(diagnostic("fork", "FORK_RESTRICTIONS_ACTIVE", "not_applicable", "Pull-request image/private-registry scanning remains disabled and receives no secrets.",
                                       "Review coverage state; do not weaken the trust boundary.", "docs/security-model.md"))

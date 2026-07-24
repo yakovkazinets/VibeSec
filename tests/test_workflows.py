@@ -10,7 +10,7 @@ API_INTEGRATION = ROOT / ".github/workflows/api-security-integration.yml"
 AUTH_DAST_INTEGRATION = ROOT / ".github/workflows/authenticated-dast-integration.yml"
 AUTH_API_INTEGRATION = ROOT / ".github/workflows/authenticated-api-integration.yml"
 RELEASE_CANDIDATE = ROOT / ".github/workflows/release-candidate.yml"
-STARTERS = [ROOT / "templates/github-actions/security-baseline.yml", ROOT / "templates/github-actions/security-standard.yml", ROOT / "templates/github-actions/dast-baseline.yml", ROOT / "templates/github-actions/api-security-baseline.yml"]
+STARTERS = [ROOT / "templates/github-actions/security-baseline.yml", ROOT / "templates/github-actions/security-standard.yml", ROOT / "templates/github-actions/dast-baseline.yml", ROOT / "templates/github-actions/api-security-baseline.yml", ROOT / "templates/github-actions/api-fuzzing.yml"]
 WORKFLOWS = [CI, DAST_INTEGRATION, API_INTEGRATION, AUTH_DAST_INTEGRATION, AUTH_API_INTEGRATION, RELEASE_CANDIDATE, *STARTERS]
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -53,11 +53,12 @@ class WorkflowSecurityTests(unittest.TestCase):
             self.assertIn("VIBESEC_AUTH_BEARER_TOKEN", scanner)
 
     def test_required_scripts_and_outputs_align(self):
-        for script in ("install_tools.sh", "run_minimal_profile.sh", "normalize_results.py", "append_tool_errors.py", "policy_gate.py", "validate_repository.py"):
+        for script in ("install_tools.sh", "run_minimal_profile.sh", "normalize_results.py", "append_tool_errors.py", "policy_gate.py", "validate_repository.py", "run_api_fuzzing.py", "validate_api_fuzzing_artifacts.py"):
             self.assertTrue((ROOT / "scripts" / script).is_file())
         for path in [CI, *STARTERS]:
             text = path.read_text(encoding="utf-8")
-            self.assertIn("normalized.json", text)
+            expected_results = "fuzzing-findings.json" if path.name == "api-fuzzing.yml" else "normalized.json"
+            self.assertIn(expected_results, text)
             self.assertIn("report.md", text)
 
     def test_standard_workflow_never_builds_or_installs_target_code(self):
@@ -102,6 +103,7 @@ class WorkflowSecurityTests(unittest.TestCase):
             "templates/github-actions/security-standard.yml",
             "templates/github-actions/dast-baseline.yml",
             "templates/github-actions/api-security-baseline.yml",
+            "templates/github-actions/api-fuzzing.yml",
         ):
             self.assertIn(relative, actionlint_line)
         self.assertIn("python3 scripts/test_opengrep_rules.py .tools/bin/opengrep", text)
@@ -125,7 +127,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn('exit_file="$(mktemp "$SELF_SCAN_RESULTS/.scan-exit-code.XXXXXX")"', text)
         self.assertIn('mv "$exit_file" "$SELF_SCAN_RESULTS/scan-exit-code.txt"', text)
-        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts]", text)
+        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts]", text)
         self.assertNotIn("dast-accountability", text)
         validation = text.index("Validate Standard self-scan artifacts and exact states")
         preservation = text.index("Preserve Standard scan exit contract")

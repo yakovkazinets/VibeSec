@@ -1,5 +1,7 @@
 # Threat Model
 
+The optional bounded active API profile has an additional [fuzzing threat model](fuzzing-threat-model.md). Its active requests are never included in the VibeSec repository self-scan.
+
 The optional container-executing passive add-on has a dedicated [DAST threat model](dast-threat-model.md). Its target image and HTTP responses are untrusted. It permits application code execution only on a disposable trusted runner, never on a pull request, and does not weaken the repository-scanning trust boundaries described here.
 
 Finding correlation is untrusted derived metadata. Malformed, unknown-scanner, and oversized inputs fail closed; ambiguous evidence remains an explicit singleton and never suppresses an original finding. A generic CWE is insufficient correlation evidence. Priority is deterministic and explainable, makes no exploitability claim without reviewed evidence, and performs no online lookup. See [finding intelligence](finding-intelligence.md).

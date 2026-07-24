@@ -1,0 +1,79 @@
+openapi: 3.1.0
+info:
+  title: VibeSec bounded active API fixture
+  version: 1.0.0
+servers:
+  - url: http://api-target:8080/
+components:
+  securitySchemes:
+    fixtureBearer:
+      type: http
+      scheme: bearer
+paths:
+  /boundary:
+    get:
+      operationId: boundary
+      parameters:
+        - name: value
+          in: query
+          schema: {type: string}
+      responses:
+        "200": {description: safe response}
+        "500": {description: controlled marker response}
+  /reflect:
+    get:
+      operationId: reflected
+      parameters:
+        - name: value
+          in: query
+          schema: {type: string}
+      responses:
+        "200": {description: controlled reflection response}
+  /files/{name}:
+    get:
+      operationId: pathNormalize
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200": {description: controlled path response}
+  /template:
+    get:
+      operationId: templateHandling
+      parameters:
+        - name: value
+          in: query
+          schema: {type: string}
+      responses:
+        "200": {description: controlled template response}
+  /headers:
+    get:
+      operationId: headerHandling
+      parameters:
+        - name: X-Fixture-Value
+          in: header
+          schema: {type: string}
+      responses:
+        "200": {description: controlled header response}
+  /compliant:
+    get:
+      operationId: compliant
+      parameters:
+        - name: value
+          in: query
+          schema: {type: string}
+      responses:
+        "200": {description: negative fixture response}
+  /private:
+    get:
+      operationId: privateHandling
+      security: [{fixtureBearer: []}]
+      parameters:
+        - name: value
+          in: query
+          schema: {type: string}
+      responses:
+        "200": {description: authenticated controlled response}
+        "401": {description: missing bearer token}

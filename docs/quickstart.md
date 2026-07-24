@@ -1,5 +1,7 @@
 # Five-minute Quick Start
 
+After installing and reviewing the API Security Baseline, eligible projects may separately preview `--addon api-fuzzing`. It defaults to contract-only safe methods. `--fuzzing-enabled` and `--injection-testing-enabled` are explicit, independent opt-ins; do not enable them against production or public targets.
+
 Passive DAST is not part of either profile. After a valid base installation, maintainers may opt in with `python3 scripts/init_vibesec.py --addon dast-baseline --target <repository> --write`. Enable it only for an authorized non-production immutable non-root image on trusted manual or scheduled events; see [DAST Baseline](dast-baseline.md).
 
 VibeSec is a scanning baseline, not proof that an application is secure. Use a reviewed VibeSec checkout matching the version you intend to adopt. The initializer itself uses no network, installs nothing, executes no application code, and defaults to a preview.

@@ -58,6 +58,9 @@
     "docs/dast-threat-model.md",
     "docs/api-security-baseline.md",
     "docs/api-security-threat-model.md",
+    "docs/api-fuzzing.md",
+    "docs/injection-testing.md",
+    "docs/fuzzing-threat-model.md",
     "docs/authenticated-security-testing.md",
     "docs/authenticated-security-threat-model.md",
     "docs/github-actions-runtime.md",
@@ -104,6 +107,8 @@
     "scripts/validate_dast_artifacts.py",
     "scripts/run_api_security_baseline.py",
     "scripts/validate_api_security_artifacts.py",
+    "scripts/run_api_fuzzing.py",
+    "scripts/validate_api_fuzzing_artifacts.py",
     "scripts/write_minimal_artifacts.py",
     "scripts/verify_consumer_bundle.py",
     "scripts/verify_release_artifacts.py",
@@ -180,6 +185,21 @@
       ],
       "workflow_source": "templates/github-actions/api-security-baseline.yml",
       "workflow_destination": ".github/workflows/vibesec-api-security-baseline.yml"
+    },
+    "api-fuzzing": {
+      "support": [
+        "config/api-fuzzing.json",
+        "config/api-fuzzing-result-schema.json",
+        "config/injection-payloads.json",
+        "policy/api-fuzzing-baseline.json",
+        "policy/api-fuzzing-suppressions.json",
+        "scripts/run_api_fuzzing.py",
+        "scripts/validate_api_fuzzing_artifacts.py",
+        "scripts/vibesec/api_fuzzing.py",
+        "scripts/vibesec/api_fuzzing_launcher.py"
+      ],
+      "workflow_source": "templates/github-actions/api-fuzzing.yml",
+      "workflow_destination": ".github/workflows/vibesec-api-fuzzing.yml"
     }
   }
 }

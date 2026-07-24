@@ -4,6 +4,8 @@ The [Passive DAST Baseline add-on](docs/dast-baseline.md) is deliberately outsid
 
 The [API Security Baseline add-on](docs/api-security-baseline.md) is also separate and opt-in. It uses a local OpenAPI 3.x contract and an immutable non-root API image on trusted manual/scheduled events, defaults to GET/HEAD/OPTIONS, and never accepts credentials or public targets. Review its [threat model](docs/api-security-threat-model.md).
 
+The [bounded API fuzzing add-on](docs/api-fuzzing.md) is a further explicit opt-in for eligible isolated API targets. It adds deterministic contract, fuzz, injection, and combined modes, retains safe methods by default, uses only reviewed inert payload families, and publishes no raw request/response bodies. VibeSec itself declares this capability `not_applicable`. Review the [injection-testing rules](docs/injection-testing.md) and [threat model](docs/fuzzing-threat-model.md).
+
 [Authenticated security testing](docs/authenticated-security-testing.md) is a bearer-only opt-in for eligible DAST or API targets. The GitHub secret is scoped to the exact scanner step, passed to the fixed scanner launcher over stdin, and excluded from configuration, arguments, reports, diagnostics, and artifacts. Review the dedicated [threat model](docs/authenticated-security-threat-model.md).
 
 VibeSec is an open-source application-security toolkit for vibe coders, solo developers, startups, and small teams. It combines a repository-aware coding-agent skill with a copyable GitHub Actions baseline.
@@ -36,6 +38,7 @@ Review the code and configuration before using it, validate it against your own 
 - [Local execution](docs/local-execution.md), [platform support](docs/platform-support.md), and [verified extensions](docs/extensions.md)
 - [GitHub Actions Node 24 runtime and immutable pin policy](docs/github-actions-runtime.md)
 - [OpenAPI API Security Baseline](docs/api-security-baseline.md)
+- [Bounded API fuzzing and injection-oriented testing](docs/api-fuzzing.md)
 
 Supplied workflows target GitHub.com and require Actions Runner 2.327.1 or newer on self-hosted runners. Their reviewed JavaScript actions embed Node 24 and use full commit SHAs; Node 20 is end-of-life and unsupported, and no fallback is provided. VibeSec itself requires no npm or Node application runtime. Node 26 remains a future compatibility target rather than a requirement. See the runtime policy for the separate GHES limitation.
 
@@ -53,7 +56,7 @@ The bundled `./vibesec` CLI routes scan, init, doctor, verification, upgrade pla
 
 Extensions are reviewed local sources only: dry-run installation is the default, `--write` is explicit, installed content is SHA-256 inventoried, permissions are restricted, capabilities are namespaced, and adapters run as subprocesses rather than imports. Review the [extension security model](docs/extension-security-model.md) before running extension code.
 
-The initializer asks 16 project-capability questions, each displayed with `[Y/n]` and defaulting to Yes. Answer No when a capability does not apply. Non-interactive use requires `--capabilities-file <trusted-local-json>` or the explicit `--all-capabilities` option; EOF never supplies defaults. The resulting `.vibesec/project-capabilities.json` is authoritative for scanner applicability. When authenticated testing is enabled, supply only `--auth-secret-name`; never supply the token.
+The initializer asks 17 project-capability questions, each displayed with `[Y/n]` and defaulting to Yes. Answer No when a capability does not apply. Non-interactive use requires `--capabilities-file <trusted-local-json>` or the explicit `--all-capabilities` option; EOF never supplies defaults. The resulting `.vibesec/project-capabilities.json` is authoritative for scanner applicability. When authenticated testing is enabled, supply only `--auth-secret-name`; never supply the token.
 
 Add `--write` only after reviewing the machine-readable plan. Minimal is one stage. Standard deliberately requires support files to land on the default branch before `--stage workflow` is initialized in a second change, preserving the base-revision trusted-harness boundary. Existing-file conflicts are never overwritten.
 

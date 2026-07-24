@@ -13,6 +13,7 @@ REPORT_FILENAME = "schemathesis.ndjson"
 CONTAINER_SCHEMA = "/schema/openapi.yaml"
 CONTAINER_REPORT = "/results/schemathesis.ndjson"
 CONTAINER_RAW_REPORT = "/scanner-raw/schemathesis.ndjson"
+ACTIVE_EVENTS = "/results/fuzzing-events.ndjson"
 AUTHENTICATED_LAUNCHER = r'''import contextlib,os,re,sys
 from schemathesis.cli import schemathesis
 token=sys.stdin.readline(16385).rstrip("\n")
@@ -99,4 +100,83 @@ def trusted_scanner_container_command(*, docker: str, container_name: str, netwo
                         "--interactive", "--entrypoint", "python", image, "-c", AUTHENTICATED_LAUNCHER, *scanner))
     else:
         command.extend((image, *scanner))
+    return command
+
+
+def trusted_active_schemathesis_command(*, port: int, base_path: str, config: dict[str, Any],
+                                        mode: str, safe_methods_only: bool,
+                                        authenticated: bool = False) -> list[str]:
+    if mode not in {"contract", "fuzz", "combined"}:
+        raise ApiSecurityError("unsupported active Schemathesis mode")
+    phases = {"contract": "examples,coverage", "fuzz": "fuzzing", "combined": "examples,coverage,fuzzing"}[mode]
+    command = [
+        "run", CONTAINER_SCHEMA, "--url", f"http://api-target:{port}{base_path}",
+        "--phases", phases, "--mode", "all", "--workers", "1",
+        "--max-examples", str(config["max_examples_per_operation"]),
+        "--max-failures", str(config["max_failures"]), "--seed", str(config["fixed_seed"]),
+        "--generation-deterministic", "--generation-with-security-parameters", "false",
+        "--generation-database", "none", "--generation-allow-x00", "false",
+        "--checks", ",".join(("not_a_server_error", "status_code_conformance", "content_type_conformance",
+                              "response_schema_conformance", "negative_data_rejection", "positive_data_acceptance")),
+        "--request-timeout", str(config["request_timeout_seconds"]), "--request-retries", "0",
+        "--max-redirects", "0", "--continue-on-failure", "--no-shrink",
+        "--report", "ndjson", "--report-ndjson-path", CONTAINER_RAW_REPORT if authenticated else CONTAINER_REPORT,
+        "--no-color",
+    ]
+    if safe_methods_only:
+        for method in config["safe_methods"]:
+            command.extend(("--include-method", method))
+    return command
+
+
+def trusted_active_scanner_container_command(*, docker: str, container_name: str, network: str,
+                                             schema: Path, workspace: Path, image: str,
+                                             port: int, base_path: str, config: dict[str, Any],
+                                             mode: str, safe_methods_only: bool,
+                                             authenticated: bool = False) -> list[str]:
+    command = [
+        docker, "run", "--rm", "--name", container_name, "--network", network,
+        "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
+        "--cpus", "1", "--memory", "1024m", "--pids-limit", "256",
+        "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=256m", "--workdir", "/results",
+        "--env", "SCHEMATHESIS_COVERAGE=false", "--env", "SCHEMATHESIS_HOOKS=",
+        "--mount", f"type=bind,src={schema},dst={CONTAINER_SCHEMA},readonly",
+        "--mount", f"type=bind,src={workspace},dst=/results",
+    ]
+    scanner = trusted_active_schemathesis_command(port=port, base_path=base_path, config=config, mode=mode,
+                                                   safe_methods_only=safe_methods_only, authenticated=authenticated)
+    if authenticated:
+        command.extend(("--tmpfs", "/scanner-raw:rw,noexec,nosuid,nodev,size=256m", "--interactive",
+                        "--entrypoint", "python", image, "-c", AUTHENTICATED_LAUNCHER, *scanner))
+    else:
+        command.extend((image, *scanner))
+    return command
+
+
+def trusted_injection_container_command(*, docker: str, container_name: str, network: str,
+                                        workspace: Path, image: str, launcher: Path, plan: Path,
+                                        registry: Path, port: int, base_path: str,
+                                        config: dict[str, Any], safe_methods_only: bool,
+                                        authenticated: bool = False) -> list[str]:
+    command = [
+        docker, "run", "--rm", "--name", container_name, "--network", network,
+        "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
+        "--cpus", "1", "--memory", "1024m", "--pids-limit", "256",
+        "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m", "--workdir", "/results",
+        "--mount", f"type=bind,src={workspace},dst=/results",
+        "--mount", f"type=bind,src={launcher},dst=/vibesec/launcher.py,readonly",
+        "--mount", f"type=bind,src={plan},dst=/vibesec/plan.json,readonly",
+        "--mount", f"type=bind,src={registry},dst=/vibesec/payloads.json,readonly",
+    ]
+    if authenticated:
+        command.append("--interactive")
+    command.extend(("--entrypoint", "python", image, "/vibesec/launcher.py", "--plan", "/vibesec/plan.json",
+                    "--registry", "/vibesec/payloads.json", "--output", ACTIVE_EVENTS,
+                    "--url", f"http://api-target:{port}{base_path}",
+                    "--timeout", str(config["request_timeout_seconds"]),
+                    "--response-limit", str(config["maximum_response_body_bytes_read"]),
+                    "--request-limit", str(config["maximum_request_body_bytes"]),
+                    "--seed", str(config["fixed_seed"]),
+                    "--safe-methods-only", str(safe_methods_only).lower(),
+                    "--authenticated", str(authenticated).lower()))
     return command

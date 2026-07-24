@@ -16,6 +16,7 @@
     "database": false,
     "secrets_configuration": true,
     "dast_target": false,
-    "api_security_target": false
+    "api_security_target": false,
+    "api_fuzzing_target": false
   }
 }

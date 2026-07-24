@@ -3,7 +3,9 @@
   "common": [
     "VERSION",
     "config/adoption-files.json",
+    "config/extension-manifest-schema.json",
     "config/github-actions.json",
+    "config/portable-execution.json",
     "config/provenance-schema.json",
     "config/release-manifest-schema.json",
     "config/supply-chain-policy.json",
@@ -13,6 +15,7 @@
     "scripts/generate_finding_intelligence.py",
     "scripts/extract_tool_archive.py",
     "scripts/install_tools.sh",
+    "scripts/manage_extensions.py",
     "scripts/policy_gate.py",
     "scripts/preflight.py",
     "scripts/validate_project_capabilities.py",
@@ -23,6 +26,7 @@
     "scripts/vibesec/capabilities.py",
     "scripts/vibesec/coverage.py",
     "scripts/vibesec/exit_codes.py",
+    "scripts/vibesec/extensions.py",
     "scripts/vibesec/finding_intelligence.py",
     "scripts/vibesec/github_actions.py",
     "scripts/vibesec/installation.py",
@@ -32,10 +36,14 @@
     "scripts/vibesec/output.py",
     "scripts/vibesec/paths.py",
     "scripts/vibesec/policy.py",
+    "scripts/vibesec/portable.py",
     "scripts/vibesec/strict_json.py",
     "scripts/vibesec/supply_chain.py",
     "scripts/vibesec/version.py",
-    "scripts/vibesec_doctor.py"
+    "scripts/vibesec_doctor.py",
+    "extensions/examples/repository-metadata/adapter.py",
+    "extensions/examples/repository-metadata/vibesec-extension.json",
+    "vibesec"
   ],
   "bundle_additional": [
     "CHANGELOG.md",
@@ -59,6 +67,11 @@
     "docs/finding-intelligence.md",
     "docs/framework-sast-coverage.md",
     "docs/installation-verification.md",
+    "docs/extension-authoring.md",
+    "docs/extension-security-model.md",
+    "docs/extensions.md",
+    "docs/local-execution.md",
+    "docs/platform-support.md",
     "docs/profile-selection.md",
     "docs/provenance.md",
     "docs/project-capabilities.md",
@@ -76,10 +89,12 @@
     "scripts/verify_release_artifacts.py"
   ],
   "executable_files": [
+    "extensions/examples/repository-metadata/adapter.py",
     "scripts/append_tool_errors.py",
     "scripts/extract_tool_archive.py",
     "scripts/generate_finding_intelligence.py",
     "scripts/init_vibesec.py",
+    "scripts/manage_extensions.py",
     "scripts/install_standard_tools.sh",
     "scripts/install_tools.sh",
     "scripts/normalize_results.py",
@@ -99,7 +114,8 @@
     "scripts/verify_release_artifacts.py",
     "scripts/verify_installation.py",
     "scripts/validate_project_capabilities.py",
-    "scripts/vibesec_doctor.py"
+    "scripts/vibesec_doctor.py",
+    "vibesec"
   ],
   "profiles": {
     "minimal": {

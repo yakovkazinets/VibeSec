@@ -10,6 +10,8 @@ Upgrade planning treats `policy/dast-baseline.json` and `policy/dast-suppression
 
 VibeSec has no destructive automatic upgrader and no `--apply` mode. Create a working branch, back up policy files and local modifications, verify a newer local bundle, and generate a read-only plan:
 
+Installed extensions are separate preservation-sensitive local state. Core upgrade planning reports their verified inventory but does not replace, enable, disable, remove, or upgrade them. Use `./vibesec extensions upgrade-plan <reviewed-local-source>` for one extension; it has no apply mode. Preserve explicit enabled state and permission grants, and reinstall only after reviewing new bytes and version.
+
 ```shell
 python3 scripts/verify_consumer_bundle.py /path/to/new-vibesec-consumer.zip
 python3 scripts/plan_vibesec_upgrade.py --target /path/to/app --bundle /path/to/new-vibesec-consumer.zip

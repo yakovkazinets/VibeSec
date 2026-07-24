@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "platforms": {
+    "linux-amd64": {
+      "native_profiles": ["minimal", "standard"],
+      "container_profiles": [],
+      "unsupported_reason": null
+    },
+    "linux-arm64": {
+      "native_profiles": [],
+      "container_profiles": [],
+      "unsupported_reason": "The current release does not publish checksum-pinned arm64 native scanner artifacts or a complete profile container."
+    },
+    "macos-amd64": {
+      "native_profiles": [],
+      "container_profiles": [],
+      "unsupported_reason": "The current release does not publish checksum-pinned macOS native scanner artifacts or a complete profile container."
+    },
+    "macos-arm64": {
+      "native_profiles": [],
+      "container_profiles": [],
+      "unsupported_reason": "The current release does not publish checksum-pinned macOS native scanner artifacts or a complete profile container."
+    }
+  },
+  "scanner_support": {
+    "actionlint": ["linux-amd64"],
+    "checkov-container": ["linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64"],
+    "gitleaks": ["linux-amd64"],
+    "opengrep": ["linux-amd64"],
+    "osv-scanner": ["linux-amd64"],
+    "schemathesis-container": ["linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64"],
+    "syft": ["linux-amd64"],
+    "trivy": ["linux-amd64"],
+    "zap-container": ["linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64"]
+  }
+}

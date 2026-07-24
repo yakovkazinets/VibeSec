@@ -28,7 +28,7 @@ MAX_COMPRESSION_RATIO = 200
 SOURCE_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 ALLOWED_COMPRESSION = {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
-ALLOWED_SOURCE_ROOTS = {"VERSION", "CHANGELOG.md", "LICENSE", "README.md", "SECURITY.md", "config", "docs", "policy", "rules", "scripts", "templates"}
+ALLOWED_SOURCE_ROOTS = {"VERSION", "CHANGELOG.md", "LICENSE", "README.md", "SECURITY.md", "config", "docs", "extensions", "policy", "rules", "scripts", "templates", "vibesec"}
 PROHIBITED_PARTS = {".git", ".tools", ".venv", "__pycache__", "dist", "fixtures", "node_modules", "results", "tests", "venv"}
 PROHIBITED_SUFFIXES = {".db", ".gz", ".log", ".pyc", ".tar", ".zip"}
 REQUIRED_CONSUMER_PATHS = {
@@ -41,6 +41,10 @@ REQUIRED_CONSUMER_PATHS = {
     "scripts/plan_vibesec_upgrade.py", "scripts/vibesec/bundle.py",
     "scripts/vibesec/github_actions.py",
     "scripts/vibesec/supply_chain.py",
+    "vibesec", "config/portable-execution.json", "config/extension-manifest-schema.json",
+    "scripts/manage_extensions.py", "scripts/vibesec/portable.py", "scripts/vibesec/extensions.py",
+    "extensions/examples/repository-metadata/vibesec-extension.json",
+    "extensions/examples/repository-metadata/adapter.py",
     "scripts/generate_finding_intelligence.py", "scripts/vibesec/finding_intelligence.py",
     "scripts/validate_project_capabilities.py",
     "templates/github-actions/security-baseline.yml", "templates/github-actions/security-standard.yml",
@@ -55,6 +59,8 @@ REQUIRED_CONSUMER_PATHS = {
     "docs/authenticated-security-testing.md", "docs/authenticated-security-threat-model.md",
     "docs/distribution.md", "docs/dast-baseline.md", "docs/dast-threat-model.md", "docs/github-actions-runtime.md", "docs/installation-verification.md", "docs/doctor.md", "docs/upgrading.md",
     "docs/software-supply-chain-assurance.md", "docs/release-signing.md", "docs/provenance.md", "docs/release-threat-model.md",
+    "docs/local-execution.md", "docs/platform-support.md", "docs/extensions.md",
+    "docs/extension-security-model.md", "docs/extension-authoring.md",
     "scripts/verify_release_artifacts.py", "config/release-manifest-schema.json", "config/provenance-schema.json", "config/supply-chain-policy.json",
 }
 REQUIRED_EXECUTABLES = {
@@ -66,6 +72,7 @@ REQUIRED_EXECUTABLES = {
     "scripts/verify_release_artifacts.py",
     "scripts/generate_finding_intelligence.py",
     "scripts/validate_project_capabilities.py",
+    "vibesec", "scripts/manage_extensions.py", "extensions/examples/repository-metadata/adapter.py",
 }
 
 
@@ -250,7 +257,7 @@ def create_manifest(version: str, source_commit: str | None, files: list[BundleF
         "files": records,
         "total_file_count": len(records),
         "total_uncompressed_size": sum(item["size"] for item in records),
-        "capabilities": ["initialize", "verify_installation", "doctor", "plan_upgrade"],
+        "capabilities": ["doctor", "extensions", "initialize", "plan_upgrade", "portable_scan", "verify_installation"],
         "network_behavior": "distribution tools are offline; scanners retain documented profile behavior",
         "scanner_binaries_included": False,
         "application_code_executed": False,
@@ -318,7 +325,7 @@ def _validate_manifest(payload: Any) -> dict[str, Any]:
         raise BundleError("bundle profile declaration is invalid")
     if payload["supported_addons"] != ["api-fuzzing", "api-security-baseline", "dast-baseline"]:
         raise BundleError("bundle add-on declaration is invalid")
-    if payload["capabilities"] != ["initialize", "verify_installation", "doctor", "plan_upgrade"]:
+    if payload["capabilities"] != ["doctor", "extensions", "initialize", "plan_upgrade", "portable_scan", "verify_installation"]:
         raise BundleError("bundle capability declaration is invalid")
     if payload["network_behavior"] != "distribution tools are offline; scanners retain documented profile behavior":
         raise BundleError("bundle network declaration is invalid")

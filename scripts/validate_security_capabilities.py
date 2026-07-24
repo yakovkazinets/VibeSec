@@ -191,6 +191,7 @@ def render_matrix(payload: dict[str, Any]) -> str:
         "# Security capability matrix", "",
         "This document is generated from `config/security-capabilities.json`. Run `python3 scripts/validate_security_capabilities.py --write-matrix` after an approved matrix change.", "",
         "A capability is not complete merely because integration code exists. See [security validation policy](security-validation-policy.md).", "",
+        "Every row below is a **core** capability maintained by this repository. Extension capabilities are separately registered under `extension.<extension_id>.<capability>`, cannot override these IDs, and never become required core CI merely by installation. See [extensions](extensions.md).", "",
         "| Capability | Profile | Component/tool | Status | Fixtures | Self-scan | Expected state | Artifacts | Network/trust | Limitations | CI enforcement |",
         "|---|---|---|---|---|---|---|---|---|---|---|",
     ]

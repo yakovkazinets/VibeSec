@@ -45,11 +45,16 @@ def load(path: Path) -> Any:
     return payload
 
 
-def validate_normalized(payload: Any, profile: str) -> None:
+def validate_normalized(payload: Any, profile: str) -> str:
     if not isinstance(payload, dict) or payload.get("schema_version") != 1 or not isinstance(payload.get("results"), list):
         raise ArtifactError("normalized results schema is invalid")
     if payload.get("profile", profile) != profile:
         raise ArtifactError("normalized results profile differs")
+    scan_status = payload.get("scan_status", "completed")
+    if scan_status not in {"completed", "invalid_input"}:
+        raise ArtifactError("normalized scan status is invalid")
+    if scan_status == "invalid_input" and payload["results"]:
+        raise ArtifactError("invalid-input normalized results must not contain scanner findings")
     for item in payload["results"]:
         if not isinstance(item, dict) or not REQUIRED_RESULT_FIELDS <= set(item):
             raise ArtifactError("normalized result is missing required fields")
@@ -60,9 +65,10 @@ def validate_normalized(payload: Any, profile: str) -> None:
             raise ArtifactError("normalized result path is not repository-relative")
         if not re.fullmatch(r"[0-9a-f]{64}", str(item.get("fingerprint", ""))):
             raise ArtifactError("normalized result fingerprint is invalid")
+    return scan_status
 
 
-def validate_policy(payload: Any, profile: str, has_tool_error: bool) -> None:
+def validate_policy(payload: Any, profile: str, has_tool_error: bool, scan_status: str) -> None:
     required = {"schema_version", "profile", "exit_code", "exit_category", "clean", "security_guarantee"}
     if not isinstance(payload, dict) or set(payload) != required or payload.get("schema_version") != 1 or payload.get("profile") != profile:
         raise ArtifactError("policy result schema or profile is invalid")
@@ -75,6 +81,10 @@ def validate_policy(payload: Any, profile: str, has_tool_error: bool) -> None:
         raise ArtifactError("tool or parser error was represented as a clean policy result")
     if payload["clean"] != (payload["exit_code"] == 0):
         raise ArtifactError("policy clean flag and exit code differ")
+    if scan_status == "invalid_input" and payload["exit_category"] != "invalid_input":
+        raise ArtifactError("normalized scan status and policy exit category differ")
+    if profile == "minimal" and payload["exit_category"] == "invalid_input" and scan_status != "invalid_input":
+        raise ArtifactError("Minimal invalid-input policy lacks an explicit normalized scan status")
 
 
 def validate_inventory(payload: Any) -> None:
@@ -95,7 +105,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         normalized = load(args.results / "normalized.json")
-        validate_normalized(normalized, args.profile)
+        scan_status = validate_normalized(normalized, args.profile)
         report = args.results / "report.md"
         if not report.is_file() or report.stat().st_size == 0:
             raise ArtifactError("Markdown report is missing or empty")
@@ -115,7 +125,7 @@ def main() -> int:
             if not separator or state not in STATES or states.get(tool) != state:
                 raise ArtifactError(f"coverage state differs: {tool}: expected {state}, observed {states.get(tool)}")
         has_tool_error = any(item.get("result_type") == "tool_error" for item in normalized["results"])
-        validate_policy(load(args.results / "policy-result.json"), args.profile, has_tool_error)
+        validate_policy(load(args.results / "policy-result.json"), args.profile, has_tool_error, scan_status)
         if args.profile == "standard":
             try:
                 validate_documents(

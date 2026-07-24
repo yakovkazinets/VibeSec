@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "extension_id": "vibesec.repository-metadata-example",
+  "version": "1.0.0",
+  "kind": "scanner",
+  "entrypoint": "adapter.py",
+  "capabilities": ["extension.vibesec.repository-metadata-example.metadata-marker"],
+  "supported_profiles": ["minimal", "standard"],
+  "supported_platforms": ["linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64"],
+  "execution_mode": "native",
+  "network": "none",
+  "artifacts": ["normalized.json"],
+  "permissions": {
+    "repository_read": true,
+    "repository_write": false,
+    "network": false,
+    "docker": false,
+    "secrets": false,
+    "host_process": true
+  }
+}

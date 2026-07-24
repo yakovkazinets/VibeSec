@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vibesec.dev/schemas/extension-manifest-v1.json",
+  "title": "VibeSec extension manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "extension_id", "version", "kind", "entrypoint", "capabilities", "supported_profiles", "supported_platforms", "execution_mode", "network", "artifacts", "permissions"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "extension_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$", "maxLength": 100},
+    "version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$", "maxLength": 32},
+    "kind": {"enum": ["scanner"]},
+    "entrypoint": {"type": "string", "pattern": "^[A-Za-z0-9._/-]+\\.py$", "maxLength": 240},
+    "capabilities": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "maxLength": 200}},
+    "supported_profiles": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["minimal", "standard"]}},
+    "supported_platforms": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64"]}},
+    "execution_mode": {"const": "native"},
+    "network": {"const": "none"},
+    "artifacts": {"type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "maxLength": 240}},
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository_read", "repository_write", "network", "docker", "secrets", "host_process"],
+      "properties": {
+        "repository_read": {"const": true},
+        "repository_write": {"const": false},
+        "network": {"const": false},
+        "docker": {"const": false},
+        "secrets": {"const": false},
+        "host_process": {"const": true}
+      }
+    }
+  }
+}

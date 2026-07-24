@@ -35,6 +35,7 @@ Review the code and configuration before using it, validate it against your own 
 - [Security/result model](docs/security-model.md) and [threat model](docs/threat-model.md)
 - [Security validation policy](docs/security-validation-policy.md), [capability matrix](docs/security-capability-matrix.md), and [self-hosted validation](docs/self-hosted-validation.md)
 - [Finding intelligence](docs/finding-intelligence.md) and [framework SAST coverage](docs/framework-sast-coverage.md)
+- [Local execution](docs/local-execution.md), [platform support](docs/platform-support.md), and [verified extensions](docs/extensions.md)
 - [GitHub Actions Node 24 runtime and immutable pin policy](docs/github-actions-runtime.md)
 - [OpenAPI API Security Baseline](docs/api-security-baseline.md)
 - [Bounded API fuzzing and injection-oriented testing](docs/api-fuzzing.md)
@@ -50,6 +51,10 @@ Preview adoption without changing the application repository:
 python3 scripts/init_vibesec.py --profile minimal --target /path/to/application
 python3 scripts/init_vibesec.py --profile standard --target /path/to/application
 ```
+
+The bundled `./vibesec` CLI routes scan, init, doctor, verification, upgrade planning, and extension commands through the existing reviewed implementations. Complete native profile pins currently support Linux x86_64. Other platforms and complete-profile containers fail explicitly until verified artifacts exist; `auto` never silently selects partial or unverified coverage.
+
+Extensions are reviewed local sources only: dry-run installation is the default, `--write` is explicit, installed content is SHA-256 inventoried, permissions are restricted, capabilities are namespaced, and adapters run as subprocesses rather than imports. Review the [extension security model](docs/extension-security-model.md) before running extension code.
 
 The initializer asks 17 project-capability questions, each displayed with `[Y/n]` and defaulting to Yes. Answer No when a capability does not apply. Non-interactive use requires `--capabilities-file <trusted-local-json>` or the explicit `--all-capabilities` option; EOF never supplies defaults. The resulting `.vibesec/project-capabilities.json` is authoritative for scanner applicability. When authenticated testing is enabled, supply only `--auth-secret-name`; never supply the token.
 

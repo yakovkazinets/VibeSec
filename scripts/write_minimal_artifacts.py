@@ -63,6 +63,17 @@ def policy(args: argparse.Namespace) -> None:
     })
 
 
+def normalized(args: argparse.Namespace) -> None:
+    if args.exit_code != 3:
+        raise ValueError("failure-normalized output is reserved for invalid input")
+    atomic_json(args.output, {
+        "schema_version": 1,
+        "profile": args.profile,
+        "scan_status": "invalid_input",
+        "results": [],
+    })
+
+
 def report(args: argparse.Namespace) -> None:
     categories = {2: "tool_error", 3: "invalid_input"}
     if args.exit_code not in categories:
@@ -100,6 +111,10 @@ def main() -> int:
     policy_parser.add_argument("--profile", required=True, choices=("minimal", "standard"))
     policy_parser.add_argument("--exit-code", required=True, type=int)
     policy_parser.add_argument("--output", required=True, type=Path)
+    normalized_parser = subparsers.add_parser("normalized")
+    normalized_parser.add_argument("--profile", required=True, choices=("minimal",))
+    normalized_parser.add_argument("--exit-code", required=True, type=int)
+    normalized_parser.add_argument("--output", required=True, type=Path)
     report_parser = subparsers.add_parser("report")
     report_parser.add_argument("--profile", required=True, choices=("minimal",))
     report_parser.add_argument("--exit-code", required=True, type=int)
@@ -110,6 +125,8 @@ def main() -> int:
             coverage(args)
         elif args.command == "policy":
             policy(args)
+        elif args.command == "normalized":
+            normalized(args)
         else:
             report(args)
     except (OSError, ValueError, json.JSONDecodeError) as exc:

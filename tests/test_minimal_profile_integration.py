@@ -121,9 +121,18 @@ exit 0
     def test_malformed_scanner_output_returns_three_not_clean(self):
         completed = self.run_profile(FAKE_TRIVY_MODE="malformed")
         self.assertEqual(completed.returncode, 3)
+        normalized = self.load_final_results()
+        self.assertEqual(normalized["scan_status"], "invalid_input")
+        self.assertEqual(normalized["results"], [])
         self.assertIn("Status: **invalid_input**", (self.results_dir / "report.md").read_text(encoding="utf-8"))
         self.assertIn("malformed scanner output", completed.stderr)
         self.assert_artifacts("invalid_input", {"trivy": "tool_error", "gitleaks": "tool_error", "actionlint": "tool_error"})
+        validated = subprocess.run(
+            ["python3", "scripts/validate_security_artifacts.py", "--profile", "minimal", "--results", str(self.results_dir),
+             "--expect-state", "trivy=tool_error", "--expect-state", "gitleaks=tool_error", "--expect-state", "actionlint=tool_error"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(validated.returncode, 0, validated.stderr)
 
     def test_stale_raw_and_final_outputs_do_not_survive_missing_scanner(self):
         self.results_dir.mkdir()

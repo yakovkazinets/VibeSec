@@ -224,8 +224,34 @@ jobs:
       - name: Validate offline repository supply-chain posture
         run: python3 scripts/validate_supply_chain_posture.py
 
+  portable-execution-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted portable-execution validators without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Validate CLI routing platform support and fail-closed mode selection
+        run: >-
+          python3 -m unittest -v tests.test_portable_cli
+          tests.test_distribution_bundle tests.test_distribution_lifecycle
+
+  extension-platform-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted extension-platform validators without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Validate manifests lifecycle adapter isolation fixtures and tamper handling
+        run: >-
+          python3 -m unittest -v tests.test_extension_platform
+          tests.test_consumer_adoption tests.test_distribution_lifecycle
+
   validate:
-    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts]
+    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

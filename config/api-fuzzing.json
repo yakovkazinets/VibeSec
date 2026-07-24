@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "workers": 1,
+  "max_examples_per_operation": 25,
+  "max_failures": 25,
+  "request_timeout_seconds": 5,
+  "total_timeout_minutes": 15,
+  "maximum_operations": 200,
+  "maximum_request_body_bytes": 65536,
+  "maximum_response_body_bytes_read": 262144,
+  "maximum_normalized_findings": 1000,
+  "maximum_diagnostic_bytes": 65536,
+  "maximum_raw_report_bytes": 10485760,
+  "fixed_seed": 20260722,
+  "safe_methods": ["GET", "HEAD", "OPTIONS"],
+  "allowed_methods": ["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"],
+  "supported_modes": ["contract", "fuzz", "injection", "combined"],
+  "default_mode": "contract",
+  "default_payload_profile": "safe-v1"
+}

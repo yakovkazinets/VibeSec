@@ -30,8 +30,8 @@ EXPECTED_FIELDS = {
 }
 CASE_FIELDS = {"expected_findings", "expected_finding_ids", "expected_count", "expected_coverage", "expected_exit_category"}
 FINDING_EXPECTATION_FIELDS = {"id", "path", "severity"}
-PROFILES = {"minimal", "standard", "dast-baseline", "api-security-baseline", "authenticated-security-testing"}
-CATEGORIES = {"secret_configuration", "secret", "ci", "policy", "sast", "sca", "sbom", "iac", "container", "inventory", "coverage", "trust_boundary", "dast", "api", "authentication", "finding_intelligence"}
+PROFILES = {"minimal", "standard", "dast-baseline", "api-security-baseline", "authenticated-security-testing", "api-fuzzing"}
+CATEGORIES = {"secret_configuration", "secret", "ci", "policy", "sast", "sca", "sbom", "iac", "container", "inventory", "coverage", "trust_boundary", "dast", "api", "authentication", "finding_intelligence", "injection"}
 STATUSES = {"enforced", "conditionally_enforced", "documented_only", "deferred"}
 COVERAGE = {"ran", "not_applicable", "not_configured", "tool_error"}
 NON_SCANNER_TOOLS = {"cosign", "dast-fixture-python"}

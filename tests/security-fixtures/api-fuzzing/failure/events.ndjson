@@ -1,0 +1,2 @@
+{"event":"finding","operation_id":"timeout","method":"GET","path_template":"/timeout","parameter_location":"query","payload_family_id":null,"payload_marker_id":null,"detection_reason":"request_timeout","response_status":null,"scanner_check_id":"request_timeout","framework_pattern_id":null,"authenticated_context":false,"replay_seed":20260722}
+{"event":"summary","completed":true,"mode":"fuzz","operation_count":1}

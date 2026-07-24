@@ -23,12 +23,14 @@ sys.path.remove(SCRIPTS)
 
 WORKFLOWS = (
     ".github/workflows/ci.yml",
+    ".github/workflows/api-fuzzing-integration.yml",
     ".github/workflows/api-security-integration.yml",
     ".github/workflows/dast-integration.yml",
     ".github/workflows/authenticated-api-integration.yml",
     ".github/workflows/authenticated-dast-integration.yml",
     ".github/workflows/release-candidate.yml",
     "templates/github-actions/api-security-baseline.yml",
+    "templates/github-actions/api-fuzzing.yml",
     "templates/github-actions/dast-baseline.yml",
     "templates/github-actions/security-baseline.yml",
     "templates/github-actions/security-standard.yml",
@@ -103,13 +105,15 @@ class GitHubActionsInventoryTests(unittest.TestCase):
 
     def test_artifact_contract_and_checkout_credential_contract_are_preserved(self):
         expected_fetch_depths = {
-            ".github/workflows/ci.yml": [0, 0, None, None, None, None, None, None, None, 0],
+            ".github/workflows/ci.yml": [0, 0, None, None, None, None, None, None, None, None, 0],
+            ".github/workflows/api-fuzzing-integration.yml": [None],
             ".github/workflows/api-security-integration.yml": [None],
             ".github/workflows/dast-integration.yml": [None],
             ".github/workflows/authenticated-api-integration.yml": [None],
             ".github/workflows/authenticated-dast-integration.yml": [None],
             ".github/workflows/release-candidate.yml": [1],
             "templates/github-actions/api-security-baseline.yml": [None],
+            "templates/github-actions/api-fuzzing.yml": [None],
             "templates/github-actions/dast-baseline.yml": [None],
             "templates/github-actions/security-baseline.yml": [0],
             "templates/github-actions/security-standard.yml": [0],
@@ -125,6 +129,14 @@ class GitHubActionsInventoryTests(unittest.TestCase):
                 "${{ runner.temp }}/vibesec-api-security-results/policy-result.json",
                 "${{ runner.temp }}/vibesec-api-security-results/finding-groups.json",
                 "${{ runner.temp }}/vibesec-api-security-results/prioritized-findings.json",
+            ]],
+            "templates/github-actions/api-fuzzing.yml": [[
+                "${{ runner.temp }}/vibesec-api-fuzzing-results/fuzzing-findings.json",
+                "${{ runner.temp }}/vibesec-api-fuzzing-results/fuzzing-coverage.json",
+                "${{ runner.temp }}/vibesec-api-fuzzing-results/fuzzing-report.md",
+                "${{ runner.temp }}/vibesec-api-fuzzing-results/fuzzing-policy-result.json",
+                "${{ runner.temp }}/vibesec-api-fuzzing-results/finding-groups.json",
+                "${{ runner.temp }}/vibesec-api-fuzzing-results/prioritized-findings.json",
             ]],
             "templates/github-actions/dast-baseline.yml": [[
                 "${{ runner.temp }}/vibesec-dast-results/normalized.json",
@@ -179,6 +191,7 @@ class GitHubActionsInventoryTests(unittest.TestCase):
             "templates/github-actions/security-standard.yml",
             "templates/github-actions/dast-baseline.yml",
             "templates/github-actions/api-security-baseline.yml",
+            "templates/github-actions/api-fuzzing.yml",
         ):
             text = entries[template].decode("utf-8")
             for action in self.inventory["actions"].values():
@@ -206,6 +219,7 @@ class GitHubActionsInventoryTests(unittest.TestCase):
             "security-artifacts", "dast-artifacts",
             "api-security-artifacts",
             "authenticated-security-artifacts",
+            "fuzzing-artifacts",
             "supply-chain-artifacts",
         ])
 

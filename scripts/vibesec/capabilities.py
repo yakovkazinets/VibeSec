@@ -29,6 +29,7 @@ QUESTIONS: tuple[tuple[str, str], ...] = (
     ("secrets_configuration", "Does the project use secrets or environment configuration?"),
     ("dast_target", "Should VibeSec configure a runtime DAST target?"),
     ("api_security_target", "Should VibeSec configure OpenAPI-driven API security testing?"),
+    ("api_fuzzing_target", "Should VibeSec configure bounded active API fuzzing and injection testing?"),
 )
 CAPABILITY_KEYS = tuple(key for key, _ in QUESTIONS)
 
@@ -57,6 +58,12 @@ def validate_capabilities(payload: Any) -> dict[str, Any]:
         raise CapabilityError("api_security_target=true requires api=true")
     if values["api_security_target"] and not values["container_image"]:
         raise CapabilityError("api_security_target=true requires container_image=true")
+    if values["api_fuzzing_target"] and not values["api"]:
+        raise CapabilityError("api_fuzzing_target=true requires api=true")
+    if values["api_fuzzing_target"] and not values["api_security_target"]:
+        raise CapabilityError("api_fuzzing_target=true requires api_security_target=true")
+    if values["api_fuzzing_target"] and not values["container_image"]:
+        raise CapabilityError("api_fuzzing_target=true requires container_image=true")
     if values["public_runtime"] and not (values["web_application"] or values["api"]):
         raise CapabilityError("public_runtime=true requires web_application=true or api=true")
     if values["authentication"] and not (values["web_application"] or values["api"]):
@@ -132,6 +139,8 @@ def scanner_applicability(payload: Any) -> dict[str, dict[str, str]]:
         "trivy-image": capabilities["container_image"],
         "dast-baseline": capabilities["dast_target"] and capabilities["web_application"],
         "api-security-baseline": capabilities["api_security_target"] and capabilities["api"] and capabilities["container_image"],
+        "fuzzing-and-injection-testing": capabilities["api_fuzzing_target"] and capabilities["api_security_target"]
+        and capabilities["api"] and capabilities["container_image"],
         "authenticated-security-testing": capabilities["authenticated_security_testing"] and capabilities["authentication"]
         and (capabilities["dast_target"] or capabilities["api_security_target"]),
     }
@@ -144,6 +153,8 @@ def scanner_applicability(payload: Any) -> dict[str, dict[str, str]]:
         result["dast-baseline"]["reason"] = "project capability manifest declares no runnable web application target"
     if not mapping["api-security-baseline"]:
         result["api-security-baseline"]["reason"] = "project capability manifest declares no runnable OpenAPI API target"
+    if not mapping["fuzzing-and-injection-testing"]:
+        result["fuzzing-and-injection-testing"]["reason"] = "project capability manifest declares no bounded active API testing target"
     if not mapping["authenticated-security-testing"]:
         result["authenticated-security-testing"]["reason"] = "project capability manifest excludes authenticated runtime security testing"
     return result

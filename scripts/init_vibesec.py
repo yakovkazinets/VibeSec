@@ -30,6 +30,12 @@ from vibesec.api_security import (  # noqa: E402
     ApiSecurityError, parse_config as parse_api_config, validate_base_path,
     validate_openapi_schema, validate_port,
 )
+from vibesec.api_fuzzing import (  # noqa: E402
+    ApiFuzzingError,
+    default_installed_config as default_fuzzing_configuration,
+    parse_config as parse_fuzzing_config,
+    validate_installed_config as validate_fuzzing_configuration,
+)
 from vibesec.authenticated import (  # noqa: E402
     CONFIG_PATH as AUTH_CONFIG_PATH,
     AuthenticatedSecurityError,
@@ -307,6 +313,7 @@ def build_plan(catalog: dict[str, Any], profile: str, stage: str,
 def build_addon_plan(catalog: dict[str, Any], addon: str,
                      source: ConsumerSource | None = None,
                      api_configuration: bytes | None = None,
+                     fuzzing_configuration: bytes | None = None,
                      authenticated_configuration: dict[str, Any] | None = None) -> list[PlanEntry]:
     provider = source or tree_source()
     config = catalog["addons"].get(addon)
@@ -347,6 +354,12 @@ def build_addon_plan(catalog: dict[str, Any], addon: str,
         destination = Path(".vibesec/api-security-baseline.json")
         entries.append(PlanEntry(None, destination, 0o644, api_configuration))
         records.append(file_record(destination.as_posix(), api_configuration, 0o644))
+    if addon == "api-fuzzing":
+        if fuzzing_configuration is None:
+            raise InvalidTarget("API fuzzing requires reviewed active-testing configuration")
+        destination = Path(".vibesec/api-fuzzing.json")
+        entries.append(PlanEntry(None, destination, 0o644, fuzzing_configuration))
+        records.append(file_record(destination.as_posix(), fuzzing_configuration, 0o644))
     manifest_relative = Path(f".vibesec/install-addon-{addon}.json")
     manifest_data = installation_manifest_bytes(
         profile=addon, stage="addon", source_type=provider.source_type,
@@ -448,7 +461,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group(required=True)
     selection.add_argument("--profile", choices=("minimal", "standard"))
-    selection.add_argument("--addon", choices=("dast-baseline", "api-security-baseline"))
+    selection.add_argument("--addon", choices=("dast-baseline", "api-security-baseline", "api-fuzzing"))
     parser.add_argument("--target", required=True, type=Path)
     parser.add_argument("--stage", choices=("support", "workflow"), help="Standard only; defaults to support")
     parser.add_argument("--bundle", type=Path, help="verified local consumer ZIP")
@@ -460,6 +473,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--api-base-path", default="/", help="fixed internal API base path")
     parser.add_argument("--api-safe-methods-only", choices=("true", "false"), default="true",
                         help="default true; false explicitly opts into mutating methods")
+    parser.add_argument("--fuzzing-mode", choices=("contract", "fuzz", "injection", "combined"), default="contract")
+    parser.add_argument("--fuzzing-enabled", action="store_true", help="explicitly enable schema-driven fuzzing")
+    parser.add_argument("--injection-testing-enabled", action="store_true", help="explicitly enable reviewed inert injection markers")
+    parser.add_argument("--fuzzing-safe-methods-only", choices=("true", "false"), default="true")
+    parser.add_argument("--fuzzing-mutating-methods", action="store_true", help="explicitly allow reviewed mutating methods")
+    parser.add_argument("--fuzzing-max-examples", type=int, default=25)
+    parser.add_argument("--fuzzing-max-failures", type=int, default=25)
+    parser.add_argument("--fuzzing-request-timeout", type=int, default=5)
+    parser.add_argument("--fuzzing-total-timeout", type=int, default=15)
     parser.add_argument("--auth-secret-name", help="GitHub Actions secret name containing the opaque bearer token")
     capabilities = parser.add_mutually_exclusive_group()
     capabilities.add_argument("--capabilities-file", type=Path, help="trusted local project capability JSON")
@@ -515,6 +537,12 @@ def main() -> int:
         api_options_used = args.api_schema is not None or args.api_image_variable_name != "VIBESEC_API_IMAGE_REFERENCE" or args.api_port != "8080" or args.api_base_path != "/" or args.api_safe_methods_only != "true"
         if args.addon != "api-security-baseline" and api_options_used:
             raise InvalidTarget("API target options are only valid with --addon api-security-baseline")
+        fuzzing_options_used = (args.fuzzing_mode != "contract" or args.fuzzing_enabled or args.injection_testing_enabled
+                                or args.fuzzing_safe_methods_only != "true" or args.fuzzing_mutating_methods
+                                or args.fuzzing_max_examples != 25 or args.fuzzing_max_failures != 25
+                                or args.fuzzing_request_timeout != 5 or args.fuzzing_total_timeout != 15)
+        if args.addon != "api-fuzzing" and fuzzing_options_used:
+            raise InvalidTarget("active API options are only valid with --addon api-fuzzing")
         if args.addon:
             verify_addon_prerequisites(target, catalog)
             stage = "addon"
@@ -553,7 +581,8 @@ def main() -> int:
             elif args.auth_secret_name is not None:
                 raise InvalidTarget("--auth-secret-name requires authenticated_security_testing=true")
         if args.addon:
-            capability_key = "dast_target" if args.addon == "dast-baseline" else "api_security_target"
+            capability_key = {"dast-baseline": "dast_target", "api-security-baseline": "api_security_target",
+                              "api-fuzzing": "api_fuzzing_target"}[args.addon]
             if not capabilities["capabilities"][capability_key]:
                 output["skipped"].append(
                     f"{args.addon} = not_applicable: project capability manifest excludes this runtime target"
@@ -561,6 +590,7 @@ def main() -> int:
                 print(json.dumps(output, indent=2, sort_keys=True))
                 return SUCCESS
             api_configuration = None
+            fuzzing_configuration = None
             if args.addon == "api-security-baseline":
                 if not args.api_schema:
                     raise InvalidTarget("API Security Baseline requires --api-schema")
@@ -586,7 +616,27 @@ def main() -> int:
                     "base_path": api_base_path, "safe_methods_only": args.api_safe_methods_only == "true",
                     "authentication": False, "custom_headers": False, "external_target_url": None,
                 })
-            plan = build_addon_plan(catalog, args.addon, source, api_configuration, auth_configuration)
+            if args.addon == "api-fuzzing":
+                if not (target / ".vibesec/api-security-baseline.json").is_file():
+                    raise InvalidTarget("API fuzzing requires the API Security Baseline add-on configuration")
+                try:
+                    trusted_fuzzing = parse_fuzzing_config(source.read("config/api-fuzzing.json"))
+                    generated = default_fuzzing_configuration()
+                    generated.update({
+                        "mode": args.fuzzing_mode, "fuzzing_enabled": args.fuzzing_enabled,
+                        "injection_testing_enabled": args.injection_testing_enabled,
+                        "safe_methods_only": args.fuzzing_safe_methods_only == "true",
+                        "mutating_methods_enabled": args.fuzzing_mutating_methods,
+                        "max_examples_per_operation": args.fuzzing_max_examples,
+                        "max_failures": args.fuzzing_max_failures,
+                        "request_timeout_seconds": args.fuzzing_request_timeout,
+                        "total_timeout_minutes": args.fuzzing_total_timeout,
+                    })
+                    fuzzing_configuration = canonical_json(validate_fuzzing_configuration(generated, trusted_fuzzing))
+                except ApiFuzzingError as exc:
+                    raise InvalidTarget(f"active API configuration is invalid: {exc}") from exc
+            plan = build_addon_plan(catalog, args.addon, source, api_configuration,
+                                    fuzzing_configuration, auth_configuration)
         else:
             manifest_data = None if stage == "workflow" else capability_bytes(capabilities)
             plan = build_plan(catalog, args.profile, stage, source, manifest_data, auth_configuration_bytes)
@@ -602,7 +652,7 @@ def main() -> int:
         output["error"].append(str(exc))
         print(json.dumps(output, indent=2, sort_keys=True))
         return VERIFICATION_FAILED
-    except (InvalidTarget, AuthenticatedSecurityError, CapabilityError, VersionError, UnsafePath) as exc:
+    except (InvalidTarget, ApiFuzzingError, AuthenticatedSecurityError, CapabilityError, VersionError, UnsafePath) as exc:
         output["error"].append(str(exc))
         print(json.dumps(output, indent=2, sort_keys=True))
         return INVALID_INPUT

@@ -1,0 +1,77 @@
+name: VibeSec Bounded API Fuzzing
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "19 6 * * 4"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vibesec-api-fuzzing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-fuzzing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out trusted active API harness without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Install pinned schema validation dependency
+        run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
+      - name: Run isolated bounded active API testing
+        id: fuzzing
+        continue-on-error: true
+        env:
+          VIBESEC_API_IMAGE_REFERENCE: ${{ vars.VIBESEC_API_IMAGE_REFERENCE }}
+          VIBESEC_API_FUZZING_ENFORCEMENT: observe
+          VIBESEC_API_FUZZING_MIN_SEVERITY: high
+          VIBESEC_FUZZING_RESULTS: ${{ runner.temp }}/vibesec-api-fuzzing-results
+          # AUTHENTICATED_SCANNER_ENV_MARKER
+        run: |
+          mkdir -p "$VIBESEC_FUZZING_RESULTS"
+          set +e
+          python3 scripts/run_api_fuzzing.py "$VIBESEC_FUZZING_RESULTS" --repository .
+          scan_exit=$?
+          set -e
+          case "$scan_exit" in 0|1|2|3) ;; *) scan_exit=3 ;; esac
+          exit_file="$(mktemp "$VIBESEC_FUZZING_RESULTS/.scan-exit-code.XXXXXX")"
+          printf '%s\n' "$scan_exit" > "$exit_file"
+          mv "$exit_file" "$VIBESEC_FUZZING_RESULTS/scan-exit-code.txt"
+          echo "exit_code=$scan_exit" >> "$GITHUB_OUTPUT"
+          coverage_state="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["state"])' "$VIBESEC_FUZZING_RESULTS/fuzzing-coverage.json")"
+          case "$coverage_state" in ran|not_applicable|not_configured|tool_error) ;; *) exit 3 ;; esac
+          echo "coverage_state=$coverage_state" >> "$GITHUB_OUTPUT"
+      - name: Validate sanitized active API artifacts
+        if: always() && steps.fuzzing.outcome != 'skipped'
+        env:
+          VIBESEC_FUZZING_RESULTS: ${{ runner.temp }}/vibesec-api-fuzzing-results
+        run: |
+          state="${{ steps.fuzzing.outputs.coverage_state }}"
+          case "$state" in ran|not_applicable|not_configured|tool_error) ;; *) exit 3 ;; esac
+          python3 scripts/validate_api_fuzzing_artifacts.py --results "$VIBESEC_FUZZING_RESULTS" --expect-state "$state"
+      - name: Upload sanitized active API artifacts
+        if: always() && steps.fuzzing.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1, Node 24, verified 2026-07-22
+        with:
+          name: vibesec-api-fuzzing-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/vibesec-api-fuzzing-results/fuzzing-findings.json
+            ${{ runner.temp }}/vibesec-api-fuzzing-results/fuzzing-coverage.json
+            ${{ runner.temp }}/vibesec-api-fuzzing-results/fuzzing-report.md
+            ${{ runner.temp }}/vibesec-api-fuzzing-results/fuzzing-policy-result.json
+            ${{ runner.temp }}/vibesec-api-fuzzing-results/finding-groups.json
+            ${{ runner.temp }}/vibesec-api-fuzzing-results/prioritized-findings.json
+          if-no-files-found: error
+          retention-days: 14
+          include-hidden-files: false
+          archive: true
+      - name: Preserve active API exit contract
+        if: always() && steps.fuzzing.outcome != 'skipped'
+        env:
+          VIBESEC_FUZZING_RESULTS: ${{ runner.temp }}/vibesec-api-fuzzing-results
+        run: python3 scripts/preserve_scan_exit.py "$VIBESEC_FUZZING_RESULTS/scan-exit-code.txt"

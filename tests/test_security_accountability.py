@@ -24,7 +24,7 @@ LIVE_SECRET_PATTERNS = (
 class SecurityAccountabilityTests(unittest.TestCase):
     def test_matrix_fixtures_tools_and_rendered_document_are_consistent(self):
         matrix = validate_matrix()
-        self.assertEqual(len(matrix["capabilities"]), 45)
+        self.assertEqual(len(matrix["capabilities"]), 46)
         rendered = render_matrix(matrix)
         self.assertEqual((ROOT / "docs/security-capability-matrix.md").read_text(encoding="utf-8"), rendered)
         self.assertEqual(

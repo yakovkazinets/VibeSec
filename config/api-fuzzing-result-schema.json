@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vibesec.dev/schema/api-fuzzing-result-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile", "results"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "profile": {"const": "api-fuzzing"},
+    "results": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "required": ["tool", "category", "rule_id", "severity", "description", "confidence", "fingerprint", "result_type"]
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "capability_id": "fuzzing.bounded-active-api",
+  "expected_tool": "schemathesis",
+  "positive": {
+    "expected_findings": [
+      {"id": "api-fuzzing.controlled_5xx", "path": "openapi.yaml", "severity": "high"},
+      {"id": "api-fuzzing.reflected_marker", "path": "openapi.yaml", "severity": "high"},
+      {"id": "api-fuzzing.semantic_mismatch", "path": "openapi.yaml", "severity": "high"}
+    ],
+    "expected_finding_ids": ["api-fuzzing.controlled_5xx", "api-fuzzing.reflected_marker", "api-fuzzing.semantic_mismatch"],
+    "expected_count": 3,
+    "expected_coverage": "ran",
+    "expected_exit_category": "pass"
+  },
+  "negative": {
+    "expected_findings": [],
+    "expected_finding_ids": [],
+    "expected_count": 0,
+    "expected_coverage": "ran",
+    "expected_exit_category": "pass"
+  },
+  "required_normalized_fields": ["tool", "rule_id", "operation_id", "method", "path_template", "payload_family_id", "detection_reason", "fingerprint", "result_type"],
+  "failure_modes": ["invalid configuration exits 3", "scanner/runtime/timeout/cleanup failure exits 2", "unknown payload or evidence fails closed", "tool_error is never clean"],
+  "privacy_classification": "Sanitized route, marker-family identity, evidence reason, status class, and replay seed only; no raw bodies, exact generated schema values, credentials, or bearer headers.",
+  "fake_secret_pattern": null
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vibesec.dev/schemas/agent-adapter-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "adapter_id", "object_id", "kind", "version", "display_name", "contract_id", "human_documentation", "output_path", "instruction_convention", "official_documentation", "verified_on", "supports_imports", "supported_platforms", "render_sections"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "adapter_id": {"enum": ["codex", "claude-code", "gemini-cli", "kimi-cli"]},
+    "object_id": {"type": "string", "pattern": "^vibesec\\.agent-adapter\\.[a-z-]+\\.v1$"},
+    "kind": {"const": "agent-guidance"},
+    "version": {"type": "string", "pattern": "^1\\.[0-9]+\\.[0-9]+$"},
+    "display_name": {"type": "string", "minLength": 3},
+    "contract_id": {"const": "vibesec.agent-guidance.v1"},
+    "human_documentation": {"const": "docs/agent-adapters.md"},
+    "output_path": {"type": "string", "minLength": 5},
+    "instruction_convention": {"type": "string", "minLength": 20},
+    "official_documentation": {"type": "string", "pattern": "^https://"},
+    "verified_on": {"type": "string", "format": "date"},
+    "supports_imports": {"type": "boolean"},
+    "supported_platforms": {"const": ["portable"]},
+    "render_sections": {"type": "array", "minItems": 6, "uniqueItems": true, "items": {"type": "string"}}
+  }
+}

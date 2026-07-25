@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "adapter_id": "gemini-cli",
+  "object_id": "vibesec.agent-adapter.gemini-cli.v1",
+  "kind": "agent-guidance",
+  "version": "1.0.0",
+  "display_name": "Gemini CLI",
+  "contract_id": "vibesec.agent-guidance.v1",
+  "human_documentation": "docs/agent-adapters.md",
+  "output_path": "GEMINI.md",
+  "instruction_convention": "Gemini CLI loads GEMINI.md context from global, project, and directory scopes and concatenates applicable files; this adapter uses the default project filename.",
+  "official_documentation": "https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html",
+  "verified_on": "2026-07-24",
+  "supports_imports": true,
+  "supported_platforms": ["portable"],
+  "render_sections": ["identity", "authority", "actions", "safety", "capabilities", "validation", "tasks"]
+}

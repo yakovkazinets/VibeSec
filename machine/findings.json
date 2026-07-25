@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.catalog.findings",
+  "status": "stable",
+  "summary": "Normalized finding, correlation group, and prioritized finding contracts.",
+  "source": "config/finding-groups-schema.json",
+  "human_documentation": ["docs/finding-intelligence.md", "docs/false-positive-guide.md", "docs/v1-interface-reference.md"],
+  "members": ["finding-group.v1", "normalized-finding.v1", "prioritized-finding.v1", "vibesec.findings.contract"],
+  "statuses": {
+    "finding-group.v1": "stable",
+    "normalized-finding.v1": "stable",
+    "prioritized-finding.v1": "stable",
+    "vibesec.findings.contract": "stable"
+  }
+}

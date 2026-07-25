@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.catalog.compatibility",
+  "status": "stable",
+  "summary": "Validated and explicitly unsupported platform, runner, and execution-mode claims.",
+  "source": "config/portable-execution.json",
+  "human_documentation": ["docs/platform-support.md", "docs/github-actions-runtime.md", "docs/v1-support-policy.md", "docs/v1-interface-reference.md"],
+  "members": ["github-hosted.ubuntu", "ghes.limitations", "linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64", "self-hosted.runner-2.327.1", "vibesec.compatibility.platforms", "windows.native"],
+  "statuses": {
+    "ghes.limitations": "experimental",
+    "github-hosted.ubuntu": "stable",
+    "linux-amd64": "stable",
+    "linux-arm64": "conditionally_enforced",
+    "macos-amd64": "conditionally_enforced",
+    "macos-arm64": "conditionally_enforced",
+    "self-hosted.runner-2.327.1": "stable",
+    "vibesec.compatibility.platforms": "stable",
+    "windows.native": "internal"
+  }
+}

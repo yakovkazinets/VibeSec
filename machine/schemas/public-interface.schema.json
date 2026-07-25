@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yakovkazinets/VibeSec/machine/schemas/public-interface.schema.json",
+  "title": "VibeSec public interface v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "stable_id", "status", "summary", "owning_component", "dependencies", "configuration", "inputs", "outputs", "artifacts", "coverage_states", "exit_behavior", "security_boundaries", "limitations", "human_documentation", "owning_source_files", "machine_schema", "compatibility_guarantees", "deprecation_policy", "migration_notes"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "stable_id": {"type": "string", "pattern": "^vibesec\\.[a-z0-9]+(?:[._-][a-z0-9]+)*$"},
+    "status": {"enum": ["stable", "experimental", "conditionally_enforced", "deprecated", "internal"]},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "owning_component": {"type": "string", "minLength": 1, "maxLength": 500},
+    "dependencies": {"$ref": "#/$defs/strings"},
+    "configuration": {"$ref": "#/$defs/strings"},
+    "inputs": {"$ref": "#/$defs/strings"},
+    "outputs": {"$ref": "#/$defs/strings"},
+    "artifacts": {"$ref": "#/$defs/strings"},
+    "coverage_states": {"type": "array", "uniqueItems": true, "items": {"enum": ["ran", "not_applicable", "not_configured", "tool_error"]}},
+    "exit_behavior": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "security_boundaries": {"$ref": "#/$defs/strings"},
+    "limitations": {"$ref": "#/$defs/strings"},
+    "human_documentation": {"$ref": "#/$defs/paths"},
+    "owning_source_files": {"$ref": "#/$defs/paths"},
+    "machine_schema": {"$ref": "#/$defs/paths"},
+    "compatibility_guarantees": {"$ref": "#/$defs/strings"},
+    "deprecation_policy": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "migration_notes": {"$ref": "#/$defs/strings"}
+  },
+  "$defs": {
+    "strings": {"type": "array", "maxItems": 256, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 1000}},
+    "paths": {"type": "array", "maxItems": 256, "uniqueItems": true, "items": {"type": "string", "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\]+$"}}
+  }
+}

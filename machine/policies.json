@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.catalog.policies",
+  "status": "stable",
+  "summary": "Policy modes, severity thresholds, profile baselines, and suppression formats.",
+  "source": "policy/severity-thresholds.yml",
+  "human_documentation": ["docs/security-validation-policy.md", "docs/false-positive-guide.md", "docs/v1-interface-reference.md"],
+  "members": ["policy.baseline.v1", "policy.enforcement.all", "policy.enforcement.new", "policy.enforcement.observe", "policy.suppression.v1", "vibesec.policies.contract"],
+  "statuses": {
+    "policy.baseline.v1": "stable",
+    "policy.enforcement.all": "stable",
+    "policy.enforcement.new": "stable",
+    "policy.enforcement.observe": "stable",
+    "policy.suppression.v1": "stable",
+    "vibesec.policies.contract": "stable"
+  }
+}

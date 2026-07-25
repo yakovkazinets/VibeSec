@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yakovkazinets/VibeSec/machine/schemas/release-readiness.schema.json",
+  "title": "VibeSec release readiness v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "stable_id", "status", "version", "main_commit", "schema_versions", "interface_statuses", "test_totals", "platform_support", "known_limitations", "deferred_features", "experimental_features", "threat_model_review", "release_artifact_verification", "migration_coverage", "documentation_coverage", "unresolved_risks", "release_blockers"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "stable_id": {"const": "vibesec.release-readiness.v1"},
+    "status": {"enum": ["ready", "ready_with_known_limitations", "blocked"]},
+    "version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "main_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "schema_versions": {"type": "object", "minProperties": 1},
+    "interface_statuses": {"type": "object", "minProperties": 1},
+    "test_totals": {"type": "object", "minProperties": 1},
+    "platform_support": {"type": "object", "minProperties": 1},
+    "known_limitations": {"$ref": "#/$defs/strings"},
+    "deferred_features": {"$ref": "#/$defs/strings"},
+    "experimental_features": {"$ref": "#/$defs/strings"},
+    "threat_model_review": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "release_artifact_verification": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "migration_coverage": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "documentation_coverage": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "unresolved_risks": {"$ref": "#/$defs/strings"},
+    "release_blockers": {"$ref": "#/$defs/strings"}
+  },
+  "$defs": {"strings": {"type": "array", "maxItems": 256, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 1000}}}
+}

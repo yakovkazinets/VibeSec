@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.catalog.release",
+  "status": "stable",
+  "summary": "Release candidate layout, manifest, provenance, readiness, checksum, and signature verification.",
+  "source": "config/release-manifest-schema.json",
+  "human_documentation": ["docs/release-signing.md", "docs/provenance.md", "docs/v1-release-readiness.md", "docs/v1-interface-reference.md"],
+  "members": ["release.manifest.v1", "release.provenance.v1", "release.readiness.v1", "release.verification-record.v1", "vibesec.release.contract"],
+  "statuses": {
+    "release.manifest.v1": "stable",
+    "release.provenance.v1": "stable",
+    "release.readiness.v1": "stable",
+    "release.verification-record.v1": "stable",
+    "vibesec.release.contract": "stable"
+  }
+}

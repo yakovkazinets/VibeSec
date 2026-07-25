@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.catalog.agents",
+  "status": "stable",
+  "summary": "Stable agent contract, adapter identifiers, safety rules, and task-pack identifiers.",
+  "source": "machine/agents/contract.json",
+  "human_documentation": ["docs/multi-agent-support.md", "docs/agent-adapters.md", "docs/agent-task-pack.md", "docs/v1-interface-reference.md"],
+  "members": ["agent.adapter.claude-code", "agent.adapter.codex", "agent.adapter.gemini-cli", "agent.adapter.kimi-cli", "agent.contract.v1", "agent.task.add-security-feature", "agent.task.fix-security-findings", "agent.task.prepare-pull-request", "agent.task.prepare-release-candidate", "agent.task.resolve-ci-failure", "agent.task.resolve-merge-conflicts", "agent.task.review-extension", "agent.task.security-audit", "agent.task.upgrade-vibesec", "agent.task.validate-installation", "vibesec.agents.contract"],
+  "statuses": {
+    "agent.adapter.claude-code": "stable",
+    "agent.adapter.codex": "stable",
+    "agent.adapter.gemini-cli": "stable",
+    "agent.adapter.kimi-cli": "stable",
+    "agent.contract.v1": "stable",
+    "agent.task.add-security-feature": "stable",
+    "agent.task.fix-security-findings": "stable",
+    "agent.task.prepare-pull-request": "stable",
+    "agent.task.prepare-release-candidate": "stable",
+    "agent.task.resolve-ci-failure": "stable",
+    "agent.task.resolve-merge-conflicts": "stable",
+    "agent.task.review-extension": "stable",
+    "agent.task.security-audit": "stable",
+    "agent.task.upgrade-vibesec": "stable",
+    "agent.task.validate-installation": "stable",
+    "vibesec.agents.contract": "stable"
+  }
+}

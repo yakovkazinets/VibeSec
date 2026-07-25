@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.catalog.scanners",
+  "status": "stable",
+  "summary": "Scanner and release-tool IDs with conditional labels for runtime-only coverage.",
+  "source": "config/tools.json",
+  "human_documentation": ["docs/tool-selection.md", "docs/security-capability-matrix.md", "docs/v1-interface-reference.md"],
+  "members": ["actionlint", "checkov", "cosign", "dast-fixture-python", "gitleaks", "opengrep", "osv-scanner", "schemathesis", "syft", "trivy", "vibesec.scanners.registry", "zap-baseline"],
+  "statuses": {
+    "actionlint": "stable",
+    "checkov": "conditionally_enforced",
+    "cosign": "conditionally_enforced",
+    "dast-fixture-python": "internal",
+    "gitleaks": "stable",
+    "opengrep": "stable",
+    "osv-scanner": "stable",
+    "schemathesis": "conditionally_enforced",
+    "syft": "stable",
+    "trivy": "stable",
+    "vibesec.scanners.registry": "stable",
+    "zap-baseline": "conditionally_enforced"
+  }
+}

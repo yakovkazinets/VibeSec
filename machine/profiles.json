@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.catalog.profiles",
+  "status": "stable",
+  "summary": "Stable passive profiles and conditionally enforced opt-in runtime add-ons.",
+  "source": "config/adoption-files.json",
+  "human_documentation": ["docs/profile-selection.md", "docs/v1-interface-reference.md"],
+  "members": ["vibesec.profiles.api-fuzzing", "vibesec.profiles.api-security-baseline", "vibesec.profiles.authenticated-security-testing", "vibesec.profiles.dast-baseline", "vibesec.profiles.minimal", "vibesec.profiles.standard"],
+  "statuses": {
+    "vibesec.profiles.api-fuzzing": "conditionally_enforced",
+    "vibesec.profiles.api-security-baseline": "conditionally_enforced",
+    "vibesec.profiles.authenticated-security-testing": "conditionally_enforced",
+    "vibesec.profiles.dast-baseline": "conditionally_enforced",
+    "vibesec.profiles.minimal": "stable",
+    "vibesec.profiles.standard": "stable"
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.migrations.v1",
+  "status": "stable",
+  "preservation_contract": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+  "records": [
+    {
+      "stable_id": "vibesec.migration.v0-1",
+      "from": "0.1.0",
+      "installation": "legacy",
+      "fixture": "tests/fixtures/v1-migrations/representative-installations.json",
+      "fixture_id": "v0.1.0",
+      "preserves": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+      "conflict_behavior": "report_without_overwrite",
+      "secret_handling": "preserve_name_never_value",
+      "expected_exit": 1
+    },
+    {
+      "stable_id": "vibesec.migration.v0-2",
+      "from": "0.2.0",
+      "installation": "legacy",
+      "fixture": "tests/fixtures/v1-migrations/representative-installations.json",
+      "fixture_id": "v0.2.0",
+      "preserves": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+      "conflict_behavior": "report_without_overwrite",
+      "secret_handling": "preserve_name_never_value",
+      "expected_exit": 1
+    },
+    {
+      "stable_id": "vibesec.migration.pre-v1",
+      "from": "0.3.0-dev",
+      "installation": "current-pre-v1",
+      "fixture": "tests/fixtures/v1-migrations/representative-installations.json",
+      "fixture_id": "current-pre-v1",
+      "preserves": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+      "conflict_behavior": "report_without_overwrite",
+      "secret_handling": "preserve_name_never_value",
+      "expected_exit": 1
+    },
+    {
+      "stable_id": "vibesec.migration.minimal",
+      "from": "pre-v1",
+      "installation": "minimal-only",
+      "fixture": "tests/fixtures/v1-migrations/representative-installations.json",
+      "fixture_id": "minimal-only",
+      "preserves": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+      "conflict_behavior": "report_without_overwrite",
+      "secret_handling": "preserve_name_never_value",
+      "expected_exit": 1
+    },
+    {
+      "stable_id": "vibesec.migration.standard",
+      "from": "pre-v1",
+      "installation": "standard",
+      "fixture": "tests/fixtures/v1-migrations/representative-installations.json",
+      "fixture_id": "standard",
+      "preserves": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+      "conflict_behavior": "report_without_overwrite",
+      "secret_handling": "preserve_name_never_value",
+      "expected_exit": 1
+    },
+    {
+      "stable_id": "vibesec.migration.dast",
+      "from": "pre-v1",
+      "installation": "dast",
+      "fixture": "tests/fixtures/v1-migrations/representative-installations.json",
+      "fixture_id": "dast",
+      "preserves": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+      "conflict_behavior": "report_without_overwrite",
+      "secret_handling": "preserve_name_never_value",
+      "expected_exit": 1
+    },
+    {
+      "stable_id": "vibesec.migration.api",
+      "from": "pre-v1",
+      "installation": "api",
+      "fixture": "tests/fixtures/v1-migrations/representative-installations.json",
+      "fixture_id": "api",
+      "preserves": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+      "conflict_behavior": "report_without_overwrite",
+      "secret_handling": "preserve_name_never_value",
+      "expected_exit": 1
+    },
+    {
+      "stable_id": "vibesec.migration.authenticated",
+      "from": "pre-v1",
+      "installation": "authenticated",
+      "fixture": "tests/fixtures/v1-migrations/representative-installations.json",
+      "fixture_id": "authenticated",
+      "preserves": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+      "conflict_behavior": "report_without_overwrite",
+      "secret_handling": "preserve_name_never_value",
+      "expected_exit": 1
+    },
+    {
+      "stable_id": "vibesec.migration.fuzzing",
+      "from": "pre-v1",
+      "installation": "fuzzing",
+      "fixture": "tests/fixtures/v1-migrations/representative-installations.json",
+      "fixture_id": "fuzzing",
+      "preserves": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+      "conflict_behavior": "report_without_overwrite",
+      "secret_handling": "preserve_name_never_value",
+      "expected_exit": 1
+    },
+    {
+      "stable_id": "vibesec.migration.extension",
+      "from": "pre-v1",
+      "installation": "extension",
+      "fixture": "tests/fixtures/v1-migrations/representative-installations.json",
+      "fixture_id": "extension",
+      "preserves": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+      "conflict_behavior": "report_without_overwrite",
+      "secret_handling": "preserve_name_never_value",
+      "expected_exit": 1
+    },
+    {
+      "stable_id": "vibesec.migration.multi-agent",
+      "from": "pre-v1",
+      "installation": "multi-agent",
+      "fixture": "tests/fixtures/v1-migrations/representative-installations.json",
+      "fixture_id": "multi-agent",
+      "preserves": ["baselines", "disabled_adapters", "explicit_answers", "explicit_no_answers", "extension_states", "local_workflow_customizations", "secret_names_only", "suppressions", "unrelated_files", "user_agent_files"],
+      "conflict_behavior": "report_without_overwrite",
+      "secret_handling": "preserve_name_never_value",
+      "expected_exit": 1
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.catalog.configuration",
+  "status": "stable",
+  "summary": "Public configuration registries, schemas, bundle layout, and strict format boundary.",
+  "source": "config/environment-variables.json",
+  "human_documentation": ["docs/configuration.md", "docs/distribution.md", "docs/v1-interface-reference.md"],
+  "members": ["config/adoption-files.json", "config/environment-variables.json", "config/extension-manifest-schema.json", "config/github-actions.json", "config/portable-execution.json", "config/security-capabilities.json", "config/tools.json", "vibesec.configuration.contract"],
+  "statuses": {
+    "config/adoption-files.json": "stable",
+    "config/environment-variables.json": "stable",
+    "config/extension-manifest-schema.json": "stable",
+    "config/github-actions.json": "stable",
+    "config/portable-execution.json": "experimental",
+    "config/security-capabilities.json": "stable",
+    "config/tools.json": "stable",
+    "vibesec.configuration.contract": "stable"
+  }
+}

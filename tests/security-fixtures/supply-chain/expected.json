@@ -3,6 +3,7 @@
   "required_cases": [
     "deterministic-checksums",
     "release-manifest",
+    "release-readiness-linkage",
     "provenance-schema",
     "subject-digest-matching",
     "tampered-artifact",

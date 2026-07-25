@@ -40,6 +40,13 @@ jobs:
           .tools/bin/syft scan dir:. --config config/syft-standard.yaml -o cyclonedx-json=release-work/sbom.cyclonedx.json
           .tools/bin/syft scan dir:. --config config/syft-standard.yaml -o spdx-json=release-work/sbom.spdx.json
           python3 scripts/validate_sbom.py --cyclonedx release-work/sbom.cyclonedx.json --spdx release-work/sbom.spdx.json
+      - name: Generate exact-commit release readiness
+        run: >-
+          python3 scripts/generate_release_readiness.py
+          --output release-work/release-readiness.json
+          --main-commit "${{ github.sha }}"
+          --test-total-file machine/release-readiness.json
+          --test-evidence required-validate
       - name: Prepare checksums manifest and provenance
         run: >-
           python3 scripts/prepare_release_artifacts.py
@@ -47,6 +54,7 @@ jobs:
           --bundle release-work/first.zip
           --cyclonedx release-work/sbom.cyclonedx.json
           --spdx release-work/sbom.spdx.json
+          --readiness release-work/release-readiness.json
           --source-commit "${{ github.sha }}"
           --creation-mode trusted-github-workflow
           --invocation-id "${{ github.run_id }}:${{ github.run_attempt }}"

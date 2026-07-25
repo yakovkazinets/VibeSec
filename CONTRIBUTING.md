@@ -13,12 +13,15 @@ Open or reference an issue for changes that alter policy, scanner selection, res
 3. Run `python3 -m unittest discover -s tests -v`.
 4. Validate YAML and run actionlint when available.
 5. Run `python3 scripts/validate_repository.py`, `python3 scripts/validate_opengrep_rules.py`, and `python3 scripts/validate_skill.py skills/appsec-guardian` when their scope is changed.
-6. Document verified upstream versions, licenses, checksums, signatures or image digests, network behavior, and overlap.
-7. Add a changelog entry for user-visible behavior.
+6. Run `python3 scripts/validate_v1_interfaces.py` and `python3 scripts/validate_documentation_contract.py`; regenerate reference tables with `python3 scripts/generate_v1_reference.py`.
+7. Document verified upstream versions, licenses, checksums, signatures or image digests, network behavior, and overlap.
+8. Add a changelog entry for user-visible behavior.
 
 Dependency updates must use an official upstream source, immutable version or digest, recorded license, reviewed checksum or signature, and positive and negative accountability. Do not commit downloaded binaries. Release-manifest, provenance, checksum, identity, issuer, action-pin, or release-workflow changes require two-person review and must preserve the manual trusted trigger and no-publication boundary.
 
 Scanner findings are untrusted input. Fixtures must be harmless, unmistakably fake, and must never contain usable credentials or offensive payloads. A suppression contribution must include a fingerprint, reason, owner, and expiration date. Never weaken an existing control silently.
+
+Changing a stable v1 command, ID, schema, coverage state, exit category, profile, artifact, extension, agent contract, or workflow requires compatibility analysis. Incompatible stable changes wait for a major version; deprecations require migration guidance. Machine catalogs are authoritative for exact public metadata, while tutorials and threat models remain curated prose.
 
 ## Security capability accountability
 

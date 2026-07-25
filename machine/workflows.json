@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.catalog.workflows",
+  "status": "stable",
+  "summary": "Distributed templates, trusted integration workflows, CI, and release-candidate workflow.",
+  "source": "config/adoption-files.json",
+  "human_documentation": ["docs/github-actions-runtime.md", "docs/v1-interface-reference.md"],
+  "members": [".github/workflows/api-fuzzing-integration.yml", ".github/workflows/api-security-integration.yml", ".github/workflows/authenticated-api-integration.yml", ".github/workflows/authenticated-dast-integration.yml", ".github/workflows/ci.yml", ".github/workflows/dast-integration.yml", ".github/workflows/release-candidate.yml", "templates/github-actions/api-fuzzing.yml", "templates/github-actions/api-security-baseline.yml", "templates/github-actions/dast-baseline.yml", "templates/github-actions/security-baseline.yml", "templates/github-actions/security-standard.yml", "vibesec.workflows.contract"],
+  "statuses": {
+    ".github/workflows/api-fuzzing-integration.yml": "conditionally_enforced",
+    ".github/workflows/api-security-integration.yml": "conditionally_enforced",
+    ".github/workflows/authenticated-api-integration.yml": "conditionally_enforced",
+    ".github/workflows/authenticated-dast-integration.yml": "conditionally_enforced",
+    ".github/workflows/ci.yml": "stable",
+    ".github/workflows/dast-integration.yml": "conditionally_enforced",
+    ".github/workflows/release-candidate.yml": "conditionally_enforced",
+    "templates/github-actions/api-fuzzing.yml": "conditionally_enforced",
+    "templates/github-actions/api-security-baseline.yml": "conditionally_enforced",
+    "templates/github-actions/dast-baseline.yml": "conditionally_enforced",
+    "templates/github-actions/security-baseline.yml": "stable",
+    "templates/github-actions/security-standard.yml": "stable",
+    "vibesec.workflows.contract": "stable"
+  }
+}

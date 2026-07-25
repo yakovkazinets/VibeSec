@@ -42,6 +42,7 @@ REQUIRED_CONSUMER_PATHS = {
     "scripts/plan_vibesec_upgrade.py", "scripts/vibesec/bundle.py",
     "scripts/vibesec/github_actions.py",
     "scripts/vibesec/supply_chain.py",
+    "scripts/vibesec/v1_contract.py",
     "vibesec", "config/portable-execution.json", "config/extension-manifest-schema.json",
     "scripts/manage_extensions.py", "scripts/vibesec/portable.py", "scripts/vibesec/extensions.py",
     "extensions/examples/repository-metadata/vibesec-extension.json",
@@ -76,6 +77,11 @@ REQUIRED_CONSUMER_PATHS = {
     "machine/agents/tasks/prepare-pull-request.json", "machine/agents/tasks/resolve-ci-failure.json",
     "machine/agents/tasks/resolve-merge-conflicts.json", "machine/agents/tasks/prepare-release-candidate.json",
     "scripts/verify_release_artifacts.py", "config/release-manifest-schema.json", "config/provenance-schema.json", "config/supply-chain-policy.json",
+    "machine/interfaces.json", "machine/documentation-map.json", "machine/release-readiness.json",
+    "machine/schemas/public-interface.schema.json", "machine/schemas/domain-catalog.schema.json",
+    "machine/schemas/release-readiness.schema.json", "docs/index.md", "docs/v1-stability-policy.md",
+    "docs/v1-support-policy.md", "docs/v1-interface-reference.md", "docs/v1-migrations.md",
+    "docs/v1-security-review.md", "docs/v1-release-readiness.md", "docs/examples.md",
 }
 REQUIRED_EXECUTABLES = {
     "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py", "scripts/run_dast_baseline.py", "scripts/validate_dast_artifacts.py",

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Prepare `1.0.0-dev` with a strict public-interface inventory, v1 stability and support policy, complete human/machine documentation map, documentation drift enforcement, representative migration records, parser and security review, and exact-commit release readiness.
 - Add a canonical vendor-neutral agent guidance contract, deterministic Codex, Claude Code, Gemini CLI, and Kimi Code CLI adapters, capability-aware task packs, dry-run-first lifecycle management, digest inventory, offline doctor and verification, threat-model fixtures, and mandatory CI accountability.
 - Add a portable local `vibesec` CLI, deterministic native/container/auto selection, an explicit Linux/macOS support matrix, and fail-closed reporting for unavailable complete profile modes.
 - Add strict local-only scanner extensions with versioned manifests, namespaced capabilities, restricted permissions, atomic dry-run-first lifecycle management, digest inventories, subprocess adapters, bounded artifacts/diagnostics, a harmless reference extension, and extension-aware distribution and accountability.
@@ -17,9 +18,7 @@
 - Add a separate opt-in passive OWASP ZAP Baseline add-on with immutable non-root target validation, internal Docker isolation, strict normalization, independent policy, sanitized artifacts, accountability fixtures, consumer installation, documentation, and a manual starter workflow.
 - Add a strict project-capability questionnaire and manifest with Yes-by-default interactive answers, explicit non-interactive input, manifest-driven scanner applicability, preservation-aware upgrades, and VibeSec DAST reported as `not_applicable`.
 
-All notable changes will be documented here. The project follows semantic versioning after its first tagged release.
-
-## Unreleased
+All notable changes are documented here. The project follows semantic versioning; every item above and below this sentence remains part of the single Unreleased section until a release is explicitly published.
 
 ### Added
 

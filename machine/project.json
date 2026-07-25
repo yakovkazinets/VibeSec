@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.catalog.project",
+  "status": "stable",
+  "summary": "Project identity, v1 stability vocabulary, exact aggregate status, and coverage vocabulary.",
+  "source": "VERSION",
+  "human_documentation": ["README.md", "docs/index.md", "docs/v1-stability-policy.md"],
+  "members": ["vibesec.coverage.states", "vibesec.runtime.exit-codes"],
+  "statuses": {
+    "vibesec.coverage.states": "stable",
+    "vibesec.runtime.exit-codes": "stable"
+  }
+}

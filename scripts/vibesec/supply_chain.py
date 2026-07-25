@@ -20,6 +20,7 @@ from typing import Any
 from .bundle import verify_bundle
 from .sbom import validate_cyclonedx, validate_spdx
 from .strict_json import StrictJSONError, canonical_json, loads_strict
+from .v1_contract import V1ContractError, validate_readiness
 from .version import validate_version
 
 RELEASE_SCHEMA = 1
@@ -39,11 +40,12 @@ LOCAL_BUILDER_IDENTITY = "https://github.com/yakovkazinets/VibeSec/builders/loca
 BUNDLE_NAME = "vibesec-consumer-bundle.zip"
 CYCLONEDX_NAME = "sbom.cyclonedx.json"
 SPDX_NAME = "sbom.spdx.json"
+READINESS_NAME = "release-readiness.json"
 PROVENANCE_NAME = "provenance.intoto.jsonl"
 MANIFEST_NAME = "release-manifest.json"
 CHECKSUMS_NAME = "SHA256SUMS"
 SIGNATURE_NAME = "SHA256SUMS.sigstore.json"
-CORE_NAMES = (BUNDLE_NAME, CYCLONEDX_NAME, SPDX_NAME)
+CORE_NAMES = (BUNDLE_NAME, CYCLONEDX_NAME, SPDX_NAME, READINESS_NAME)
 CHECKSUM_NAMES = (*CORE_NAMES, PROVENANCE_NAME, MANIFEST_NAME)
 UNSIGNED_NAMES = (*CHECKSUM_NAMES, CHECKSUMS_NAME)
 SIGNED_NAMES = (*UNSIGNED_NAMES, SIGNATURE_NAME)
@@ -51,6 +53,7 @@ MEDIA_TYPES = {
     BUNDLE_NAME: "application/zip",
     CYCLONEDX_NAME: "application/vnd.cyclonedx+json",
     SPDX_NAME: "application/spdx+json",
+    READINESS_NAME: "application/vnd.vibesec.release-readiness+json",
 }
 
 
@@ -189,6 +192,7 @@ def create_release_manifest(*, directory: Path, version: str, source_commit: str
             "provenance": PROVENANCE_SCHEMA,
             "cyclonedx": "1.7",
             "spdx": "SPDX-2.3",
+            "release_readiness": 1,
         },
         "tool_versions": dict(sorted(tool_versions.items())),
         "creation_mode": creation_mode,
@@ -221,6 +225,7 @@ def validate_release_manifest(value: Any) -> dict[str, Any]:
     expected_schema = {
         "release_manifest": RELEASE_SCHEMA, "provenance": PROVENANCE_SCHEMA,
         "cyclonedx": "1.7", "spdx": "SPDX-2.3",
+        "release_readiness": 1,
     }
     if value.get("schema_versions") != expected_schema:
         raise SupplyChainError("release manifest schema declarations are invalid")
@@ -358,6 +363,7 @@ def _copy_regular(source: Path, destination: Path) -> None:
 
 
 def prepare_release(directory: Path, *, bundle: Path, cyclonedx: Path, spdx: Path,
+                    readiness: Path,
                     version: str, source_commit: str, tool_versions: dict[str, str],
                     creation_mode: str, invocation_id: str) -> dict[str, Any]:
     if directory.exists() or directory.is_symlink():
@@ -365,7 +371,10 @@ def prepare_release(directory: Path, *, bundle: Path, cyclonedx: Path, spdx: Pat
     parent = directory.parent.resolve(strict=True)
     temporary = Path(tempfile.mkdtemp(prefix=f".{directory.name}.", dir=parent))
     try:
-        for source, name in ((bundle, BUNDLE_NAME), (cyclonedx, CYCLONEDX_NAME), (spdx, SPDX_NAME)):
+        for source, name in (
+            (bundle, BUNDLE_NAME), (cyclonedx, CYCLONEDX_NAME),
+            (spdx, SPDX_NAME), (readiness, READINESS_NAME),
+        ):
             _copy_regular(source, temporary / name)
         verified_bundle = verify_bundle(temporary / BUNDLE_NAME)
         if verified_bundle.version != version or verified_bundle.source_commit != source_commit:
@@ -374,6 +383,13 @@ def prepare_release(directory: Path, *, bundle: Path, cyclonedx: Path, spdx: Pat
         _load_strict_json(temporary / SPDX_NAME)
         validate_cyclonedx(temporary / CYCLONEDX_NAME)
         validate_spdx(temporary / SPDX_NAME)
+        try:
+            validate_readiness(
+                _load_canonical_json(temporary / READINESS_NAME),
+                source_commit=source_commit,
+            )
+        except V1ContractError as exc:
+            raise SupplyChainError(f"release readiness is invalid: {exc}") from exc
         manifest = create_release_manifest(
             directory=temporary, version=version, source_commit=source_commit,
             tool_versions=tool_versions, creation_mode=creation_mode,
@@ -446,6 +462,13 @@ def verify_release(directory: Path, *, require_signature: bool = False,
     _load_strict_json(resolved / SPDX_NAME)
     validate_cyclonedx(resolved / CYCLONEDX_NAME)
     validate_spdx(resolved / SPDX_NAME)
+    try:
+        validate_readiness(
+            _load_canonical_json(resolved / READINESS_NAME),
+            source_commit=manifest["source"]["commit"],
+        )
+    except V1ContractError as exc:
+        raise SupplyChainError(f"release readiness is invalid: {exc}") from exc
     signature_verified = False
     if SIGNATURE_NAME in names:
         _load_strict_json(resolved / SIGNATURE_NAME, MAX_SIGNATURE_BYTES)

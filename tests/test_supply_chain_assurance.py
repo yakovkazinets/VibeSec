@@ -15,7 +15,7 @@ from vibesec.bundle import build_bundle_bytes, verify_bundle  # noqa: E402
 from vibesec.strict_json import canonical_json  # noqa: E402
 from vibesec.supply_chain import (  # noqa: E402
     BUNDLE_NAME, CHECKSUMS_NAME, CYCLONEDX_NAME, MANIFEST_NAME,
-    OIDC_ISSUER, PROVENANCE_NAME, SIGNATURE_NAME, SPDX_NAME,
+    OIDC_ISSUER, PROVENANCE_NAME, READINESS_NAME, SIGNATURE_NAME, SPDX_NAME,
     WORKFLOW_IDENTITY, SupplyChainError, checksum_bytes, prepare_release,
     validate_verification_record, verification_record, verify_release,
 )
@@ -33,12 +33,17 @@ class SupplyChainAssuranceTests(unittest.TestCase):
         self.spdx = self.root / "spdx.json"
         self.cyclonedx.write_bytes((ROOT / "examples/reports/sbom.cyclonedx.json").read_bytes())
         self.spdx.write_bytes((ROOT / "examples/reports/sbom.spdx.json").read_bytes())
+        self.readiness = self.root / "readiness.json"
+        readiness = json.loads((ROOT / "machine/release-readiness.json").read_text())
+        readiness["main_commit"] = self.commit
+        self.readiness.write_bytes(canonical_json(readiness))
 
     def prepare(self, name="release", creation_mode="local-preparation"):
         output = self.root / name
         prepare_release(
             output, bundle=self.bundle, cyclonedx=self.cyclonedx, spdx=self.spdx,
-            version="0.3.0-dev", source_commit=self.commit,
+            readiness=self.readiness, version=(ROOT / "VERSION").read_text().strip(),
+            source_commit=self.commit,
             tool_versions={"cosign": "3.1.2", "syft": "1.49.0"},
             creation_mode=creation_mode, invocation_id="controlled-test",
         )
@@ -55,12 +60,12 @@ class SupplyChainAssuranceTests(unittest.TestCase):
         self.assertFalse(result.signature_verified)
         self.assertEqual(result.manifest["source"]["commit"], self.commit)
         self.assertEqual(list(result.checksums), [
-            BUNDLE_NAME, CYCLONEDX_NAME, SPDX_NAME, PROVENANCE_NAME, MANIFEST_NAME,
+            BUNDLE_NAME, CYCLONEDX_NAME, SPDX_NAME, READINESS_NAME, PROVENANCE_NAME, MANIFEST_NAME,
         ])
         self.assertNotIn(str(self.root), json.dumps(result.manifest))
 
     def test_bundle_sbom_manifest_provenance_and_checksum_tampering_fail(self):
-        cases = (BUNDLE_NAME, CYCLONEDX_NAME, SPDX_NAME, MANIFEST_NAME, PROVENANCE_NAME, CHECKSUMS_NAME)
+        cases = (BUNDLE_NAME, CYCLONEDX_NAME, SPDX_NAME, READINESS_NAME, MANIFEST_NAME, PROVENANCE_NAME, CHECKSUMS_NAME)
         for name in cases:
             release = self.prepare(f"tamper-{name.replace('.', '-')}")
             path = release / name
@@ -275,7 +280,7 @@ class SupplyChainAssuranceTests(unittest.TestCase):
     def test_accountability_catalog_lists_all_required_cases(self):
         catalog = json.loads((ROOT / "tests/security-fixtures/supply-chain/expected.json").read_text())
         self.assertEqual(catalog["schema_version"], 1)
-        self.assertEqual(len(catalog["required_cases"]), 15)
+        self.assertEqual(len(catalog["required_cases"]), 16)
         self.assertEqual(len(catalog["required_cases"]), len(set(catalog["required_cases"])))
 
 

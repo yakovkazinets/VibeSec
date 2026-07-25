@@ -7,6 +7,7 @@ it. The set is exactly:
 vibesec-consumer-bundle.zip
 sbom.cyclonedx.json
 sbom.spdx.json
+release-readiness.json
 provenance.intoto.jsonl
 release-manifest.json
 SHA256SUMS
@@ -14,15 +15,15 @@ SHA256SUMS.sigstore.json
 ```
 
 The deterministic consumer ZIP remains the distributable product. The two
-SBOMs, SLSA-aligned provenance, release manifest, checksum list, and Sigstore
+SBOMs, exact-commit readiness report, SLSA-aligned provenance, release manifest, checksum list, and Sigstore
 bundle are external assurance metadata so timestamps and transparency-log
 material cannot make the ZIP non-reproducible. `release-manifest.json` records
 the version, full source commit, closed artifact names, SHA-256 digests, sizes,
 media types, schema versions, reviewed tool versions, creation mode, and
-provenance linkage. It contains no runner path, secret, or mutable URL.
+readiness schema, and provenance linkage. It contains no runner path, secret, or mutable URL.
 
 `scripts/prepare_release_artifacts.py` strictly validates the existing ZIP and
-SBOM identities before writing metadata. `scripts/verify_release_artifacts.py`
+SBOM identities and the fail-closed readiness record before writing metadata. `scripts/verify_release_artifacts.py`
 strictly parses canonical JSON, rejects duplicate keys, unknown or missing
 files, links, oversized inputs, wrong subjects, digest mismatch, bundle
 identity mismatch, and malformed signature bundles. Checksum-only verification

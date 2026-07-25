@@ -22,6 +22,8 @@ Review the code and configuration before using it, validate it against your own 
 
 ## Start here
 
+- [Complete documentation index](docs/index.md)
+- [v1 stability policy](docs/v1-stability-policy.md), [support policy](docs/v1-support-policy.md), and [generated interface reference](docs/v1-interface-reference.md)
 - [Five-minute Quick Start](docs/quickstart.md)
 - [Minimal versus Standard](docs/profile-selection.md)
 - [Compatibility matrix](docs/compatibility.md)
@@ -63,7 +65,7 @@ The initializer asks 17 project-capability questions, each displayed with `[Y/n]
 
 Add `--write` only after reviewing the machine-readable plan. Minimal is one stage. Standard deliberately requires support files to land on the default branch before `--stage workflow` is initialized in a second change, preserving the base-revision trusted-harness boundary. Existing-file conflicts are never overwritten.
 
-For offline distribution, build and verify a deterministic consumer ZIP, then pass it to the initializer with `--bundle`. Future official release candidates add strict manifests, checksums, signed checksum metadata, SBOM identity, and SLSA-aligned provenance outside the reproducible ZIP. Verify those files with a separately trusted copy of `scripts/verify_release_artifacts.py`; never bootstrap trust by executing an unverified downloaded script. Check installed support with `scripts/verify_installation.py`, diagnose it offline with `scripts/vibesec_doctor.py`, and compare it to a newer verified bundle with the read-only `scripts/plan_vibesec_upgrade.py`. Local development bundles remain unsigned; signature validity proves identity and integrity, not application security.
+For offline distribution, build and verify a deterministic consumer ZIP, then pass it to the initializer with `--bundle`. The manual official release-candidate path adds strict manifests, checksums, release readiness, signed checksum metadata, SBOM identity, and SLSA-aligned provenance outside the reproducible ZIP. Verify those files with a separately trusted copy of `scripts/verify_release_artifacts.py`; never bootstrap trust by executing an unverified downloaded script. Check installed support with `scripts/verify_installation.py`, diagnose it offline with `scripts/vibesec_doctor.py`, and compare it to a newer verified bundle with the read-only `scripts/plan_vibesec_upgrade.py`. Local development bundles remain unsigned; signature validity proves identity and integrity, not application security.
 
 Both profiles start in `observe`; findings are visible while tool/parser failures still fail closed. After review, populate only the matching profile baseline and move to `new`. Manual adopters can use `config/adoption-files.json` as the authoritative file list and copy the matching workflow byte-for-byte; preserve executable modes and never interchange baselines.
 

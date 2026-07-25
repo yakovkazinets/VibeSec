@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.catalog.extensions",
+  "status": "stable",
+  "summary": "Extension kinds, permission vocabulary, manifest schema, and lifecycle contract.",
+  "source": "config/extension-manifest-schema.json",
+  "human_documentation": ["docs/extensions.md", "docs/extension-authoring.md", "docs/extension-security-model.md", "docs/v1-interface-reference.md"],
+  "members": ["extension.kind.scanner", "extension.manifest.v1", "extension.permissions.v1", "vibesec.extensions.contract"],
+  "statuses": {
+    "extension.kind.scanner": "stable",
+    "extension.manifest.v1": "stable",
+    "extension.permissions.v1": "stable",
+    "vibesec.extensions.contract": "stable"
+  }
+}

@@ -1,0 +1,11 @@
+# VibeSec v1 security and parser review
+
+The v1 review rechecked pull-request trust boundaries, workflow permissions, immutable action and tool pins, archive extraction, parser ambiguity, path and link handling, shell quoting, secret redaction, Docker and network isolation, public-target rejection, extension permissions, agent prompt-injection boundaries, release signing and provenance, scanner failure propagation, stale artifact removal, raw result handling, and policy/baseline separation.
+
+Untrusted pull-request content remains scan data. No supplied workflow uses `pull_request_target`. Required CI has read-only repository permission, checkout credentials are not persisted, and trusted harness/configuration comes from the reviewed revision. Live target and OIDC jobs use explicit trusted events.
+
+JSON contract boundaries reject BOMs, invalid UTF-8, duplicate keys, non-finite numbers, controls, oversized documents, excessive nesting, and trailing data. V1 machine documents additionally require NFC strings and exact fields. YAML configuration uses safe loaders with aliases and custom tags disabled where accepted; multi-document or type-confused inputs fail the owning validator. Archive readers reject traversal, absolute or ambiguous paths, case/Unicode collisions, links, devices, duplicate members, unsafe modes, oversized content, extension mismatches, and unexpected files. Repository-relative path checks reject Windows separators and drive paths even on POSIX hosts. Symlinks are rejected at trust boundaries; extracted hardlinks are not accepted.
+
+Scanner output is untrusted. Normalization, redaction, and strict artifact validation occur before publication. Raw ZAP and Schemathesis output is deleted, authentication tokens and Authorization headers are excluded, and tool or cleanup failures stay non-clean. Baselines and suppressions remain profile-specific and cannot manufacture coverage.
+
+The remaining risks are documented limitations, not proof of safety: scanners are incomplete; local maintainers still trust installed extension code; external coding agents can ignore guidance; online advisory and registry operations expose documented metadata; SBOMs disclose dependency names and versions; and platform/live integration behavior depends on operator-controlled infrastructure.

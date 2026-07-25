@@ -24,6 +24,7 @@ def main() -> int:
     parser.add_argument("--bundle", required=True, type=Path)
     parser.add_argument("--cyclonedx", required=True, type=Path)
     parser.add_argument("--spdx", required=True, type=Path)
+    parser.add_argument("--readiness", required=True, type=Path)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--creation-mode", choices=("local-preparation", "trusted-github-workflow"), default="local-preparation")
     parser.add_argument("--invocation-id", required=True)
@@ -43,6 +44,7 @@ def main() -> int:
             raise SupplyChainError("release tool versions are unavailable")
         manifest = prepare_release(
             args.output, bundle=args.bundle, cyclonedx=args.cyclonedx, spdx=args.spdx,
+            readiness=args.readiness,
             version=version, source_commit=args.source_commit, tool_versions=tool_versions,
             creation_mode=args.creation_mode, invocation_id=args.invocation_id,
         )

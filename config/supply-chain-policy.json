@@ -10,6 +10,7 @@
     "vibesec-consumer-bundle.zip",
     "sbom.cyclonedx.json",
     "sbom.spdx.json",
+    "release-readiness.json",
     "provenance.intoto.jsonl",
     "release-manifest.json",
     "SHA256SUMS",

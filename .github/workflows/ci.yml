@@ -264,8 +264,58 @@ jobs:
           VIBESEC_AGENT_EXTERNAL_CLI: disabled
         run: python3 -m unittest -v tests.test_agent_guidance tests.test_agent_documentation
 
+  documentation-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out human and machine documentation without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Validate documentation parity links examples and deterministic tables
+        run: |
+          python3 -m unittest -v tests.test_v1_documentation
+          python3 scripts/validate_documentation_contract.py
+
+  v1-interface-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out strict v1 contracts without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Validate interface schemas statuses parsers and runtime meanings
+        run: |
+          python3 -m unittest -v tests.test_v1_contract
+          python3 scripts/validate_v1_interfaces.py
+
+  migration-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out migration contracts without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Validate representative migrations and preservation behavior
+        run: python3 -m unittest -v tests.test_v1_migrations tests.test_distribution_lifecycle
+
+  release-readiness-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out readiness and release contracts without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Validate readiness release artifacts provenance and tampering offline
+        run: >-
+          python3 -m unittest -v tests.test_v1_release_readiness
+          tests.test_supply_chain_assurance
+
   validate:
-    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts, agent-documentation-contract]
+    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts, agent-documentation-contract, documentation-contract, v1-interface-contract, migration-artifacts, release-readiness-artifacts]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

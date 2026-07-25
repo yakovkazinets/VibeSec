@@ -105,7 +105,7 @@ class GitHubActionsInventoryTests(unittest.TestCase):
 
     def test_artifact_contract_and_checkout_credential_contract_are_preserved(self):
         expected_fetch_depths = {
-            ".github/workflows/ci.yml": [0, 0, None, None, None, None, None, None, None, None, None, None, None, 0],
+            ".github/workflows/ci.yml": [0, 0, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, 0],
             ".github/workflows/api-fuzzing-integration.yml": [None],
             ".github/workflows/api-security-integration.yml": [None],
             ".github/workflows/dast-integration.yml": [None],
@@ -224,6 +224,10 @@ class GitHubActionsInventoryTests(unittest.TestCase):
             "portable-execution-artifacts",
             "extension-platform-artifacts",
             "agent-documentation-contract",
+            "documentation-contract",
+            "v1-interface-contract",
+            "migration-artifacts",
+            "release-readiness-artifacts",
         ])
 
     def test_repository_has_no_owned_node_runtime_or_compatibility_override(self):

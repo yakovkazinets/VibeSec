@@ -24,6 +24,7 @@ from vibesec.portable import load_support  # noqa: E402
 from vibesec.strict_json import loads_strict  # noqa: E402
 from vibesec.schemathesis_runtime import trusted_active_schemathesis_command, trusted_schemathesis_command  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
+from vibesec.v1_contract import validate_catalogs, validate_examples, validate_migrations, load_readiness  # noqa: E402
 from vibesec.zap_automation import (  # noqa: E402
     CONTAINER_ZAP_HOME, JOB_TYPES, REPORT_FILENAME, REPORT_TEMPLATE,
     RUNTIME_ADDON_OPTIONS, build_passive_plan, trusted_zap_command,
@@ -262,8 +263,8 @@ def validate_api_command_contract() -> None:
 
 def validate_adoption_metadata() -> None:
     version = read_version(ROOT)
-    if version != "0.3.0-dev":
-        raise ValueError("VERSION must declare the reviewed unreleased 0.3.0-dev development version")
+    if version != "1.0.0-dev":
+        raise ValueError("VERSION must declare the reviewed unreleased 1.0.0-dev development version")
     adoption = validate_catalog(loads_strict((ROOT / "config/adoption-files.json").read_bytes()))
     common = adoption.get("common")
     profiles = adoption.get("profiles")
@@ -325,7 +326,7 @@ def validate_github_actions_documentation() -> None:
     if any(marker not in runtime for marker in markers):
         raise ValueError("GitHub Actions runtime documentation is incomplete")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts, agent-documentation-contract]"
+    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts, agent-documentation-contract, documentation-contract, v1-interface-contract, migration-artifacts, release-readiness-artifacts]"
     if expected not in ci or ci.count("\n  validate:\n") != 1:
         raise ValueError("validate must remain the single required aggregate CI job")
 
@@ -349,6 +350,7 @@ def validate_supply_chain_configuration() -> None:
         raise ValueError("supply-chain policy values are invalid")
     expected = [
         "vibesec-consumer-bundle.zip", "sbom.cyclonedx.json", "sbom.spdx.json",
+        "release-readiness.json",
         "provenance.intoto.jsonl", "release-manifest.json", "SHA256SUMS",
         "SHA256SUMS.sigstore.json",
     ]
@@ -426,6 +428,23 @@ def validate_agent_documentation_contract() -> None:
         raise ValueError("agent documentation accountability job requests network, Docker, or credentials")
 
 
+def validate_v1_release_contract() -> None:
+    validate_catalogs(ROOT)
+    validate_examples(ROOT)
+    validate_migrations(ROOT)
+    load_readiness(
+        ROOT / "machine/release-readiness.json",
+        source_commit="eb8fb0e0f2b8a8c2c89de0cc77b801558d9f3f9a",
+    )
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    for job in (
+        "documentation-contract", "v1-interface-contract",
+        "migration-artifacts", "release-readiness-artifacts",
+    ):
+        if ci.count(f"\n  {job}:\n") != 1:
+            raise ValueError(f"required v1 accountability job is missing or duplicated: {job}")
+
+
 def main() -> int:
     try:
         validate_tools()
@@ -438,6 +457,7 @@ def main() -> int:
         validate_supply_chain_configuration()
         validate_portable_extension_platform()
         validate_agent_documentation_contract()
+        validate_v1_release_contract()
         inventory = load_action_inventory(ROOT / "config/github-actions.json")
         action_errors = audit_tracked_files(ROOT, inventory)
         if action_errors:

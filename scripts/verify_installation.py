@@ -9,6 +9,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED, WARNINGS  # noqa: E402
+from vibesec.agents import AgentGuidanceError, verify_adapters  # noqa: E402
 from vibesec.extensions import ExtensionError, verify_extensions  # noqa: E402
 from vibesec.installation import InstallationError, verify_installation  # noqa: E402
 from vibesec.output import emit, envelope  # noqa: E402
@@ -29,10 +30,16 @@ def main() -> int:
     try:
         state = verify_installation(args.target)
         extension_state = verify_extensions(state.target)
+        agent_state = verify_adapters(ROOT, state.target)
         result = state.result()
         result["extension_verification"] = extension_state
-        status = "invalid" if extension_state["status"] != "valid" else state.status
+        result["agent_verification"] = agent_state
+        status = "invalid" if extension_state["status"] != "valid" or agent_state["status"] != "valid" else state.status
         errors = [*state.errors, *extension_state["errors"]]
+        errors.extend(
+            f"{item['adapter_id']}: {item['detail']}"
+            for item in agent_state["adapters"] if item["state"] not in {"valid", "disabled"}
+        )
         payload = envelope(
             "verify_installation", tool_version, status, result=result,
             errors=errors, warnings=state.warnings, information=state.information,
@@ -43,7 +50,7 @@ def main() -> int:
         if status in {"valid_with_local_changes", "unverifiable_legacy_installation"}:
             return WARNINGS
         return VERIFICATION_FAILED
-    except (ExtensionError, InstallationError) as exc:
+    except (AgentGuidanceError, ExtensionError, InstallationError) as exc:
         emit(envelope("verify_installation", tool_version, "invalid", errors=[str(exc)]), as_json=args.json)
         return INVALID_INPUT
     except OSError as exc:

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "adapter_id": "kimi-cli",
+  "object_id": "vibesec.agent-adapter.kimi-cli.v1",
+  "kind": "agent-guidance",
+  "version": "1.0.0",
+  "display_name": "Kimi Code CLI",
+  "contract_id": "vibesec.agent-guidance.v1",
+  "human_documentation": "docs/agent-adapters.md",
+  "output_path": ".kimi-code/AGENTS.md",
+  "instruction_convention": "Kimi Code CLI discovers project AGENTS.md at repository root or .kimi-code/AGENTS.md; this adapter uses the namespaced project location.",
+  "official_documentation": "https://moonshotai.github.io/kimi-code/en/customization/agents.html",
+  "verified_on": "2026-07-24",
+  "supports_imports": false,
+  "supported_platforms": ["portable"],
+  "render_sections": ["identity", "authority", "actions", "safety", "capabilities", "validation", "tasks"]
+}

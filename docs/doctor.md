@@ -1,5 +1,7 @@
 # VibeSec doctor
 
+Agent-specific doctor is available as `vibesec agents doctor --target <repository> --json`. It validates the canonical contract and inventory, classifies adapter files as `valid`, `modified`, `missing`, `conflicting`, `unsupported`, or `disabled`, reports capability-driven task suppression, and confirms zero external agent invocations. It never repairs or rewrites guidance.
+
 For the `api-fuzzing` add-on, doctor reports capability/install mismatch, missing or unsafe active configuration, methods that bypass explicit mutation opt-in, bounds over hard ceilings, custom payload paths, public targets, stateful testing, authentication-header fuzzing, raw request/response publication, unknown options, and pull-request or push live triggers. Values and credentials remain redacted.
 
 For an installed DAST add-on, doctor validates redacted image-reference syntax, port, base path, enforcement settings, and Docker availability. It does not pull or inspect an image, start containers, contact a registry, or assert that the target is secure. Runtime image-user validation remains part of the trusted-event runner.

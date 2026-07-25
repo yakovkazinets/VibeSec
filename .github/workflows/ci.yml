@@ -250,8 +250,22 @@ jobs:
           python3 -m unittest -v tests.test_extension_platform
           tests.test_consumer_adoption tests.test_distribution_lifecycle
 
+  agent-documentation-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted agent contract without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2, Node 24, verified 2026-07-22
+        with:
+          persist-credentials: false
+      - name: Validate agent schemas adapters tasks lifecycle fixtures and documentation offline
+        env:
+          VIBESEC_AGENT_NETWORK: disabled
+          VIBESEC_AGENT_EXTERNAL_CLI: disabled
+        run: python3 -m unittest -v tests.test_agent_guidance tests.test_agent_documentation
+
   validate:
-    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts]
+    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts, agent-documentation-contract]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

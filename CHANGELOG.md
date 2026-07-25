@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add a canonical vendor-neutral agent guidance contract, deterministic Codex, Claude Code, Gemini CLI, and Kimi Code CLI adapters, capability-aware task packs, dry-run-first lifecycle management, digest inventory, offline doctor and verification, threat-model fixtures, and mandatory CI accountability.
 - Add a portable local `vibesec` CLI, deterministic native/container/auto selection, an explicit Linux/macOS support matrix, and fail-closed reporting for unavailable complete profile modes.
 - Add strict local-only scanner extensions with versioned manifests, namespaced capabilities, restricted permissions, atomic dry-run-first lifecycle management, digest inventories, subprocess adapters, bounded artifacts/diagnostics, a harmless reference extension, and extension-aware distribution and accountability.
 - Add bounded opt-in API fuzzing and injection-oriented testing with strict capability dependencies, deterministic Schemathesis orchestration, reviewed inert payloads, isolated runtime controls, separate policy and artifacts, consumer adoption, accountability, and manual live integration.

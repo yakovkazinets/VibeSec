@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "adapter_id": "claude-code",
+  "object_id": "vibesec.agent-adapter.claude-code.v1",
+  "kind": "agent-guidance",
+  "version": "1.0.0",
+  "display_name": "Claude Code",
+  "contract_id": "vibesec.agent-guidance.v1",
+  "human_documentation": "docs/agent-adapters.md",
+  "output_path": ".claude/CLAUDE.md",
+  "instruction_convention": "Claude Code loads project CLAUDE.md guidance through the working-directory hierarchy; this adapter uses the documented .claude/CLAUDE.md project location.",
+  "official_documentation": "https://code.claude.com/docs/en/memory",
+  "verified_on": "2026-07-24",
+  "supports_imports": true,
+  "supported_platforms": ["portable"],
+  "render_sections": ["identity", "authority", "actions", "safety", "capabilities", "validation", "tasks"]
+}

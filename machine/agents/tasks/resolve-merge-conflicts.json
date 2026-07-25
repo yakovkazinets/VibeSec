@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "task_id": "resolve-merge-conflicts",
+  "human_documentation": "docs/agent-task-pack.md",
+  "title": "Resolve merge conflicts",
+  "objective": "Resolve requested conflicts by preserving both feature sets, all accountability jobs, and deterministic behavior.",
+  "scope": ["explicit conflicted files", "combined validation paths"],
+  "allowed_actions": ["merge the authorized base", "edit conflicted files", "run combined tests"],
+  "prohibited_actions": ["drop tests or milestones", "alter required status from validate", "force-push"],
+  "required_checks": ["confirm no conflict markers remain", "run all tests for both merged feature sets"],
+  "failure_handling": ["stop on ambiguous semantic conflict", "report unresolved or pre-existing failures with evidence"],
+  "required_evidence": ["per-file resolution summary", "final validate.needs and combined results"],
+  "expected_output": ["local merge commit when requested", "tests, files changed, and manual push command"],
+  "capability_requirements": []
+}

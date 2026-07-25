@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "task_id": "prepare-pull-request",
+  "human_documentation": "docs/agent-task-pack.md",
+  "title": "Prepare a pull request",
+  "objective": "Prepare reviewed commits and a truthful pull-request summary while leaving publication human-gated.",
+  "scope": ["current authorized branch", "committed diff and validation evidence"],
+  "allowed_actions": ["inspect branch and diff", "run validation", "draft title and description"],
+  "prohibited_actions": ["open a pull request without authorization", "push without authorization", "merge or release"],
+  "required_checks": ["confirm base and head branches", "confirm complete validation and required status name"],
+  "failure_handling": ["stop if branch or scope is wrong", "report failing checks without concealing them"],
+  "required_evidence": ["commit list and diff summary", "test and CI-equivalent results"],
+  "expected_output": ["proposed pull-request title and body", "manual publication command or explicit approval boundary"],
+  "capability_requirements": []
+}

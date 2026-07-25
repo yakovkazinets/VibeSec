@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "task_id": "add-security-feature",
+  "human_documentation": "docs/agent-task-pack.md",
+  "title": "Add a security feature",
+  "objective": "Implement the assigned security capability with explicit trust boundaries, accountability, and tests.",
+  "scope": ["assigned capability", "machine and human documentation", "tests and CI accountability"],
+  "allowed_actions": ["design within assigned scope", "modify declared paths", "add offline tests"],
+  "prohibited_actions": ["silently broaden capabilities", "add unpinned execution dependencies", "push or release"],
+  "required_checks": ["validate safe and failure paths", "run the complete repository validation loop"],
+  "failure_handling": ["fail closed on malformed input", "keep tool failures distinct from findings and clean results"],
+  "required_evidence": ["threat model and test fixtures", "deterministic artifact or output checks"],
+  "expected_output": ["implemented scope and limitations", "tests, commit, and manual push command"],
+  "capability_requirements": []
+}

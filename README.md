@@ -36,6 +36,7 @@ Review the code and configuration before using it, validate it against your own 
 - [Security validation policy](docs/security-validation-policy.md), [capability matrix](docs/security-capability-matrix.md), and [self-hosted validation](docs/self-hosted-validation.md)
 - [Finding intelligence](docs/finding-intelligence.md) and [framework SAST coverage](docs/framework-sast-coverage.md)
 - [Local execution](docs/local-execution.md), [platform support](docs/platform-support.md), and [verified extensions](docs/extensions.md)
+- [Multi-agent support](docs/multi-agent-support.md), [agent contract](docs/agent-contract.md), and [agent installation](docs/agent-installation.md)
 - [GitHub Actions Node 24 runtime and immutable pin policy](docs/github-actions-runtime.md)
 - [OpenAPI API Security Baseline](docs/api-security-baseline.md)
 - [Bounded API fuzzing and injection-oriented testing](docs/api-fuzzing.md)
@@ -53,6 +54,8 @@ python3 scripts/init_vibesec.py --profile standard --target /path/to/application
 ```
 
 The bundled `./vibesec` CLI routes scan, init, doctor, verification, upgrade planning, and extension commands through the existing reviewed implementations. Complete native profile pins currently support Linux x86_64. Other platforms and complete-profile containers fail explicitly until verified artifacts exist; `auto` never silently selects partial or unverified coverage.
+
+`./vibesec agents` renders the same vendor-neutral safety and validation contract for Codex, Claude Code, Gemini CLI, and Kimi Code CLI. Planning is read-only, installation requires `--write`, existing instruction files are never overwritten, and no agent CLI, cloud API, credential store, model, or telemetry endpoint is invoked.
 
 Extensions are reviewed local sources only: dry-run installation is the default, `--write` is explicit, installed content is SHA-256 inventoried, permissions are restricted, capabilities are namespaced, and adapters run as subprocesses rather than imports. Review the [extension security model](docs/extension-security-model.md) before running extension code.
 

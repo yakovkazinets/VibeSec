@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "task_id": "fix-security-findings",
+  "human_documentation": "docs/agent-task-pack.md",
+  "title": "Fix confirmed security findings",
+  "objective": "Apply minimal fixes for assigned confirmed findings while preserving behavior and fail-closed controls.",
+  "scope": ["assigned findings", "direct regression tests and documentation"],
+  "allowed_actions": ["modify assigned files", "add focused tests", "run required validation"],
+  "prohibited_actions": ["weaken policies", "delete tests to pass", "push or release"],
+  "required_checks": ["reproduce each finding before the fix", "run targeted and complete tests"],
+  "failure_handling": ["stop on ambiguous authorization", "report unresolved findings and tool failures separately"],
+  "required_evidence": ["before and after behavior", "complete test and validation results"],
+  "expected_output": ["files changed and security effect", "remaining risk and manual push command"],
+  "capability_requirements": []
+}

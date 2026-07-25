@@ -18,6 +18,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED, WARNINGS  # noqa: E402
+from vibesec.agents import AgentGuidanceError, doctor as agent_doctor  # noqa: E402
 from vibesec.extensions import ExtensionError, verify_extensions  # noqa: E402
 from vibesec.capabilities import CapabilityError, load_capabilities_file, scanner_applicability  # noqa: E402
 from vibesec.authenticated import (  # noqa: E402
@@ -541,6 +542,30 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
             "Repair the strict local extension inventory without executing adapters.",
             "docs/extension-security-model.md",
         ))
+    try:
+        agent_context = agent_doctor(ROOT, state.target)
+        if agent_context["status"] != "valid":
+            diagnostics.append(diagnostic(
+                "agents", "AGENT_GUIDANCE_INVALID", "error",
+                "Installed or unmanaged agent guidance is modified, missing, conflicting, or unsupported.",
+                "Review the agent doctor result and merge or repair guidance manually.",
+                "docs/agent-installation.md",
+            ))
+        elif agent_context["adapters"]:
+            diagnostics.append(diagnostic(
+                "agents", "AGENT_GUIDANCE_VERIFIED", "informational",
+                "Installed agent guidance matches its digest inventory or is explicitly disabled.",
+                "Reverify after every reviewed agent-guidance lifecycle change.",
+                "docs/agent-installation.md",
+            ))
+    except AgentGuidanceError as exc:
+        agent_context = {"status": "invalid", "adapters": [], "errors": [str(exc)]}
+        diagnostics.append(diagnostic(
+            "agents", "AGENT_INVENTORY_INVALID", "error",
+            "Agent guidance inventory or contract is malformed.",
+            "Repair the inventory without invoking an external agent CLI.",
+            "docs/agent-safety-model.md",
+        ))
     if any(item["severity"] == "error" for item in diagnostics):
         status = "error"
     elif any(item["severity"] == "warning" for item in diagnostics):
@@ -549,7 +574,7 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
         status = "healthy"
     return status, diagnostics, {"profile": profile, "stage": sorted({manifest["stage"] for manifest in state.manifests}),
                                  "installation_status": state.status, "scanner_applicability": applicability,
-                                 "extensions": extension_context}
+                                 "extensions": extension_context, "agents": agent_context}
 
 
 def main() -> int:

@@ -102,6 +102,8 @@ def build_parser() -> argparse.ArgumentParser:
     upgrade.add_argument("--json", action="store_true")
     extensions = subcommands.add_parser("extensions")
     extensions.add_argument("arguments", nargs=argparse.REMAINDER)
+    agents = subcommands.add_parser("agents")
+    agents.add_argument("arguments", nargs=argparse.REMAINDER)
     return parser
 
 
@@ -129,7 +131,9 @@ def main() -> int:
             return _passthrough("init_vibesec.py", args.arguments)
         if args.command == "upgrade-plan":
             return _passthrough("plan_vibesec_upgrade.py", ["--target", str(args.target), "--bundle", str(args.bundle)] + (["--json"] if args.json else []))
-        return _passthrough("manage_extensions.py", args.arguments)
+        if args.command == "extensions":
+            return _passthrough("manage_extensions.py", args.arguments)
+        return _passthrough("manage_agents.py", args.arguments)
     except (OSError, subprocess.TimeoutExpired) as exc:
         emit(envelope(args.command, version, "infrastructure_failure", errors=[type(exc).__name__]), as_json=getattr(args, "json", False))
         return INFRASTRUCTURE_FAILURE

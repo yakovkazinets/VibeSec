@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "task_id": "upgrade-vibesec",
+  "human_documentation": "docs/agent-task-pack.md",
+  "title": "Plan or apply a VibeSec upgrade",
+  "objective": "Upgrade reviewed VibeSec-managed content while preserving user files, local adapters, capability answers, and disabled state.",
+  "scope": ["managed inventory", "reviewed bundle", "upgrade plan"],
+  "allowed_actions": ["verify source bundle", "produce conflict-aware plan", "write only after explicit authorization"],
+  "prohibited_actions": ["overwrite user-owned files", "enable disabled adapters", "reset explicit capability answers"],
+  "required_checks": ["verify bundle and installed inventory", "run doctor and complete tests after an authorized write"],
+  "failure_handling": ["stop on modified or conflicting managed files", "report unsupported versions without mutation"],
+  "required_evidence": ["preserve, add, replace, and conflict classifications", "post-upgrade verification"],
+  "expected_output": ["deterministic upgrade plan", "preserved state and validation report"],
+  "capability_requirements": []
+}

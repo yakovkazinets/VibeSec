@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "object_id": "vibesec.agent-capability-rules.v1",
+  "human_documentation": "docs/agent-task-pack.md",
+  "manifest_path": ".vibesec/project-capabilities.json",
+  "explicit_answers_are_authoritative": true,
+  "task_requirements": {
+    "dast-baseline": ["web_application", "dast_target"],
+    "api-security-baseline": ["api", "container_image", "api_security_target"],
+    "fuzzing-and-injection-testing": ["api", "container_image", "api_security_target", "api_fuzzing_target"],
+    "authenticated-security-testing": ["authentication", "authenticated_security_testing"]
+  },
+  "false_answer_behavior": "suppress_task",
+  "missing_manifest_behavior": "report_unknown_and_do_not_enable_optional_runtime_tasks"
+}

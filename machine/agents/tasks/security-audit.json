@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "task_id": "security-audit",
+  "human_documentation": "docs/agent-task-pack.md",
+  "title": "Perform a security audit",
+  "objective": "Inspect the assigned security scope and report evidence-backed findings without changing repository state.",
+  "scope": ["assigned files and security controls", "applicable VibeSec artifacts"],
+  "allowed_actions": ["read files", "run existing offline validators", "report findings"],
+  "prohibited_actions": ["modify files", "obtain credentials", "publish results"],
+  "required_checks": ["validate every cited path and line", "distinguish findings from tool or parser failures"],
+  "failure_handling": ["report incomplete coverage explicitly", "preserve exact failing exit categories"],
+  "required_evidence": ["reproduction or trace for each finding", "coverage and validation results"],
+  "expected_output": ["findings ordered by severity", "explicit limitations and clean scopes"],
+  "capability_requirements": []
+}

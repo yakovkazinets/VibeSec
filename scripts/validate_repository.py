@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.bundle import validate_catalog  # noqa: E402
+from vibesec.agents import ADAPTER_IDS, TASK_IDS, load_catalog, render_adapter  # noqa: E402
 from vibesec.api_security import load_config as load_api_config  # noqa: E402
 from vibesec.api_fuzzing import load_config as load_fuzzing_config, load_payload_registry  # noqa: E402
 from vibesec.dast import load_config  # noqa: E402
@@ -171,9 +172,16 @@ def validate_references() -> None:
         "scripts/install_release_tools.sh", "scripts/prepare_release_artifacts.py", "scripts/sign_release_artifacts.py", "scripts/verify_release_artifacts.py", "scripts/validate_supply_chain_posture.py",
         "scripts/vibesec/supply_chain.py", "config/release-manifest-schema.json", "config/provenance-schema.json", "config/supply-chain-policy.json",
         "vibesec", "scripts/manage_extensions.py", "scripts/vibesec/portable.py", "scripts/vibesec/extensions.py",
+        "scripts/manage_agents.py", "scripts/vibesec/agents.py",
         "config/portable-execution.json", "config/extension-manifest-schema.json",
         "extensions/examples/repository-metadata/vibesec-extension.json", "extensions/examples/repository-metadata/adapter.py",
         "docs/local-execution.md", "docs/platform-support.md", "docs/extensions.md", "docs/extension-security-model.md", "docs/extension-authoring.md",
+        "docs/multi-agent-support.md", "docs/agent-contract.md", "docs/agent-adapters.md",
+        "docs/agent-task-pack.md", "docs/agent-safety-model.md", "docs/agent-installation.md", "docs/agent-upgrades.md",
+        "machine/agents/contract.json", "machine/agents/safety-rules.json",
+        "machine/agents/capabilities.json", "machine/agents/documentation-map.json",
+        "machine/schemas/agent-contract.schema.json", "machine/schemas/agent-adapter.schema.json",
+        "machine/schemas/agent-task.schema.json",
         "docs/finding-intelligence.md", "docs/framework-sast-coverage.md",
         "docs/security-validation-policy.md", "docs/security-capability-matrix.md", "docs/self-hosted-validation.md",
         "examples/reports/README.md",
@@ -317,7 +325,7 @@ def validate_github_actions_documentation() -> None:
     if any(marker not in runtime for marker in markers):
         raise ValueError("GitHub Actions runtime documentation is incomplete")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts]"
+    expected = "  validate:\n    needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts, agent-documentation-contract]"
     if expected not in ci or ci.count("\n  validate:\n") != 1:
         raise ValueError("validate must remain the single required aggregate CI job")
 
@@ -371,6 +379,53 @@ def validate_portable_extension_platform() -> None:
             raise ValueError(f"required portable accountability job is missing or duplicated: {job}")
 
 
+def validate_agent_documentation_contract() -> None:
+    catalog = load_catalog(ROOT)
+    if tuple(catalog["adapters"]) != ADAPTER_IDS or tuple(catalog["tasks"]) != TASK_IDS:
+        raise ValueError("agent adapter or task IDs differ from the stable v1 inventory")
+    schemas = {
+        "machine/schemas/agent-contract.schema.json": set(catalog["contract"]),
+        "machine/schemas/agent-adapter.schema.json": set(next(iter(catalog["adapters"].values()))),
+        "machine/schemas/agent-task.schema.json": set(next(iter(catalog["tasks"].values()))),
+    }
+    for relative, fields in schemas.items():
+        schema = load_object(ROOT / relative)
+        if schema.get("type") != "object" or schema.get("additionalProperties") is not False:
+            raise ValueError(f"{relative} must be a closed object schema")
+        if set(schema.get("required", [])) != fields:
+            raise ValueError(f"{relative} required fields differ from the runtime object")
+    documentation_map = load_object(ROOT / "machine/agents/documentation-map.json")
+    expected_mapping = {
+        catalog["contract"]["contract_id"]: catalog["contract"]["human_documentation"],
+        **{item["object_id"]: item["human_documentation"] for item in catalog["adapters"].values()},
+    }
+    mapped_objects = documentation_map.get("objects")
+    if not isinstance(mapped_objects, dict) or any(mapped_objects.get(key) != value for key, value in expected_mapping.items()):
+        raise ValueError("agent machine-to-human documentation map is incomplete")
+    for object_id, relative in mapped_objects.items():
+        path = ROOT / relative
+        if not path.is_file() or object_id not in path.read_text(encoding="utf-8"):
+            raise ValueError(f"agent human documentation does not link back to {object_id}")
+    for adapter_id in ADAPTER_IDS:
+        rendered = render_adapter(ROOT, ROOT, adapter_id).decode("utf-8")
+        for marker in (
+            "explicit_human_authorization_only", "Do not weaken, delete, skip, or rewrite tests",
+            "Report the manual push command", "Do not invoke an external agent CLI",
+        ):
+            if marker not in rendered:
+                raise ValueError(f"agent adapter lost required safety semantics: {adapter_id}")
+        for task_id in TASK_IDS:
+            if f"`{task_id}`" not in rendered:
+                raise ValueError(f"agent adapter lost a task: {adapter_id}: {task_id}")
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    if ci.count("\n  agent-documentation-contract:\n") != 1:
+        raise ValueError("agent documentation accountability job is missing or duplicated")
+    job = ci.split("\n  agent-documentation-contract:\n", 1)[1].split("\n  validate:\n", 1)[0]
+    prohibited = ("gh auth", "docker ", "curl ", "wget ", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY")
+    if any(value.casefold() in job.casefold() for value in prohibited):
+        raise ValueError("agent documentation accountability job requests network, Docker, or credentials")
+
+
 def main() -> int:
     try:
         validate_tools()
@@ -382,6 +437,7 @@ def main() -> int:
         validate_github_actions_documentation()
         validate_supply_chain_configuration()
         validate_portable_extension_platform()
+        validate_agent_documentation_contract()
         inventory = load_action_inventory(ROOT / "config/github-actions.json")
         action_errors = audit_tracked_files(ROOT, inventory)
         if action_errors:

@@ -8,6 +8,8 @@ VibeSec is a scanning baseline, not proof that an application is secure. Use a r
 
 For local routing, run `./vibesec --help`. `./vibesec scan --profile minimal --execution-mode auto --json` selects only a complete supported tool mode; it never converts missing or failed coverage into a clean fallback. See [local execution](local-execution.md) and the exact [platform matrix](platform-support.md).
 
+To preview agent-neutral repository guidance, run `./vibesec agents list --json` and `./vibesec agents plan codex --target /path/to/application --json`. Review the generated contract before adding `--write`. An existing instruction target produces a merge-required conflict and is never overwritten. See [multi-agent support](multi-agent-support.md).
+
 The supplied GitHub.com workflows use full-SHA actions that embed Node 24. GitHub-hosted runners meet the requirement; self-hosted runners need Actions Runner 2.327.1 or newer. Node 20 fallback is unsupported. VibeSec does not require npm or a Node application runtime. Review [the action runtime and GHES limits](github-actions-runtime.md) before adoption.
 
 The initializer first asks the [project capability questionnaire](project-capabilities.md). Every question shows `[Y/n]`: Enter is Yes, and you should explicitly answer No for absent scopes. Its dry-run JSON includes the exact manifest and writes nothing. For automation, supply reviewed answers with `--capabilities-file`; do not pipe EOF and assume defaults.

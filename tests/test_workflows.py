@@ -127,7 +127,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn('exit_file="$(mktemp "$SELF_SCAN_RESULTS/.scan-exit-code.XXXXXX")"', text)
         self.assertIn('mv "$exit_file" "$SELF_SCAN_RESULTS/scan-exit-code.txt"', text)
-        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts]", text)
+        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts, agent-documentation-contract]", text)
         self.assertNotIn("dast-accountability", text)
         validation = text.index("Validate Standard self-scan artifacts and exact states")
         preservation = text.index("Preserve Standard scan exit contract")
@@ -174,6 +174,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         self.assertIn("finding-intelligence-artifacts", needs)
         self.assertIn("portable-execution-artifacts", needs)
         self.assertIn("extension-platform-artifacts", needs)
+        self.assertIn("agent-documentation-contract", needs)
         self.assertNotIn("dast-accountability", needs)
         dast = text.split("  dast-artifacts:", 1)[1].split("\n  validate:", 1)[0]
         self.assertIn("tests.test_dast_baseline", dast)
@@ -189,6 +190,15 @@ class WorkflowSecurityTests(unittest.TestCase):
             self.assertNotIn("curl ", job)
             self.assertNotIn("secrets.", job)
             self.assertIn("persist-credentials: false", job)
+
+    def test_agent_documentation_contract_is_required_and_offline(self):
+        text = CI.read_text(encoding="utf-8")
+        agent_job = text.split("  agent-documentation-contract:", 1)[1].split("\n  validate:", 1)[0]
+        self.assertIn("tests.test_agent_guidance", agent_job)
+        self.assertIn("tests.test_agent_documentation", agent_job)
+        self.assertIn("persist-credentials: false", agent_job)
+        for prohibited in ("docker run", "curl ", "wget ", "secrets.", "gh auth", "OPENAI_API_KEY"):
+            self.assertNotIn(prohibited, agent_job)
 
     def test_api_runtime_is_manual_scheduled_and_live_workflow_is_not_required(self):
         starter = (ROOT / "templates/github-actions/api-security-baseline.yml").read_text(encoding="utf-8")

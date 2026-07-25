@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "task_id": "prepare-release-candidate",
+  "human_documentation": "docs/agent-task-pack.md",
+  "title": "Prepare a release candidate",
+  "objective": "Produce a deterministic, verified release-candidate plan and artifacts without publishing, tagging, or releasing.",
+  "scope": ["reviewed release configuration", "deterministic bundle and attestable artifacts"],
+  "allowed_actions": ["build artifacts locally", "verify reproducibility and manifest", "draft release notes"],
+  "prohibited_actions": ["tag", "publish", "release", "request signing credentials"],
+  "required_checks": ["build twice and compare", "verify bundle, checksums, provenance, SBOMs, and complete tests"],
+  "failure_handling": ["preserve failed verification as blocking", "do not sign or publish partial output"],
+  "required_evidence": ["artifact names, hashes, and verification", "full validation and unresolved limitations"],
+  "expected_output": ["release-candidate readiness report", "human-gated next actions"],
+  "capability_requirements": []
+}

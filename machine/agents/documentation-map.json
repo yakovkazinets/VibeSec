@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "object_id": "vibesec.agent-documentation-map.v1",
+  "human_documentation": "docs/multi-agent-support.md",
+  "objects": {
+    "vibesec.agent-guidance.v1": "docs/agent-contract.md",
+    "vibesec.agent-safety-rules.v1": "docs/agent-safety-model.md",
+    "vibesec.agent-capability-rules.v1": "docs/agent-task-pack.md",
+    "vibesec.agent-adapter.codex.v1": "docs/agent-adapters.md",
+    "vibesec.agent-adapter.claude-code.v1": "docs/agent-adapters.md",
+    "vibesec.agent-adapter.gemini-cli.v1": "docs/agent-adapters.md",
+    "vibesec.agent-adapter.kimi-cli.v1": "docs/agent-adapters.md"
+  }
+}

@@ -160,7 +160,7 @@ class AuthenticatedSecurityTestingTests(unittest.TestCase):
         (repository / ".vibesec/authenticated-security-testing.json").write_bytes(configuration_bytes("MISSING_BEARER"))
         results = self.root / "results"
         environment = {key: value for key, value in os.environ.items() if key != AUTH_ENVIRONMENT_VARIABLE}
-        environment["VIBESEC_AUTH_MODE"] = "bearer"
+        environment.update({"VIBESEC_AUTH_MODE": "bearer", "GITHUB_EVENT_NAME": "push"})
         completed = subprocess.run(
             [sys.executable, "scripts/run_dast_baseline.py", str(results), "--repository", str(repository)],
             cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
@@ -168,15 +168,56 @@ class AuthenticatedSecurityTestingTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         coverage = json.loads((results / "coverage.json").read_text())
         self.assertEqual(coverage["state"], "not_configured")
+        self.assertEqual(coverage["unauthenticated_state"], "not_configured")
+        self.assertEqual(coverage["authenticated_state"], "not_configured")
         self.assertFalse(coverage["authentication_applied"])
         policy = json.loads((results / "policy-result.json").read_text())
         self.assertFalse(policy["clean"])
-        invalid = subprocess.run(
-            [sys.executable, "scripts/run_dast_baseline.py", str(self.root / "invalid"),
-             "--repository", str(repository), "--authentication-mode", "digest"],
-            cwd=ROOT, text=True, capture_output=True, check=False,
+        for index, mode in enumerate(("digest", "")):
+            with self.subTest(authentication_mode=mode):
+                invalid = subprocess.run(
+                    [sys.executable, "scripts/run_dast_baseline.py", str(self.root / f"invalid-{index}"),
+                     "--repository", str(repository), "--authentication-mode", mode],
+                    cwd=ROOT, text=True, capture_output=True, check=False,
+                )
+                self.assertEqual(invalid.returncode, 3)
+
+    def test_missing_secret_is_not_configured_for_authenticated_api_testing(self):
+        repository = self.root / "api-repository"
+        (repository / ".vibesec").mkdir(parents=True)
+        capabilities = all_capabilities(False)
+        capabilities["capabilities"].update({
+            "api": True, "container_image": True, "authentication": True,
+            "api_security_target": True, "authenticated_security_testing": True,
+        })
+        (repository / ".vibesec/project-capabilities.json").write_bytes(capability_bytes(capabilities))
+        (repository / ".vibesec/authenticated-security-testing.json").write_bytes(configuration_bytes("MISSING_API_BEARER"))
+        environment = {key: value for key, value in os.environ.items() if key != AUTH_ENVIRONMENT_VARIABLE}
+        environment.update({"VIBESEC_AUTH_MODE": "bearer", "GITHUB_EVENT_NAME": "push"})
+        results = self.root / "api-results"
+        completed = subprocess.run(
+            [sys.executable, "scripts/run_api_security_baseline.py", str(results), "--repository", str(repository)],
+            cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
         )
-        self.assertEqual(invalid.returncode, 3)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        coverage = json.loads((results / "coverage.json").read_text())
+        policy = json.loads((results / "policy-result.json").read_text())
+        self.assertEqual(coverage["state"], "not_configured")
+        self.assertEqual(coverage["authenticated_state"], "not_configured")
+        self.assertFalse(coverage["authentication_applied"])
+        self.assertFalse(policy["clean"])
+        self.assertNotIn("ran", {coverage["state"], coverage["authenticated_state"]})
+        for index, mode in enumerate(("digest", "")):
+            with self.subTest(authentication_mode=mode):
+                invalid_results = self.root / f"invalid-api-{index}"
+                invalid = subprocess.run(
+                    [sys.executable, "scripts/run_api_security_baseline.py", str(invalid_results),
+                     "--repository", str(repository), "--authentication-mode", mode],
+                    cwd=ROOT, text=True, capture_output=True, check=False,
+                )
+                self.assertEqual(invalid.returncode, 3)
+                invalid_coverage = json.loads((invalid_results / "coverage.json").read_text())
+                self.assertEqual(invalid_coverage["state"], "tool_error")
 
     def test_authenticated_tool_failure_is_distinct_redacted_and_not_clean(self):
         repository = self.root / "tool-error-repository"

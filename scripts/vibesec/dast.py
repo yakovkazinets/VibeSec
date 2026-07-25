@@ -126,7 +126,7 @@ def validate_base_path(value: Any) -> str:
 def trusted_event(value: str) -> bool:
     if value in TRUSTED_EVENTS:
         return True
-    if value in {"pull_request", "pull_request_target"}:
+    if value in {"pull_request", "pull_request_target", "push"}:
         return False
     raise DastError(f"unsupported DAST event: {value or 'unset'}")
 

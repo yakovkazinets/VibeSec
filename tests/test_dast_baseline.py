@@ -116,8 +116,9 @@ class DastBaselineTests(unittest.TestCase):
         self.assertTrue(trusted_event("schedule"))
         self.assertFalse(trusted_event("pull_request"))
         self.assertFalse(trusted_event("pull_request_target"))
+        self.assertFalse(trusted_event("push"))
         with self.assertRaises(DastError):
-            trusted_event("push")
+            trusted_event("repository_dispatch")
 
     def test_normalization_sanitizes_sensitive_fields(self):
         findings, urls = normalize_zap_report(FIXTURE / "positive/raw.json", port=8080, maximum_bytes=5_000_000, maximum_findings=100)

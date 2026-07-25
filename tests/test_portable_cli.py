@@ -81,7 +81,10 @@ class PortableCliTests(unittest.TestCase):
         self.assertEqual(list(target.iterdir()), [])
 
     def test_cli_container_failure_is_explicit_json(self):
-        completed = subprocess.run([str(ROOT / "vibesec"), "scan", "--execution-mode", "container", "--json"], cwd=ROOT, text=True, capture_output=True, check=False)
+        environment = {key: value for key, value in os.environ.items() if key != "VIBESEC_AUTH_BEARER_TOKEN"}
+        environment["VIBESEC_AUTH_MODE"] = "bearer"
+        completed = subprocess.run([str(ROOT / "vibesec"), "scan", "--execution-mode", "container", "--json"],
+                                   cwd=ROOT, env=environment, text=True, capture_output=True, check=False)
         self.assertEqual(completed.returncode, 3)
         payload = json.loads(completed.stdout)
         self.assertEqual(payload["status"], "invalid")
@@ -126,6 +129,8 @@ printf '[]\n' > "$report"
                     results = Path(self.temporary.name) / f"results-{execution_mode}-{mode}"
                     environment = dict(os.environ)
                     environment["FAKE_MODE"] = mode
+                    environment["VIBESEC_AUTH_MODE"] = "bearer"
+                    environment.pop("VIBESEC_AUTH_BEARER_TOKEN", None)
                     if mode == "finding":
                         environment["VIBESEC_ENFORCEMENT"] = "all"
                     completed = subprocess.run([

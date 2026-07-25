@@ -206,7 +206,7 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
       - name: Validate payloads commands normalization policy correlation fixtures and failures
         run: >-
-          python3 -m unittest -v tests.test_api_fuzzing tests.test_api_security_baseline
+          python3 -m unittest -v tests.test_fuzzing tests.test_api_fuzzing tests.test_api_security_baseline
           tests.test_authenticated_security_testing tests.test_project_capabilities tests.test_workflows
 
   supply-chain-artifacts:

@@ -13,7 +13,7 @@ python3 scripts/build_consumer_bundle.py --output dist/vibesec-consumer.zip
 python3 scripts/verify_consumer_bundle.py dist/vibesec-consumer.zip
 ```
 
-Local development bundles are intentionally unsigned. The future official v1
+Local development bundles are intentionally unsigned. The manual official v1
 artifact model wraps the unchanged deterministic ZIP with strict checksums, a
 release manifest, CycloneDX and SPDX identity records, SLSA-aligned provenance,
 and a keyless Sigstore bundle. See [software supply-chain assurance](software-supply-chain-assurance.md)

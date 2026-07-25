@@ -17,3 +17,5 @@ Maintainers will acknowledge a complete report when practical, assess scope, coo
 The policy covers VibeSec scripts, workflows, templates, policy logic, and documentation. Scanner vulnerabilities should also be reported to their upstream projects. Do not test against systems you do not own or lack permission to assess.
 
 Official release preparation must originate from protected `main`, use the manual reviewed workflow, and pass the required `validate` aggregate. Maintainers must compare the intended version and commit before approving a candidate; no source-tree branch can by itself prove repository settings or signing identity are uncompromised.
+
+The [v1 security review](docs/v1-security-review.md) records the reviewed parser and trust boundaries. A passing suite or `ready_with_known_limitations` release-readiness record is evidence of those checks, not a claim that VibeSec or a scanned application is secure.

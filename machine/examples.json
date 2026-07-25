@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.examples.v1",
+  "status": "stable",
+  "examples": [
+    {
+      "stable_id": "vibesec.example.minimal-source",
+      "summary": "Minimal source repository",
+      "fixture": "tests/consumer-fixtures/python-app",
+      "commands": ["./vibesec init --profile minimal --target tests/consumer-fixtures/python-app --all-capabilities"],
+      "human_documentation": ["docs/quickstart.md", "docs/examples.md"]
+    },
+    {
+      "stable_id": "vibesec.example.standard-application",
+      "summary": "Standard application repository",
+      "fixture": "tests/consumer-fixtures/javascript-app",
+      "commands": ["./vibesec init --profile standard --stage support --target tests/consumer-fixtures/javascript-app --all-capabilities"],
+      "human_documentation": ["docs/profile-selection.md", "docs/examples.md"]
+    },
+    {
+      "stable_id": "vibesec.example.containerized-web",
+      "summary": "Containerized web application",
+      "fixture": "tests/consumer-fixtures/dockerfile-repo",
+      "commands": ["python3 scripts/init_vibesec.py --addon dast-baseline --target tests/consumer-fixtures/dockerfile-repo --all-capabilities"],
+      "human_documentation": ["docs/dast-baseline.md", "docs/examples.md"]
+    },
+    {
+      "stable_id": "vibesec.example.openapi-api",
+      "summary": "OpenAPI API",
+      "fixture": "tests/security-fixtures/api-security/positive",
+      "commands": ["python3 scripts/init_vibesec.py --addon api-security-baseline --target tests/security-fixtures/api-security/positive --api-schema openapi.json --all-capabilities"],
+      "human_documentation": ["docs/api-security-baseline.md", "docs/examples.md"]
+    },
+    {
+      "stable_id": "vibesec.example.authenticated-api",
+      "summary": "Authenticated API using a secret name but no secret value",
+      "fixture": "tests/security-fixtures/authenticated-security-testing/positive",
+      "commands": ["python3 scripts/init_vibesec.py --addon api-security-baseline --target tests/security-fixtures/authenticated-security-testing/positive --api-schema openapi.json --auth-secret-name VIBESEC_TEST_TOKEN --all-capabilities"],
+      "human_documentation": ["docs/authenticated-security-testing.md", "docs/examples.md"]
+    },
+    {
+      "stable_id": "vibesec.example.api-fuzzing",
+      "summary": "Bounded opt-in API fuzzing",
+      "fixture": "tests/security-fixtures/api-fuzzing/positive",
+      "commands": ["python3 scripts/init_vibesec.py --addon api-fuzzing --target tests/security-fixtures/api-fuzzing/positive --fuzzing-mode fuzz --fuzzing-enabled --all-capabilities"],
+      "human_documentation": ["docs/api-fuzzing.md", "docs/examples.md"]
+    },
+    {
+      "stable_id": "vibesec.example.local-cli",
+      "summary": "Read-only local CLI diagnostics",
+      "fixture": "tests/consumer-fixtures/python-app",
+      "commands": ["./vibesec doctor --target tests/consumer-fixtures/python-app --json"],
+      "human_documentation": ["docs/local-execution.md", "docs/examples.md"]
+    },
+    {
+      "stable_id": "vibesec.example.first-party-extension",
+      "summary": "First-party repository metadata extension",
+      "fixture": "extensions/examples/repository-metadata",
+      "commands": ["./vibesec extensions install extensions/examples/repository-metadata --target tests/consumer-fixtures/python-app --json"],
+      "human_documentation": ["docs/extensions.md", "docs/examples.md"]
+    },
+    {
+      "stable_id": "vibesec.example.multi-agent",
+      "summary": "Codex multi-agent guidance preview",
+      "fixture": "tests/fixtures/agents/positive",
+      "commands": ["./vibesec agents plan codex --target tests/fixtures/agents/positive --json"],
+      "human_documentation": ["docs/multi-agent-support.md", "docs/examples.md"]
+    },
+    {
+      "stable_id": "vibesec.example.release-verification",
+      "summary": "Offline release candidate verification",
+      "fixture": "tests/security-fixtures/supply-chain",
+      "commands": ["python3 scripts/verify_release_artifacts.py release-candidate --json"],
+      "human_documentation": ["docs/release-signing.md", "docs/examples.md"]
+    },
+    {
+      "stable_id": "vibesec.example.upgrade",
+      "summary": "Read-only upgrade plan from an existing installation",
+      "fixture": "tests/consumer-fixtures/existing-security-workflow",
+      "commands": ["./vibesec upgrade-plan --target tests/consumer-fixtures/existing-security-workflow --bundle vibesec-consumer-bundle.zip --json"],
+      "human_documentation": ["docs/upgrading.md", "docs/examples.md"]
+    }
+  ]
+}

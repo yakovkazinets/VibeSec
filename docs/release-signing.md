@@ -3,7 +3,7 @@
 The only prepared signing path is `.github/workflows/release-candidate.yml`.
 It is manual, runs only for this repository on `refs/heads/main`, checks out and
 verifies the exact dispatch commit, builds the deterministic bundle twice,
-generates local SBOMs, creates provenance, signs only `SHA256SUMS`, verifies the
+generates local SBOMs and exact-commit `release-readiness.json`, creates provenance, signs only `SHA256SUMS`, verifies the
 complete set, and uploads a short-lived release-candidate artifact. It does not
 create a release, tag, package, commit, or push.
 

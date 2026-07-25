@@ -1,5 +1,7 @@
 # Configuration reference
 
+Agent guidance is configured by the reviewed machine objects under `machine/agents/` plus the target’s authoritative `.vibesec/project-capabilities.json`. Installed state is recorded in `.vibesec/agents.json`; do not place prompts, conversations, tokens, model settings, or credentials there. See [the agent contract](agent-contract.md) and [installation guide](agent-installation.md).
+
 Active API settings live in `.vibesec/api-fuzzing.json`; see [bounded API fuzzing](api-fuzzing.md). Values may only reduce reviewed ceilings. Unknown fields, custom payload paths, public target URLs, stateful testing, raw-body publication, authentication-header mutation, and implicit mutating methods are invalid.
 
 `VIBESEC_API_FUZZING_ENFORCEMENT` accepts `observe`, `new`, or `all`; `VIBESEC_API_FUZZING_MIN_SEVERITY` accepts `low`, `medium`, `high`, or `critical`. The generated workflow uses `VIBESEC_FUZZING_RESULTS` only as its runner-temporary sanitized output directory.

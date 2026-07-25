@@ -1,0 +1,5 @@
+{
+  "adapter_id": "codex",
+  "output_path": "AGENTS.md",
+  "required_markers": ["vibesec.agent-guidance.v1", "Shared safety rules", "Mandatory pre-commit validation loop", "Task pack"]
+}

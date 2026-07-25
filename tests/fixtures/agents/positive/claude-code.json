@@ -1,0 +1,5 @@
+{
+  "adapter_id": "claude-code",
+  "output_path": ".claude/CLAUDE.md",
+  "required_markers": ["vibesec.agent-guidance.v1", "Shared safety rules", "Mandatory pre-commit validation loop", "Task pack"]
+}

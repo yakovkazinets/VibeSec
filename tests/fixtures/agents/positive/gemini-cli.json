@@ -1,0 +1,5 @@
+{
+  "adapter_id": "gemini-cli",
+  "output_path": "GEMINI.md",
+  "required_markers": ["vibesec.agent-guidance.v1", "Shared safety rules", "Mandatory pre-commit validation loop", "Task pack"]
+}

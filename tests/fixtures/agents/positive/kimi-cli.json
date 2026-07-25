@@ -1,0 +1,5 @@
+{
+  "adapter_id": "kimi-cli",
+  "output_path": ".kimi-code/AGENTS.md",
+  "required_markers": ["vibesec.agent-guidance.v1", "Shared safety rules", "Mandatory pre-commit validation loop", "Task pack"]
+}

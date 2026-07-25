@@ -11,6 +11,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vibesec.bundle import BundleError, VerifiedBundle, validate_catalog, verify_bundle  # noqa: E402
+from vibesec.agents import AgentGuidanceError, verify_adapters  # noqa: E402
 from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED, WARNINGS  # noqa: E402
 from vibesec.extensions import ExtensionError, verify_extensions  # noqa: E402
 from vibesec.installation import InstallationError, PRESERVATION_SENSITIVE, InstallationState, verify_installation  # noqa: E402
@@ -137,6 +138,7 @@ def classify_plan(state: InstallationState, bundle: VerifiedBundle) -> dict[str,
         "workflow_pin_changes": sorted(record["path"] for record in records if record["path"].startswith(".github/workflows/") and record["classification"] != "unchanged"),
         "policy_changes": sorted(record["path"] for record in records if record["path"].startswith("policy/") and record["classification"] != "unchanged"),
         "extension_inventory": verify_extensions(state.target),
+        "agent_inventory": verify_adapters(ROOT, state.target),
         "expected_security_impact": "Review scanner, workflow, and policy changes; bundle validity does not establish application security.",
         "privacy_impact": "Review configuration and workflow changes for network, registry, report, and SBOM handling.",
         "rollback_reminder": "Back up local policy, test in a branch, and retain the prior version-compatible file set; no changes were applied.",
@@ -150,7 +152,7 @@ def validate_upgrade_plan(plan: Any) -> dict[str, Any]:
     required = {
         "current_installed_version", "proposed_bundle_version", "current_source_type", "proposed_source_commit",
         "profiles", "stages", "summary", "files", "files_to_preserve", "files_safe_to_add",
-        "files_requiring_manual_merge", "scanner_pin_changes", "workflow_pin_changes", "policy_changes", "extension_inventory",
+        "files_requiring_manual_merge", "scanner_pin_changes", "workflow_pin_changes", "policy_changes", "extension_inventory", "agent_inventory",
         "expected_security_impact", "privacy_impact", "rollback_reminder", "read_only",
     }
     if not isinstance(plan, dict) or set(plan) != required or plan.get("read_only") is not True:
@@ -165,6 +167,8 @@ def validate_upgrade_plan(plan: Any) -> dict[str, Any]:
         raise ValueError("upgrade plan summary is invalid")
     if not isinstance(plan.get("extension_inventory"), dict) or plan["extension_inventory"].get("status") != "valid":
         raise ValueError("upgrade plan requires a valid read-only extension inventory")
+    if not isinstance(plan.get("agent_inventory"), dict) or plan["agent_inventory"].get("status") != "valid":
+        raise ValueError("upgrade plan requires a valid read-only agent inventory")
     return plan
 
 
@@ -203,7 +207,7 @@ def main() -> int:
         )
         emit(payload, as_json=args.json)
         return WARNINGS if blocking or status == "planned" else SUCCESS
-    except (ExtensionError, InstallationError) as exc:
+    except (AgentGuidanceError, ExtensionError, InstallationError) as exc:
         emit(envelope("plan_vibesec_upgrade", tool_version, "invalid", errors=[str(exc)]), as_json=args.json)
         return INVALID_INPUT
     except OSError as exc:

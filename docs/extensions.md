@@ -1,5 +1,7 @@
 # Local verified extensions
 
+VibeSec also ships first-party, non-executing `agent-guidance` adapters backed by the canonical contract under `machine/agents/`. They use the same dry-run, explicit-write, inventory, digest, conflict, verification, disable, removal, and upgrade principles where applicable, but never run scanner or agent code. See [multi-agent support](multi-agent-support.md).
+
 VibeSec v1 extension support is local-only. There is no marketplace, automatic download, registry publication, or automatic upgrade. An extension is untrusted until a maintainer reviews a local source directory, previews installation, explicitly uses `--write`, and verifies the installed digest inventory.
 
 ```shell

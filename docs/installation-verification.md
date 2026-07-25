@@ -1,5 +1,7 @@
 # Installation verification
 
+Agent adapters have a separate read-only command: `vibesec agents verify <adapter> --target <repository> --json`. It checks inventory identity, version, platform, declared path, regular-file status, and SHA-256 digest. Modified or missing guidance is not treated as valid, and a disabled adapter remains explicitly classified rather than silently enabled.
+
 Modern installations include `.vibesec/project-capabilities.json` in the hashed installation record. Verification fails closed when it is missing, malformed, unsafe, or dependency-conflicting, and reports later edits as local changes. Doctor adds capability-specific diagnostics. Verification proves configuration integrity only; it does not prove that a declared scanner ran or that the project is secure.
 
 When authenticated testing is enabled, the same base installation manifest hashes `.vibesec/authenticated-security-testing.json`. Verification requires the file to contain only the secret name and fixed `Authorization`/`Bearer` declaration, rejects missing configuration, and rejects configuration when the capability is false. It never verifies or accepts a token value.

@@ -28,7 +28,7 @@ MAX_COMPRESSION_RATIO = 200
 SOURCE_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 ALLOWED_COMPRESSION = {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
-ALLOWED_SOURCE_ROOTS = {"VERSION", "CHANGELOG.md", "LICENSE", "README.md", "SECURITY.md", "config", "docs", "extensions", "policy", "rules", "scripts", "templates", "vibesec"}
+ALLOWED_SOURCE_ROOTS = {"VERSION", "CHANGELOG.md", "LICENSE", "README.md", "SECURITY.md", "config", "docs", "extensions", "machine", "policy", "rules", "scripts", "templates", "vibesec"}
 PROHIBITED_PARTS = {".git", ".tools", ".venv", "__pycache__", "dist", "fixtures", "node_modules", "results", "tests", "venv"}
 PROHIBITED_SUFFIXES = {".db", ".gz", ".log", ".pyc", ".tar", ".zip"}
 REQUIRED_CONSUMER_PATHS = {
@@ -36,6 +36,7 @@ REQUIRED_CONSUMER_PATHS = {
     "policy/baseline.json", "policy/standard-baseline.json", "policy/suppressions.yml",
     "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py",
     "scripts/vibesec/capabilities.py",
+    "scripts/vibesec/agents.py", "scripts/manage_agents.py",
     "scripts/vibesec/authenticated.py",
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
     "scripts/plan_vibesec_upgrade.py", "scripts/vibesec/bundle.py",
@@ -61,6 +62,19 @@ REQUIRED_CONSUMER_PATHS = {
     "docs/software-supply-chain-assurance.md", "docs/release-signing.md", "docs/provenance.md", "docs/release-threat-model.md",
     "docs/local-execution.md", "docs/platform-support.md", "docs/extensions.md",
     "docs/extension-security-model.md", "docs/extension-authoring.md",
+    "docs/multi-agent-support.md", "docs/agent-contract.md", "docs/agent-adapters.md",
+    "docs/agent-task-pack.md", "docs/agent-safety-model.md", "docs/agent-installation.md", "docs/agent-upgrades.md",
+    "machine/agents/contract.json", "machine/agents/safety-rules.json",
+    "machine/agents/capabilities.json", "machine/agents/documentation-map.json",
+    "machine/schemas/agent-contract.schema.json", "machine/schemas/agent-adapter.schema.json",
+    "machine/schemas/agent-task.schema.json",
+    "machine/agents/adapters/codex.json", "machine/agents/adapters/claude-code.json",
+    "machine/agents/adapters/gemini-cli.json", "machine/agents/adapters/kimi-cli.json",
+    "machine/agents/tasks/security-audit.json", "machine/agents/tasks/fix-security-findings.json",
+    "machine/agents/tasks/add-security-feature.json", "machine/agents/tasks/upgrade-vibesec.json",
+    "machine/agents/tasks/validate-installation.json", "machine/agents/tasks/review-extension.json",
+    "machine/agents/tasks/prepare-pull-request.json", "machine/agents/tasks/resolve-ci-failure.json",
+    "machine/agents/tasks/resolve-merge-conflicts.json", "machine/agents/tasks/prepare-release-candidate.json",
     "scripts/verify_release_artifacts.py", "config/release-manifest-schema.json", "config/provenance-schema.json", "config/supply-chain-policy.json",
 }
 REQUIRED_EXECUTABLES = {
@@ -72,7 +86,7 @@ REQUIRED_EXECUTABLES = {
     "scripts/verify_release_artifacts.py",
     "scripts/generate_finding_intelligence.py",
     "scripts/validate_project_capabilities.py",
-    "vibesec", "scripts/manage_extensions.py", "extensions/examples/repository-metadata/adapter.py",
+    "vibesec", "scripts/manage_extensions.py", "scripts/manage_agents.py", "extensions/examples/repository-metadata/adapter.py",
 }
 
 
@@ -257,7 +271,7 @@ def create_manifest(version: str, source_commit: str | None, files: list[BundleF
         "files": records,
         "total_file_count": len(records),
         "total_uncompressed_size": sum(item["size"] for item in records),
-        "capabilities": ["doctor", "extensions", "initialize", "plan_upgrade", "portable_scan", "verify_installation"],
+        "capabilities": ["agents", "doctor", "extensions", "initialize", "plan_upgrade", "portable_scan", "verify_installation"],
         "network_behavior": "distribution tools are offline; scanners retain documented profile behavior",
         "scanner_binaries_included": False,
         "application_code_executed": False,
@@ -325,7 +339,7 @@ def _validate_manifest(payload: Any) -> dict[str, Any]:
         raise BundleError("bundle profile declaration is invalid")
     if payload["supported_addons"] != ["api-fuzzing", "api-security-baseline", "dast-baseline"]:
         raise BundleError("bundle add-on declaration is invalid")
-    if payload["capabilities"] != ["doctor", "extensions", "initialize", "plan_upgrade", "portable_scan", "verify_installation"]:
+    if payload["capabilities"] != ["agents", "doctor", "extensions", "initialize", "plan_upgrade", "portable_scan", "verify_installation"]:
         raise BundleError("bundle capability declaration is invalid")
     if payload["network_behavior"] != "distribution tools are offline; scanners retain documented profile behavior":
         raise BundleError("bundle network declaration is invalid")

@@ -127,7 +127,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn('exit_file="$(mktemp "$SELF_SCAN_RESULTS/.scan-exit-code.XXXXXX")"', text)
         self.assertIn('mv "$exit_file" "$SELF_SCAN_RESULTS/scan-exit-code.txt"', text)
-        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts, agent-documentation-contract]", text)
+        self.assertIn("needs: [self-scan-minimal, self-scan-standard, scanner-accountability, finding-intelligence-artifacts, security-artifacts, dast-artifacts, api-security-artifacts, authenticated-security-artifacts, fuzzing-artifacts, supply-chain-artifacts, portable-execution-artifacts, extension-platform-artifacts, agent-documentation-contract, documentation-contract, v1-interface-contract, migration-artifacts, release-readiness-artifacts]", text)
         self.assertNotIn("dast-accountability", text)
         validation = text.index("Validate Standard self-scan artifacts and exact states")
         preservation = text.index("Preserve Standard scan exit contract")
@@ -175,6 +175,8 @@ class WorkflowSecurityTests(unittest.TestCase):
         self.assertIn("portable-execution-artifacts", needs)
         self.assertIn("extension-platform-artifacts", needs)
         self.assertIn("agent-documentation-contract", needs)
+        for job in ("documentation-contract", "v1-interface-contract", "migration-artifacts", "release-readiness-artifacts"):
+            self.assertIn(job, needs)
         self.assertNotIn("dast-accountability", needs)
         dast = text.split("  dast-artifacts:", 1)[1].split("\n  validate:", 1)[0]
         self.assertIn("tests.test_dast_baseline", dast)

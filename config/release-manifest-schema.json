@@ -19,14 +19,14 @@
     },
     "artifacts": {
       "type": "array",
-      "minItems": 3,
-      "maxItems": 3,
+      "minItems": 4,
+      "maxItems": 4,
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": ["name", "sha256", "size", "media_type"],
         "properties": {
-          "name": {"enum": ["vibesec-consumer-bundle.zip", "sbom.cyclonedx.json", "sbom.spdx.json"]},
+          "name": {"enum": ["vibesec-consumer-bundle.zip", "sbom.cyclonedx.json", "sbom.spdx.json", "release-readiness.json"]},
           "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
           "size": {"type": "integer", "minimum": 0, "maximum": 52428800},
           "media_type": {"type": "string", "maxLength": 64}
@@ -36,12 +36,13 @@
     "schema_versions": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["release_manifest", "provenance", "cyclonedx", "spdx"],
+      "required": ["release_manifest", "provenance", "cyclonedx", "spdx", "release_readiness"],
       "properties": {
         "release_manifest": {"const": 1},
         "provenance": {"const": 1},
         "cyclonedx": {"const": "1.7"},
-        "spdx": {"const": "SPDX-2.3"}
+        "spdx": {"const": "SPDX-2.3"},
+        "release_readiness": {"const": 1}
       }
     },
     "tool_versions": {

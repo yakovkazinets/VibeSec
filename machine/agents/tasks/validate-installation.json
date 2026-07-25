@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "task_id": "validate-installation",
+  "human_documentation": "docs/agent-task-pack.md",
+  "title": "Validate a VibeSec installation",
+  "objective": "Verify installed files, inventories, capabilities, agent adapters, and security artifacts without changing them.",
+  "scope": ["installation manifest", "extension and agent inventories", "declared managed files"],
+  "allowed_actions": ["read and hash managed files", "run offline verification", "report state"],
+  "prohibited_actions": ["repair files implicitly", "invoke external agent CLIs", "request credentials"],
+  "required_checks": ["verify every managed digest", "classify missing, modified, conflicting, disabled, and unsupported states"],
+  "failure_handling": ["return verification failure for drift", "return invalid input for malformed inventory"],
+  "required_evidence": ["per-component status", "exact validation exit and diagnostics"],
+  "expected_output": ["machine-readable verification result", "human remediation guidance"],
+  "capability_requirements": []
+}

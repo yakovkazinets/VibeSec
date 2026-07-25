@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "task_id": "resolve-ci-failure",
+  "human_documentation": "docs/agent-task-pack.md",
+  "title": "Resolve a CI failure",
+  "objective": "Trace the exact failing CI path, fix the implementation rather than the assertion, and preserve all exit and artifact contracts.",
+  "scope": ["failing job and test path", "direct implementation and regression tests"],
+  "allowed_actions": ["inspect logs", "reproduce locally", "modify scoped implementation and tests"],
+  "prohibited_actions": ["disable the check", "weaken fail-closed behavior", "delete tests or required jobs"],
+  "required_checks": ["run the failing test before and after", "run full tests and repository validation"],
+  "failure_handling": ["prove pre-existing unrelated failures on the base commit", "keep parser and tool failures distinct"],
+  "required_evidence": ["exact root cause", "before and after exit, state, and artifact behavior"],
+  "expected_output": ["focused fix and regression coverage", "complete results, commit, and manual push command"],
+  "capability_requirements": []
+}

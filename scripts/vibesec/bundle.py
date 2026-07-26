@@ -13,6 +13,7 @@ import tempfile
 from typing import Any
 import zipfile
 
+from .branding import PRODUCT_DISPLAY_NAME, PRODUCT_ID, POSITIONING_LINE
 from .paths import UnsafePath, safe_posix_path, validate_unique_paths
 from .strict_json import StrictJSONError, canonical_json, loads_strict
 from .version import VersionError, parse_version_bytes, read_version, validate_version
@@ -36,6 +37,7 @@ REQUIRED_CONSUMER_PATHS = {
     "policy/baseline.json", "policy/standard-baseline.json", "policy/suppressions.yml",
     "scripts/init_vibesec.py", "scripts/run_minimal_profile.sh", "scripts/run_standard_profile.py",
     "scripts/vibesec/capabilities.py",
+    "scripts/vibesec/branding.py",
     "scripts/vibesec/agents.py", "scripts/manage_agents.py",
     "scripts/vibesec/authenticated.py",
     "scripts/verify_consumer_bundle.py", "scripts/verify_installation.py", "scripts/vibesec_doctor.py",
@@ -271,6 +273,9 @@ def create_manifest(version: str, source_commit: str | None, files: list[BundleF
         "schema_version": BUNDLE_SCHEMA,
         "bundle_format_version": BUNDLE_FORMAT,
         "development_version": version,
+        "product_display_name": PRODUCT_DISPLAY_NAME,
+        "positioning_line": POSITIONING_LINE,
+        "product_id": PRODUCT_ID,
         "source_commit": source_commit,
         "supported_profiles": ["minimal", "standard"],
         "supported_addons": ["api-fuzzing", "api-security-baseline", "dast-baseline"],
@@ -326,14 +331,24 @@ def write_bundle(root: Path, output: Path, source_commit: str | None = None) -> 
 
 
 def _validate_manifest(payload: Any) -> dict[str, Any]:
-    required = {
+    legacy_fields = {
         "schema_version", "bundle_format_version", "development_version", "source_commit",
         "supported_profiles", "supported_addons", "files", "total_file_count", "total_uncompressed_size",
         "capabilities", "network_behavior", "scanner_binaries_included",
         "application_code_executed", "signed", "signature_status",
     }
-    if not isinstance(payload, dict) or set(payload) != required:
+    branding_fields = {"product_display_name", "positioning_line", "product_id"}
+    if (not isinstance(payload, dict)
+            or frozenset(payload) not in {
+                frozenset(legacy_fields), frozenset(legacy_fields | branding_fields),
+            }):
         raise BundleError("bundle manifest contains missing or unknown fields")
+    if branding_fields <= set(payload) and (
+        payload["product_display_name"] != PRODUCT_DISPLAY_NAME
+        or payload["positioning_line"] != POSITIONING_LINE
+        or payload["product_id"] != PRODUCT_ID
+    ):
+        raise BundleError("bundle display branding or technical product identity is invalid")
     if (not isinstance(payload["schema_version"], int) or isinstance(payload["schema_version"], bool)
             or not isinstance(payload["bundle_format_version"], int) or isinstance(payload["bundle_format_version"], bool)
             or payload["schema_version"] != BUNDLE_SCHEMA or payload["bundle_format_version"] != BUNDLE_FORMAT):

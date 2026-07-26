@@ -288,7 +288,7 @@ def combine_result_directories(unauthenticated: Path, authenticated: Path, outpu
         "findings": len([item for item in results if item.get("result_type") == "finding"]),
         "tool_errors": len([item for item in results if item.get("result_type") == "tool_error"]),
     })
-    report = ("# VibeSec authenticated security comparison\n\n"
+    report = ("# VibeSec Guardian authenticated security comparison\n\n"
               f"- Coverage: {state}\n- Authenticated scan: {auth_state}\n"
               f"- Unauthenticated scan: {unauth_state}\n"
               f"- Correlated findings: {policy['findings']}\n\n"

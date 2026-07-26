@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply VibeSec policy. Exit: 0 pass, 1 violation, 2 tool failure, 3 invalid input."""
+"""Apply VibeSec Guardian policy. Exit: 0 pass, 1 violation, 2 tool failure, 3 invalid input."""
 
 import argparse
 from datetime import date
@@ -21,7 +21,7 @@ def safe_markdown_cell(value: object, limit: int = 240) -> str:
 
 def write_markdown(path: Path, evaluation: dict, expired: list[str], profile: str = "minimal",
                    finding_groups: dict | None = None, prioritized: dict | None = None) -> None:
-    lines = [f"# VibeSec {profile} profile", "", f"Status: **{evaluation['status']}**", ""]
+    lines = [f"# VibeSec Guardian {profile} profile", "", f"Status: **{evaluation['status']}**", ""]
     lines += [
         f"- Findings: {len(evaluation['findings'])}",
         f"- New findings: {len(evaluation['new_findings'])}",

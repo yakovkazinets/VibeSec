@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manage deterministic VibeSec agent guidance; all mutations are dry-run by default."""
+"""Manage deterministic VibeSec Guardian agent guidance; all mutations are dry-run by default."""
 
 from __future__ import annotations
 

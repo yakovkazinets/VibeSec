@@ -16,7 +16,7 @@
 - Modernize every supplied GitHub Actions reference to reviewed full-SHA Node 24 releases, add a strict offline action inventory, and preserve checkout credential and artifact-upload boundaries.
 - Require Actions Runner 2.327.1 or newer for self-hosted workflows; document GitHub.com/GHES differences, Node 20 non-support, and Node 26 as a future compatibility target.
 - Add a separate opt-in passive OWASP ZAP Baseline add-on with immutable non-root target validation, internal Docker isolation, strict normalization, independent policy, sanitized artifacts, accountability fixtures, consumer installation, documentation, and a manual starter workflow.
-- Add a strict project-capability questionnaire and manifest with Yes-by-default interactive answers, explicit non-interactive input, manifest-driven scanner applicability, preservation-aware upgrades, and VibeSec DAST reported as `not_applicable`.
+- Add a strict project-capability questionnaire and manifest with Yes-by-default interactive answers, explicit non-interactive input, manifest-driven scanner applicability, preservation-aware upgrades, and VibeSec Guardian DAST reported as `not_applicable`.
 
 All notable changes are documented here. The project follows semantic versioning; every item above and below this sentence remains part of the single Unreleased section until a release is explicitly published.
 
@@ -33,6 +33,7 @@ All notable changes are documented here. The project follows semantic versioning
 
 ### Changed
 
+- Rename the public product display name to VibeSec Guardian and adopt the positioning line “Open-source security for vibe-coded and AI-built software.” Stable `vibesec` commands, namespaces, identifiers, artifact names, update channels, and the `yakovkazinets/VibeSec` repository identity remain unchanged.
 - Security-sensitive contribution guidance now requires matrix, fixture, failure-path, artifact, privacy, and trust-boundary updates.
 - Restructured README and AppSec Guardian guidance around profile fit, installation state, overlap detection, privacy, and unsupported coverage.
 - Expanded installation manifests with source, version, expected hash, and expected mode metadata while retaining bounded legacy inspection.
@@ -74,7 +75,7 @@ All notable changes are documented here. The project follows semantic versioning
 - Static repository configuration validation and explicit actionlint coverage for the starter workflow.
 - Fail-closed imported-skill validation with canonical UTF-8/NFC/LF fingerprints and contained reference hashing.
 - Parser-confusion regression fixtures covering YAML, Markdown, Unicode, path, symlink, and size boundaries.
-- Opt-in Standard profile with repository inventory, explicit coverage states, VibeSec-owned Opengrep SAST rules, OSV-Scanner v2, Syft CycloneDX/SPDX SBOMs, conditional Checkov, and trusted-event prebuilt-image scanning.
+- Opt-in Standard profile with repository inventory, explicit coverage states, VibeSec Guardian-owned Opengrep SAST rules, OSV-Scanner v2, Syft CycloneDX/SPDX SBOMs, conditional Checkov, and trusted-event prebuilt-image scanning.
 - Standard-profile normalization, baseline separation, bounded parser validation, safe fake-scanner integration tests, and a copyable least-privilege workflow.
 
 ### Security

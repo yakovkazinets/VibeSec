@@ -2,7 +2,7 @@
 
 ## Our pledge
 
-We pledge to make participation in VibeSec respectful, harassment-free, and welcoming regardless of background, identity, experience, or viewpoint.
+We pledge to make participation in VibeSec Guardian respectful, harassment-free, and welcoming regardless of background, identity, experience, or viewpoint.
 
 ## Expected behavior
 

@@ -1,4 +1,4 @@
-name: VibeSec CI
+name: VibeSec Guardian CI
 
 on:
   pull_request:
@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
       - name: Install checksum-verified Minimal scanners
         run: scripts/install_tools.sh . .tools/bin
-      - name: Run Minimal against VibeSec
+      - name: Run Minimal against VibeSec Guardian
         env:
           VIBESEC_ENFORCEMENT: observe
           VIBESEC_MIN_SEVERITY: high
@@ -67,7 +67,7 @@ jobs:
           scripts/install_standard_tools.sh . .tools/bin
       - name: Exercise pinned Checkov container fixtures
         run: python3 scripts/test_checkov_container.py
-      - name: Run Standard against VibeSec
+      - name: Run Standard against VibeSec Guardian
         id: standard
         env:
           VIBESEC_ENFORCEMENT: observe

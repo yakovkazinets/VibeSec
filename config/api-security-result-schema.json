@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "VibeSec API Security Baseline normalized results",
+  "title": "VibeSec Guardian API Security Baseline normalized results",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "profile", "results"],

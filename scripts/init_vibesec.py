@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safely preview or initialize VibeSec from source or a verified local bundle.
+"""Safely preview or initialize VibeSec Guardian from source or a verified local bundle.
 
 Exit codes: 0 success, 2 conflict/bundle verification, 3 invalid target or
 configuration, and 4 infrastructure failure. No network, Git, package manager,
@@ -179,7 +179,7 @@ def load_catalog(source: ConsumerSource | None = None) -> dict[str, Any]:
     try:
         return validate_catalog(loads_strict(provider.read("config/adoption-files.json")))
     except (BundleError, StrictJSONError, UnsafePath) as exc:
-        raise InvalidTarget(f"invalid VibeSec adoption catalog: {exc}") from exc
+        raise InvalidTarget(f"invalid VibeSec Guardian adoption catalog: {exc}") from exc
 
 
 def safe_relative(value: object) -> Path:
@@ -199,7 +199,7 @@ def validate_target(raw_target: Path, source_root: Path | None = SOURCE_ROOT) ->
     if not target.is_dir():
         raise InvalidTarget("target must be an existing directory")
     if source_root is not None and target == source_root:
-        raise InvalidTarget("the VibeSec source repository cannot initialize itself")
+        raise InvalidTarget("the VibeSec Guardian source repository cannot initialize itself")
     return target
 
 
@@ -379,7 +379,7 @@ def verify_addon_prerequisites(target: Path, catalog: dict[str, Any]) -> None:
     required = [safe_relative(value) for value in catalog["common"]]
     missing = [path.as_posix() for path in required if not (target / path).is_file() or (target / path).is_symlink()]
     if missing:
-        raise InvalidTarget("DAST add-on requires an existing VibeSec installation: " + ", ".join(missing))
+        raise InvalidTarget("DAST add-on requires an existing VibeSec Guardian installation: " + ", ".join(missing))
 
 
 def verify_standard_workflow_prerequisites(target: Path, catalog: dict[str, Any]) -> None:

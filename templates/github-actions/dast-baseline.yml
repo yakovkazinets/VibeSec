@@ -1,4 +1,4 @@
-name: VibeSec Passive DAST Baseline
+name: VibeSec Guardian Passive DAST Baseline
 
 on:
   workflow_dispatch:

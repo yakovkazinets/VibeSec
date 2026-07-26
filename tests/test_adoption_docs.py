@@ -46,9 +46,9 @@ class AdoptionDocumentationTests(unittest.TestCase):
         text = (ROOT / "docs/quickstart.md").read_text(encoding="utf-8")
         for phrase in (
             "Minimal: one-stage adoption", "Standard: required two-stage bootstrap",
-            "Existing repository with no VibeSec files", "Repository with existing security workflows",
+            "Existing repository with no VibeSec Guardian files", "Repository with existing security workflows",
             "VIBESEC_ENFORCEMENT: observe", "not_applicable", "not_configured", "tool_error",
-            "move from `observe` to `new`", "Remove VibeSec", "Network and privacy",
+            "move from `observe` to `new`", "Remove VibeSec Guardian", "Network and privacy",
         ):
             self.assertIn(phrase, text)
         self.assertNotIn("guarantees that your application is secure", text)

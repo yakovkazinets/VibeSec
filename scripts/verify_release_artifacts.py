@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify an untrusted VibeSec release artifact directory before extraction."""
+"""Verify an untrusted VibeSec Guardian release artifact directory before extraction."""
 
 from __future__ import annotations
 

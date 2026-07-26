@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the local, non-autofixing VibeSec Opengrep rule pack."""
+"""Validate the local, non-autofixing VibeSec Guardian Opengrep rule pack."""
 
 from __future__ import annotations
 
@@ -103,7 +103,7 @@ def main() -> int:
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 3
-    print(f"validated {len(identifiers)} VibeSec Opengrep rules")
+    print(f"validated {len(identifiers)} VibeSec Guardian Opengrep rules")
     return 0
 
 

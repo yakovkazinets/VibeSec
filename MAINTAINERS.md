@@ -1,6 +1,6 @@
 # Maintainers
 
-VibeSec is currently maintained by:
+VibeSec Guardian is currently maintained by:
 
 - [@yakovkazinets](https://github.com/yakovkazinets) — project maintainer
 

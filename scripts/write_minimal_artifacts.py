@@ -80,11 +80,11 @@ def report(args: argparse.Namespace) -> None:
         raise ValueError("failure report requires exit code 2 or 3")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     content = (
-        "# VibeSec Minimal report\n\n"
+        "# VibeSec Guardian Minimal report\n\n"
         f"Status: **{categories[args.exit_code]}**\n\n"
         "The scan did not complete with structurally valid evidence. Review coverage.json and "
         "policy-result.json for the failed component. No clean result is asserted.\n\n"
-        "A VibeSec report is not a security guarantee.\n"
+        "A VibeSec Guardian report is not a security guarantee.\n"
     )
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{args.output.name}.", dir=args.output.parent)
     temporary = Path(temporary_name)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strictly verify an untrusted local VibeSec consumer ZIP without extraction."""
+"""Strictly verify an untrusted local VibeSec Guardian consumer ZIP without extraction."""
 
 from __future__ import annotations
 

@@ -471,7 +471,7 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, mode:
         "tool_errors": len(evaluation["tool_errors"]), "expired_suppressions": len(expired),
         "enforcement": enforcement,
     }
-    lines = ["# VibeSec API Fuzzing and Injection Testing", "", f"Status: **{category}**", "",
+    lines = ["# VibeSec Guardian API Fuzzing and Injection Testing", "", f"Status: **{category}**", "",
              f"- Coverage: {state}", f"- Mode: {mode}", f"- Findings: {len(evaluation['findings'])}",
              f"- Policy violations: {len(evaluation['violations'])}",
              f"- Safe methods only: {str(safe_methods_only).lower()}",

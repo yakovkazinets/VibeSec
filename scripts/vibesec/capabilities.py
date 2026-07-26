@@ -24,12 +24,12 @@ QUESTIONS: tuple[tuple[str, str], ...] = (
     ("java", "Does this project contain Java?"),
     ("public_runtime", "Is the application publicly reachable?"),
     ("authentication", "Does the application use authentication?"),
-    ("authenticated_security_testing", "Should VibeSec configure authenticated runtime security testing?"),
+    ("authenticated_security_testing", "Should VibeSec Guardian configure authenticated runtime security testing?"),
     ("database", "Does the application use a database?"),
     ("secrets_configuration", "Does the project use secrets or environment configuration?"),
-    ("dast_target", "Should VibeSec configure a runtime DAST target?"),
-    ("api_security_target", "Should VibeSec configure OpenAPI-driven API security testing?"),
-    ("api_fuzzing_target", "Should VibeSec configure bounded active API fuzzing and injection testing?"),
+    ("dast_target", "Should VibeSec Guardian configure a runtime DAST target?"),
+    ("api_security_target", "Should VibeSec Guardian configure OpenAPI-driven API security testing?"),
+    ("api_fuzzing_target", "Should VibeSec Guardian configure bounded active API fuzzing and injection testing?"),
 )
 CAPABILITY_KEYS = tuple(key for key, _ in QUESTIONS)
 

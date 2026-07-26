@@ -1,4 +1,4 @@
-# VibeSec v1 security and parser review
+# VibeSec Guardian v1 security and parser review
 
 The v1 review rechecked pull-request trust boundaries, workflow permissions, immutable action and tool pins, archive extraction, parser ambiguity, path and link handling, shell quoting, secret redaction, Docker and network isolation, public-target rejection, extension permissions, agent prompt-injection boundaries, release signing and provenance, scanner failure propagation, stale artifact removal, raw result handling, and policy/baseline separation.
 

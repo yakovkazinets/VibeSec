@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline read-only diagnostics for a VibeSec consumer installation."""
+"""Offline read-only diagnostics for a VibeSec Guardian consumer installation."""
 
 from __future__ import annotations
 

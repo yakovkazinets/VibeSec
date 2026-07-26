@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Append scanner execution errors to a normalized VibeSec result document."""
+"""Append scanner execution errors to a normalized VibeSec Guardian result document."""
 
 import argparse
 from pathlib import Path

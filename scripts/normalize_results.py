@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Normalize one or more raw scanner outputs into the VibeSec result schema."""
+"""Normalize one or more raw scanner outputs into the VibeSec Guardian result schema."""
 
 import argparse
 import json

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inert HTTP fixture for the VibeSec passive ZAP baseline."""
+"""Inert HTTP fixture for the VibeSec Guardian passive ZAP baseline."""
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
@@ -22,7 +22,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        body = b"<html><body>VibeSec passive fixture</body></html>"
+        body = b"<html><body>VibeSec Guardian passive fixture</body></html>"
         if self.path == "/external-link":
             body = b'<html><body><a href="http://external.invalid/never">isolated link</a></body></html>'
         self.send_response(200)

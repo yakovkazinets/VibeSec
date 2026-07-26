@@ -1,12 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/yakovkazinets/VibeSec/machine/schemas/release-readiness.schema.json",
-  "title": "VibeSec release readiness v1",
+  "title": "VibeSec Guardian release readiness v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "stable_id", "status", "version", "main_commit", "schema_versions", "interface_statuses", "test_totals", "platform_support", "known_limitations", "deferred_features", "experimental_features", "threat_model_review", "release_artifact_verification", "migration_coverage", "documentation_coverage", "unresolved_risks", "release_blockers"],
   "properties": {
     "schema_version": {"const": 1},
+    "product_display_name": {"const": "VibeSec Guardian"},
+    "positioning_line": {"const": "Open-source security for vibe-coded and AI-built software."},
+    "product_id": {"const": "vibesec"},
     "stable_id": {"const": "vibesec.release-readiness.v1"},
     "status": {"enum": ["ready", "ready_with_known_limitations", "blocked"]},
     "version": {"type": "string", "minLength": 1, "maxLength": 64},

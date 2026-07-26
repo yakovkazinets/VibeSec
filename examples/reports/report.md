@@ -1,4 +1,4 @@
-# VibeSec standard profile
+# VibeSec Guardian standard profile
 
 Status: **pass**
 

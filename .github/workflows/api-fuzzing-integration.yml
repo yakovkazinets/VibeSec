@@ -1,4 +1,4 @@
-name: VibeSec Bounded API Fuzzing Controlled Integration
+name: VibeSec Guardian Bounded API Fuzzing Controlled Integration
 
 on:
   workflow_dispatch:

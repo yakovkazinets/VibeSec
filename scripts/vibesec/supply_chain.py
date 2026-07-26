@@ -17,6 +17,7 @@ import subprocess
 import tempfile
 from typing import Any
 
+from .branding import PRODUCT_DISPLAY_NAME, PRODUCT_ID, POSITIONING_LINE
 from .bundle import verify_bundle
 from .sbom import (
     CYCLONEDX_SPEC_VERSION, SPDX_SPEC_VERSION, validate_cyclonedx, validate_spdx,
@@ -186,6 +187,9 @@ def create_release_manifest(*, directory: Path, version: str, source_commit: str
         raise SupplyChainError("tool version map is invalid")
     return {
         "schema_version": RELEASE_SCHEMA,
+        "product_display_name": PRODUCT_DISPLAY_NAME,
+        "positioning_line": POSITIONING_LINE,
+        "product_id": PRODUCT_ID,
         "version": version,
         "source": {"repository": REPOSITORY, "commit": source_commit},
         "artifacts": _artifact_records(directory),
@@ -208,13 +212,24 @@ def create_release_manifest(*, directory: Path, version: str, source_commit: str
 
 
 def validate_release_manifest(value: Any) -> dict[str, Any]:
-    required = {
+    legacy_fields = {
         "schema_version", "version", "source", "artifacts", "schema_versions",
         "tool_versions", "creation_mode", "provenance", "checksum_file",
         "signature_bundle",
     }
-    if not isinstance(value, dict) or set(value) != required or value.get("schema_version") != RELEASE_SCHEMA:
+    branding_fields = {"product_display_name", "positioning_line", "product_id"}
+    if (not isinstance(value, dict)
+            or frozenset(value) not in {
+                frozenset(legacy_fields), frozenset(legacy_fields | branding_fields),
+            }
+            or value.get("schema_version") != RELEASE_SCHEMA):
         raise SupplyChainError("release manifest fields or schema are invalid")
+    if branding_fields <= set(value) and (
+        value["product_display_name"] != PRODUCT_DISPLAY_NAME
+        or value["positioning_line"] != POSITIONING_LINE
+        or value["product_id"] != PRODUCT_ID
+    ):
+        raise SupplyChainError("release manifest display branding or technical product identity is invalid")
     try:
         validate_version(value["version"])
     except (TypeError, ValueError) as exc:

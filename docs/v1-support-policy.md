@@ -1,6 +1,6 @@
-# VibeSec v1 support policy
+# VibeSec Guardian v1 support policy
 
-VibeSec v1 supports its stable public contracts for the v1 major line. Reviewed scanner pins can receive compatible security and maintenance updates. Security fixes can reject newly recognized ambiguous or unsafe input, but they must preserve the documented failure category.
+VibeSec Guardian v1 supports its stable public contracts for the v1 major line. Reviewed scanner pins can receive compatible security and maintenance updates. Security fixes can reject newly recognized ambiguous or unsafe input, but they must preserve the documented failure category.
 
 Complete native Minimal and Standard execution is validated on Linux x86_64. GitHub-hosted Ubuntu is the primary CI environment. Self-hosted runners must be Actions Runner 2.327.1 or newer and provide the documented Linux, Docker, storage, and network prerequisites.
 

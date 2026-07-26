@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manage verified local VibeSec extensions; mutations are dry-run by default."""
+"""Manage verified local VibeSec Guardian extensions; mutations are dry-run by default."""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ def parser() -> argparse.ArgumentParser:
     upgrade.add_argument("--json", action="store_true")
     run = commands.add_parser("run")
     run.add_argument("extension_id")
-    run.add_argument("--target", type=Path, default=Path("."), help="VibeSec installation containing the extension")
+    run.add_argument("--target", type=Path, default=Path("."), help="VibeSec Guardian installation containing the extension")
     run.add_argument("--repository", type=Path, required=True)
     run.add_argument("--results", type=Path, required=True)
     run.add_argument("--profile", choices=("minimal", "standard"), default="minimal")

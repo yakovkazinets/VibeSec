@@ -1,4 +1,4 @@
-"""Safe mutation helpers for normalized VibeSec result documents."""
+"""Safe mutation helpers for normalized VibeSec Guardian result documents."""
 
 from __future__ import annotations
 

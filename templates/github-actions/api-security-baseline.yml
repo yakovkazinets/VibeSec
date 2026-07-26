@@ -1,4 +1,4 @@
-name: VibeSec API Security Baseline
+name: VibeSec Guardian API Security Baseline
 
 on:
   workflow_dispatch:

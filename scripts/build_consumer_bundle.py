@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a deterministic, unsigned VibeSec consumer ZIP from reviewed files."""
+"""Build a deterministic, unsigned VibeSec Guardian consumer ZIP from reviewed files."""
 
 from __future__ import annotations
 

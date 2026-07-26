@@ -24,6 +24,7 @@
     "scripts/vibesec/__init__.py",
     "scripts/vibesec/authenticated.py",
     "scripts/vibesec/agents.py",
+    "scripts/vibesec/branding.py",
     "scripts/vibesec/bundle.py",
     "scripts/vibesec/capabilities.py",
     "scripts/vibesec/coverage.py",

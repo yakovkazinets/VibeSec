@@ -18,4 +18,4 @@ The write creates exactly the adapter’s declared instruction file and `.vibese
 
 Existing instruction targets are never overwritten. The plan returns `conflicting`, marks `merge_required=true`, and stops so a maintainer can review and merge guidance manually. Symlinked or traversing targets, malformed inventories, duplicate IDs, and unsupported versions fail closed.
 
-Use `vibesec agents verify <adapter>`, `vibesec agents doctor`, `vibesec agents disable <adapter> --write`, and `vibesec agents remove <adapter> --write`. Removal refuses modified or conflicting files. A disabled adapter remains installed and verifiable; no VibeSec operation invokes it or any external agent CLI.
+Use `vibesec agents verify <adapter>`, `vibesec agents doctor`, `vibesec agents disable <adapter> --write`, and `vibesec agents remove <adapter> --write`. Removal refuses modified or conflicting files. A disabled adapter remains installed and verifiable; no VibeSec Guardian operation invokes it or any external agent CLI.

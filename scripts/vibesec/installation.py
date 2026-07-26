@@ -315,7 +315,7 @@ def verify_installation(target_path: Path) -> InstallationState:
         status = "valid_with_local_changes"
     else:
         status = "valid"
-    information.append("Installation verification checks VibeSec configuration, not application security.")
+    information.append("Installation verification checks VibeSec Guardian configuration, not application security.")
     return InstallationState(
         status, target, manifests, errors, warnings, information, sorted(file_results, key=lambda item: item["path"]),
         profiles, next(iter(versions)) if len(versions) == 1 else None,

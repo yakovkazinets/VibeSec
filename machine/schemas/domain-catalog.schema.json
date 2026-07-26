@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/yakovkazinets/VibeSec/machine/schemas/domain-catalog.schema.json",
-  "title": "VibeSec v1 domain catalog",
+  "title": "VibeSec Guardian v1 domain catalog",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "stable_id", "status", "summary", "source", "human_documentation", "members", "statuses"],

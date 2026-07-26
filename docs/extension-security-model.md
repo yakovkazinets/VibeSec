@@ -1,6 +1,6 @@
 # Extension security model
 
-Extensions are executable code. Manifest validation and hashing establish structure and detect change; they do not prove that code is safe. Only install reviewed local sources from a trusted owner. VibeSec never discovers and runs project-provided extension directories automatically.
+Extensions are executable code. Manifest validation and hashing establish structure and detect change; they do not prove that code is safe. Only install reviewed local sources from a trusted owner. VibeSec Guardian never discovers and runs project-provided extension directories automatically.
 
 ## Enforced v1 boundaries
 
@@ -17,6 +17,6 @@ Extensions are executable code. Manifest validation and hashing establish struct
 
 The native subprocess boundary is not an OS sandbox. A malicious locally approved adapter could use operating-system APIs beyond its manifest declaration. The minimal environment and protocol reduce accidental exposure but cannot enforce filesystem or network isolation portably. V1 therefore allows only explicitly reviewed local sources and rejects network, Docker, secrets, and repository-write grants. Stronger native sandboxing and signed distribution are future work.
 
-An extension can still emit misleading findings. VibeSec validates shape, bounds, provenance, and failure state; it does not prove scanner semantics. Passing extension scans does not prove application security. Never include secret-bearing raw output in declared artifacts.
+An extension can still emit misleading findings. VibeSec Guardian validates shape, bounds, provenance, and failure state; it does not prove scanner semantics. Passing extension scans does not prove application security. Never include secret-bearing raw output in declared artifacts.
 
 Extension code cannot gain authority by changing its manifest after installation: any content change invalidates the inventory. Reinstalling or upgrading requires a new explicit review; no automatic remediation or marketplace trust is implemented.

@@ -1,4 +1,4 @@
-# VibeSec v1 release readiness
+# VibeSec Guardian v1 release readiness
 
 The committed [`machine/release-readiness.json`](../machine/release-readiness.json)
 is a deterministic historical snapshot of the explicitly identified reviewed
@@ -12,7 +12,7 @@ bounded machine-readable evidence record binds both successful runs and the
 fresh test total to that SHA. Candidate readiness accepts only that same-job
 evidence and records it as `exact-sha-validate:<SHA>`.
 
-`ready_with_known_limitations` means required offline validation and artifact cross-verification passed while explicitly documented limitations remain. It is not a claim that VibeSec or an application is secure. `blocked` requires at least one blocker; a non-blocked report cannot contain blockers.
+`ready_with_known_limitations` means required offline validation and artifact cross-verification passed while explicitly documented limitations remain. It is not a claim that VibeSec Guardian or an application is secure. `blocked` requires at least one blocker; a non-blocked report cannot contain blockers.
 
 The manual release-candidate workflow then builds the deterministic consumer
 bundle twice, compares it byte-for-byte, generates local CycloneDX 1.7 and SPDX

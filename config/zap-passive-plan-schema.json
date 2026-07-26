@@ -117,6 +117,6 @@
     }
   },
   "required": ["env", "jobs"],
-  "title": "VibeSec trusted passive ZAP Automation Framework plan",
+  "title": "VibeSec Guardian trusted passive ZAP Automation Framework plan",
   "type": "object"
 }

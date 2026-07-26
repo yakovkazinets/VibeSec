@@ -2,7 +2,7 @@
   "schema_version": 1,
   "task_id": "validate-installation",
   "human_documentation": "docs/agent-task-pack.md",
-  "title": "Validate a VibeSec installation",
+  "title": "Validate a VibeSec Guardian installation",
   "objective": "Verify installed files, inventories, capabilities, agent adapters, and security artifacts without changing them.",
   "scope": ["installation manifest", "extension and agent inventories", "declared managed files"],
   "allowed_actions": ["read and hash managed files", "run offline verification", "report state"],

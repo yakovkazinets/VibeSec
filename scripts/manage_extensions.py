@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED  # noqa: E402
+from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED, WARNINGS  # noqa: E402
 from vibesec.extensions import (  # noqa: E402
     ExtensionError, describe_extension, execute_adapter, install_extension, list_extensions, plan_extension_upgrade,
     remove_extension, set_enabled, verify_extensions,
@@ -18,6 +18,24 @@ from vibesec.portable import PortableExecutionError, platform_id  # noqa: E402
 from vibesec.version import VersionError, read_version  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def adapter_run_status(exit_code: int, coverage: str) -> str:
+    expected_coverage = {
+        SUCCESS: {"ran", "not_applicable", "not_configured"},
+        WARNINGS: {"ran", "not_applicable", "not_configured"},
+        VERIFICATION_FAILED: {"tool_error"},
+        INVALID_INPUT: {"tool_error"},
+    }
+    statuses = {
+        SUCCESS: "success",
+        WARNINGS: "policy_violation",
+        VERIFICATION_FAILED: "tool_error",
+        INVALID_INPUT: "invalid_input",
+    }
+    if exit_code not in expected_coverage or coverage not in expected_coverage[exit_code]:
+        raise ExtensionError("extension exit code and coverage are inconsistent")
+    return statuses[exit_code]
 
 
 def parser() -> argparse.ArgumentParser:
@@ -84,7 +102,11 @@ def main() -> int:
                 profile=args.profile, current_platform=platform_id(),
             )
             exit_code = value["exit_code"]
-        status = value.get("status", "success") if isinstance(value, dict) else "success"
+        status = (
+            adapter_run_status(exit_code, value["coverage"])
+            if args.operation == "run"
+            else value.get("status", "success") if isinstance(value, dict) else "success"
+        )
         emit(envelope(f"extensions_{args.operation.replace('-', '_')}", version, status, result=value), as_json=args.json)
         return VERIFICATION_FAILED if status == "invalid" else exit_code
     except (ExtensionError, OSError, PortableExecutionError, ValueError) as exc:

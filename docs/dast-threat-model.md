@@ -10,7 +10,7 @@ The registry pull is the only intended external network activity. After pull and
 
 ## Fail-closed rules
 
-- Only scheduled or manually dispatched trusted events can start the target.
+- Only scheduled or manually dispatched trusted events can start an unauthenticated target; secret-bearing generated workflows are schedule-only so they use the default-branch workflow revision.
 - Both target and scanner references are digest-pinned; the target must declare a non-root user.
 - The Automation Framework command is fixed to `zap.sh -cmd -silent -dir /zap/vibesec-home -autorun /zap/wrk/vibesec-zap-plan.yaml`; the explicit home is a bounded per-container tmpfs, the plan contains no add-ons job, and callers cannot extend either command or plan.
 - The exact plan permits only one internal context followed by traditional spider, passive wait, traditional JSON report, and trusted exit-status jobs. Active, AJAX/client, import, API, authentication, requestor, replacer, and script jobs fail validation.
@@ -19,10 +19,10 @@ The registry pull is the only intended external network activity. After pull and
 - Parser/configuration failure is exit `3`; runtime or cleanup failure is exit `2`; neither is a clean scan.
 - Cleanup removes the scanner, target, internal network, generated plan, and private raw report. A cleanup failure changes the result to a tool failure.
 - Live accountability failure diagnostics inspect only the stopped current-run scanner. Bounded raw log data is parsed privately, never uploaded or printed, and its temporary copy is deleted before container and network cleanup.
-- Artifact validation rejects prohibited raw or sensitive fields and only the four sanitized artifacts are uploaded.
+- Artifact validation rejects prohibited raw or sensitive fields and only the six sanitized core and finding-intelligence artifacts are uploaded.
 
 ## Residual risk and exclusions
 
 Running any untrusted application image exercises application code and shares a Docker kernel boundary with the runner. Non-root execution, read-only filesystems, capability removal, no-new-privileges, resource bounds, no host mounts, and internal networking reduce but do not remove container-escape or resource-exhaustion risk. Use a disposable trusted runner and review the image provenance.
 
-The add-on deliberately excludes active attacks, AJAX spidering, authentication, credentials, browser automation, external targets, target builds, dependency installation, lifecycle scripts, user-supplied commands, and arbitrary ZAP options. Passive results are coverage evidence, not a security guarantee.
+The add-on deliberately excludes active attacks, AJAX spidering, ZAP-native authentication flows, browser automation, external targets, target builds, dependency installation, lifecycle scripts, user-supplied commands, and arbitrary ZAP options. The separate authenticated-testing capability supports only one fixed bearer credential through the scanner process and remains subject to its dedicated threat model. Passive results are coverage evidence, not a security guarantee.

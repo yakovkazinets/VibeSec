@@ -188,6 +188,61 @@ class ExtensionPlatformTests(unittest.TestCase):
         self.assertEqual(json.loads(executed.stdout)["result"]["coverage"], "ran")
         self.assertEqual(len(json.loads((results / "normalized.json").read_text())["results"]), 1)
 
+    def test_cli_run_envelope_matches_exact_adapter_exit_and_coverage(self):
+        cases = (
+            (1, "ran", "policy_violation"),
+            (2, "tool_error", "tool_error"),
+            (3, "tool_error", "invalid_input"),
+        )
+        for code, coverage, expected_status in cases:
+            with self.subTest(exit_code=code):
+                target = Path(self.temporary.name) / f"target-{code}"
+                target.mkdir()
+                source = Path(self.temporary.name) / f"source-{code}"
+                shutil.copytree(EXAMPLE, source)
+                (source / "adapter.py").write_text(
+                    "#!/usr/bin/env python3\n"
+                    "import json\n"
+                    "from pathlib import Path\n"
+                    "import sys\n"
+                    "request = json.load(sys.stdin)\n"
+                    f"code = {code}\n"
+                    f"coverage = {coverage!r}\n"
+                    "path = None\n"
+                    "artifacts = []\n"
+                    "if code in {0, 1}:\n"
+                    "    Path(request['results_dir']).mkdir(parents=True, exist_ok=True)\n"
+                    "    Path(request['results_dir'], 'normalized.json').write_text("
+                    "'{\"schema_version\":1,\"results\":[]}\\n', encoding='utf-8')\n"
+                    "    path = 'normalized.json'\n"
+                    "    artifacts = ['normalized.json']\n"
+                    "print(json.dumps({'schema_version': 1, 'exit_code': code, "
+                    "'coverage': coverage, 'normalized_findings_path': path, "
+                    "'artifacts': artifacts, 'diagnostics': []}))\n"
+                    "raise SystemExit(code)\n",
+                    encoding="utf-8",
+                )
+                install_extension(target, source, write=True)
+                results = Path(self.temporary.name) / f"cli-exit-{code}"
+                completed = subprocess.run(
+                    [
+                        str(ROOT / "vibesec"), "extensions", "run",
+                        "vibesec.repository-metadata-example",
+                        "--target", str(target), "--repository", str(NEGATIVE),
+                        "--results", str(results), "--json",
+                    ],
+                    cwd=ROOT, text=True, capture_output=True, check=False,
+                )
+                self.assertEqual(
+                    completed.returncode, code,
+                    completed.stderr + completed.stdout,
+                )
+                payload = json.loads(completed.stdout)
+                self.assertEqual(payload["status"], expected_status)
+                self.assertEqual(payload["result"]["exit_code"], code)
+                self.assertEqual(payload["result"]["coverage"], coverage)
+                self.assertNotEqual(payload["status"], "success")
+
     def test_bundle_install_verifier_doctor_and_upgrade_are_extension_aware(self):
         bundle = Path(self.temporary.name) / "bundle.zip"
         bundle.write_bytes(build_bundle_bytes(ROOT)[0])

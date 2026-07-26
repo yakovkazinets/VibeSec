@@ -141,6 +141,8 @@ class AuthenticatedSecurityTestingTests(unittest.TestCase):
         self.assertEqual(addon.returncode, 0, addon.stdout)
         workflow = (target / ".github/workflows/vibesec-dast-baseline.yml").read_text()
         self.assertEqual(workflow.count("secrets.MY_RUNTIME_BEARER"), 1)
+        self.assertNotIn("workflow_dispatch:", workflow)
+        self.assertIn("schedule:", workflow)
         secret_line = next(line for line in workflow.splitlines() if "secrets.MY_RUNTIME_BEARER" in line)
         self.assertIn(AUTH_ENVIRONMENT_VARIABLE, secret_line)
         checkout = workflow.split("- name: Check out", 1)[1].split("- name: Run isolated", 1)[0]
@@ -380,7 +382,7 @@ class AuthenticatedSecurityTestingTests(unittest.TestCase):
             "          # AUTHENTICATED_SCANNER_ENV_MARKER\n",
             "          VIBESEC_AUTH_MODE: bearer\n"
             "          VIBESEC_AUTH_BEARER_TOKEN: ${{ secrets.FIXTURE_BEARER }}\n",
-        )
+        ).replace("  workflow_dispatch:\n", "")
         self.assertEqual(_auth_workflow_problems(valid, secret_name="FIXTURE_BEARER", enabled=True), [])
         moved = valid.replace(
             "          VIBESEC_AUTH_BEARER_TOKEN: ${{ secrets.FIXTURE_BEARER }}\n", "",
@@ -398,6 +400,12 @@ class AuthenticatedSecurityTestingTests(unittest.TestCase):
         self.assertIn("unsafe dynamic secret expression",
                       _auth_workflow_problems(dynamic, secret_name="FIXTURE_BEARER", enabled=True))
         pushed = valid.replace("  workflow_dispatch:\n", "  push:\n")
+        manually_dispatched = valid.replace("  schedule:\n", "  workflow_dispatch:\n  schedule:\n")
+        self.assertIn(
+            "secret-bearing workflow permits branch-selected manual dispatch",
+            _auth_workflow_problems(manually_dispatched, secret_name="FIXTURE_BEARER", enabled=True),
+        )
+        pushed = valid.replace("  schedule:\n", "  push:\n  schedule:\n")
         self.assertIn("untrusted workflow trigger",
                       _auth_workflow_problems(pushed, secret_name="FIXTURE_BEARER", enabled=True))
 

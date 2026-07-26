@@ -2,26 +2,50 @@
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import Any
 
 from .model import Finding
+from .strict_json import StrictJSONError, loads_strict
 
 MAX_INPUT_BYTES = 25 * 1024 * 1024
 MAX_TEXT = 2_000
 MAX_ITEMS = 100_000
+MAX_JSON_DEPTH = 64
 CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
-def _load_json(path: Path) -> Any:
+def _parse_scanner_json(data: bytes, *, source: Path) -> Any:
     try:
-        if path.stat().st_size > MAX_INPUT_BYTES:
-            raise ValueError(f"scanner output exceeds {MAX_INPUT_BYTES} bytes")
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return loads_strict(
+            data,
+            maximum_bytes=MAX_INPUT_BYTES,
+            maximum_depth=MAX_JSON_DEPTH,
+            maximum_items=MAX_ITEMS,
+            maximum_string=MAX_INPUT_BYTES,
+            # Scanner fields can legitimately contain escaped line breaks in
+            # source snippets that normalization subsequently discards.
+            reject_controls=False,
+        )
+    except StrictJSONError as exc:
+        raise ValueError(f"malformed scanner output in {source}: {exc}") from exc
+
+
+def _read_scanner_output(path: Path) -> bytes:
+    try:
+        with path.open("rb") as stream:
+            data = stream.read(MAX_INPUT_BYTES + 1)
+    except OSError as exc:
         raise ValueError(f"malformed scanner output in {path}: {exc}") from exc
+    if len(data) > MAX_INPUT_BYTES:
+        raise ValueError(f"scanner output exceeds {MAX_INPUT_BYTES} bytes")
+    return data
+
+
+def load_scanner_json(path: Path) -> Any:
+    data = _read_scanner_output(path)
+    return _parse_scanner_json(data, source=path)
 
 
 def _text(value: Any, *, field: str, required: bool = False) -> str:
@@ -74,7 +98,7 @@ def _path(value: Any, *, field: str) -> str:
 
 
 def normalize_trivy(path: Path) -> list[Finding]:
-    payload = _load_json(path)
+    payload = load_scanner_json(path)
     if not isinstance(payload, dict):
         raise ValueError("malformed Trivy output: expected object with Results array")
     results = payload.get("Results")
@@ -122,7 +146,7 @@ def normalize_trivy(path: Path) -> list[Finding]:
 
 
 def normalize_gitleaks(path: Path) -> list[Finding]:
-    payload = _load_json(path)
+    payload = load_scanner_json(path)
     if not isinstance(payload, list):
         raise ValueError("malformed Gitleaks output: expected an array")
     findings: list[Finding] = []
@@ -138,7 +162,7 @@ def normalize_gitleaks(path: Path) -> list[Finding]:
 
 
 def normalize_opengrep(path: Path) -> list[Finding]:
-    payload = _load_json(path)
+    payload = load_scanner_json(path)
     if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
         raise ValueError("malformed Opengrep output: expected object with results array")
     findings: list[Finding] = []
@@ -180,7 +204,7 @@ def _osv_severity(vulnerability: dict[str, Any]) -> str:
 
 
 def normalize_osv(path: Path) -> list[Finding]:
-    payload = _load_json(path)
+    payload = load_scanner_json(path)
     if not isinstance(payload, dict) or "results" not in payload:
         raise ValueError("malformed OSV-Scanner output: expected object with results array")
     results = [] if payload["results"] is None else payload["results"]
@@ -231,7 +255,7 @@ def _checkov_documents(payload: Any) -> list[dict[str, Any]]:
 
 def normalize_checkov(path: Path) -> list[Finding]:
     findings: list[Finding] = []
-    for document in _checkov_documents(_load_json(path)):
+    for document in _checkov_documents(load_scanner_json(path)):
         results = document.get("results")
         if not isinstance(results, dict) or not isinstance(results.get("failed_checks", []), list):
             raise ValueError("malformed Checkov output: results.failed_checks must be an array")
@@ -261,18 +285,14 @@ ACTIONLINT_PATTERN = re.compile(r"^(?P<file>.*?):(?P<line>\d+):(?P<col>\d+): (?P
 
 def normalize_actionlint(path: Path) -> list[Finding]:
     try:
-        if path.stat().st_size > MAX_INPUT_BYTES:
-            raise ValueError(f"scanner output exceeds {MAX_INPUT_BYTES} bytes")
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
+        data = _read_scanner_output(path)
+        text = data.decode("utf-8")
+    except (ValueError, UnicodeError) as exc:
         raise ValueError(f"malformed actionlint output: {exc}") from exc
     findings: list[Finding] = []
     stripped = text.strip()
     if stripped.startswith("["):
-        try:
-            payload = json.loads(stripped)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"malformed actionlint JSON output: {exc.msg}") from exc
+        payload = _parse_scanner_json(stripped.encode("utf-8"), source=path)
         if not isinstance(payload, list) or len(payload) > MAX_ITEMS:
             raise ValueError("malformed actionlint JSON output: expected a bounded array")
         for item in payload:

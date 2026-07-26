@@ -64,7 +64,7 @@ def _validate_contract(value: dict[str, Any]) -> dict[str, Any]:
     fields = {
         "schema_version", "contract_id", "contract_version", "human_documentation", "purpose",
         "authority", "actions", "pre_commit_validation_loop", "required_safety_rules",
-        "exit_codes", "coverage_states", "forbidden_data",
+        "exit_codes", "lifecycle_exit_codes", "coverage_states", "forbidden_data",
     }
     if set(value) != fields or value.get("schema_version") != 1 or value.get("contract_id") != CONTRACT_ID:
         raise AgentGuidanceError("agent contract fields, schema, or identity are invalid")
@@ -89,10 +89,17 @@ def _validate_contract(value: dict[str, Any]) -> dict[str, Any]:
     if value.get("coverage_states") != ["ran", "not_applicable", "not_configured", "tool_error"]:
         raise AgentGuidanceError("agent coverage states differ from VibeSec")
     if value.get("exit_codes") != {
-        "0": "success", "1": "policy_violation_or_verification_failure",
+        "0": "success", "1": "policy_violation",
         "2": "tool_or_runtime_failure", "3": "invalid_configuration_or_malformed_input",
     }:
         raise AgentGuidanceError("agent exit-code contract differs from VibeSec")
+    if value.get("lifecycle_exit_codes") != {
+        "0": "success", "1": "review_warning_or_modified_guidance",
+        "2": "verification_failure",
+        "3": "invalid_configuration_or_malformed_input",
+        "4": "infrastructure_failure",
+    }:
+        raise AgentGuidanceError("agent lifecycle exit-code contract differs from VibeSec")
     if not isinstance(value.get("pre_commit_validation_loop"), list) or len(value["pre_commit_validation_loop"]) != 7:
         raise AgentGuidanceError("agent pre-commit validation loop is incomplete")
     if not isinstance(value.get("required_safety_rules"), list) or len(value["required_safety_rules"]) != 12:

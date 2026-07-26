@@ -1,7 +1,6 @@
 name: Authenticated DAST integration accountability
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: "23 6 * * 2"
 

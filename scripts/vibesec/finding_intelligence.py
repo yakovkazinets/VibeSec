@@ -482,7 +482,11 @@ def validate_documents(groups: Any, priorities: Any) -> None:
                 or not HEX64.fullmatch(item["correlation_key"])):
             raise FindingIntelligenceError("source finding evidence is malformed")
     reference_set = set(references)
+    findings_by_reference = {
+        item["source_reference"]: item for item in groups["findings"]
+    }
     assigned: list[str] = []
+    groups_by_key: dict[str, dict[str, Any]] = {}
     group_fields = {
         "correlation_key", "correlation_key_version", "correlation_rules", "correlation_classification",
         "member_count", "member_references", "contributing_scanners", "decision_provenance",
@@ -502,6 +506,19 @@ def validate_documents(groups: Any, priorities: Any) -> None:
                 or not isinstance(item.get("decision_provenance"), list)
                 or not 1 <= len(item["decision_provenance"]) <= MAX_CANDIDATE_PAIRS):
             raise FindingIntelligenceError("group membership is invalid")
+        source_members = [
+            findings_by_reference[reference] for reference in item["member_references"]
+        ]
+        expected_scanners = sorted({
+            member["original_scanner"] for member in source_members
+        })
+        if (item["contributing_scanners"] != expected_scanners
+                or any(member["correlation_key"] != item["correlation_key"]
+                       for member in source_members)):
+            raise FindingIntelligenceError(
+                "group evidence differs from its source findings"
+            )
+        groups_by_key[item["correlation_key"]] = item
         assigned.extend(item["member_references"])
         for decision in item["decision_provenance"]:
             if (not isinstance(decision, dict) or set(decision) != {"left", "right", "rule", "classification", "evidence"}
@@ -530,6 +547,24 @@ def validate_documents(groups: Any, priorities: Any) -> None:
             if (not isinstance(reason, dict) or set(reason) != {"factor", "effect", "evidence"}
                     or not all(isinstance(reason[field], str) and reason[field] for field in reason)):
                 raise FindingIntelligenceError("priority reason is malformed")
+        group = groups_by_key[item["correlation_key"]]
+        source_members = [
+            findings_by_reference[reference]
+            for reference in group["member_references"]
+        ]
+        expected_priority, expected_reasons = _priority(source_members)
+        if (item["member_references"] != group["member_references"]
+                or item["member_count"] != group["member_count"]
+                or item["contributing_scanners"] != group["contributing_scanners"]
+                or item["independent_scanner_count"]
+                != len(group["contributing_scanners"])
+                or item["confirmed_runtime"]
+                != any(member["confirmed_runtime"] for member in source_members)
+                or item["priority"] != expected_priority
+                or item["priority_reasons"] != expected_reasons):
+            raise FindingIntelligenceError(
+                "priority evidence differs from its group or source findings"
+            )
     expected_order = sorted(
         priorities["groups"], key=lambda item: ({"critical": 0, "high": 1, "medium": 2, "low": 3, "informational": 4}[item["priority"]], item["correlation_key"])
     )

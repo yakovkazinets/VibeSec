@@ -152,6 +152,59 @@ class FindingIntelligenceTests(unittest.TestCase):
             self.assertEqual(schema["properties"]["schema_version"]["const"], payload["schema_version"])
             self.assertTrue(set(schema["required"]) <= set(payload))
 
+    def test_priority_records_must_match_exact_group_and_source_evidence(self):
+        left = finding(
+            confirmed_runtime=True,
+            vulnerability_family="command-injection",
+            sink_category="command-injection",
+        )
+        right = finding(
+            "trivy", "2" * 64, line=11, rule="RULE-2",
+            vulnerability_family="command-injection",
+            sink_category="command-injection",
+        )
+        groups, priorities = build([source(left, right)])
+
+        mutations = {
+            "member_count": lambda item: item.__setitem__(
+                "member_count", item["member_count"] + 1,
+            ),
+            "member_references": lambda item: item.__setitem__(
+                "member_references", list(reversed(item["member_references"])),
+            ),
+            "contributing_scanners": lambda item: item.__setitem__(
+                "contributing_scanners", ["actionlint", "trivy"],
+            ),
+            "independent_scanner_count": lambda item: item.__setitem__(
+                "independent_scanner_count", 1,
+            ),
+            "confirmed_runtime": lambda item: item.__setitem__(
+                "confirmed_runtime", False,
+            ),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(field=name):
+                forged = copy.deepcopy(priorities)
+                mutate(forged["groups"][0])
+                with self.assertRaises(FindingIntelligenceError):
+                    validate_documents(groups, forged)
+
+    def test_group_scanners_and_finding_group_identity_must_match_sources(self):
+        groups, priorities = build([source(finding())])
+        forged_group = copy.deepcopy(groups)
+        forged_group["groups"][0]["contributing_scanners"] = ["trivy"]
+        with self.assertRaisesRegex(
+            FindingIntelligenceError, "group evidence differs",
+        ):
+            validate_documents(forged_group, priorities)
+
+        forged_finding = copy.deepcopy(groups)
+        forged_finding["findings"][0]["correlation_key"] = "f" * 64
+        with self.assertRaisesRegex(
+            FindingIntelligenceError, "group evidence differs",
+        ):
+            validate_documents(forged_finding, priorities)
+
     def test_malformed_and_oversized_documents_fail_closed(self):
         with self.assertRaises(FindingIntelligenceError):
             build([SourceDocument("standard", "normalized.json", {"schema_version": 1, "results": "wrong"})])

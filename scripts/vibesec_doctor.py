@@ -117,6 +117,8 @@ def _auth_workflow_problems(text: str, *, secret_name: str | None, enabled: bool
     if "schemathesis.ndjson\n" in lowered or "zap-report.json\n" in lowered or "results/raw" in lowered:
         problems.append("raw scanner report upload")
     if enabled:
+        if "workflow_dispatch:" in lowered:
+            problems.append("secret-bearing workflow permits branch-selected manual dispatch")
         if secret_name is None or secret_references != [secret_name]:
             problems.append("missing, duplicate, or incorrect static secret reference")
         expected = f"{AUTH_ENVIRONMENT_VARIABLE}: ${{{{ secrets.{secret_name} }}}}" if secret_name else ""

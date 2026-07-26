@@ -1,11 +1,16 @@
+from contextlib import redirect_stderr, redirect_stdout
+import io
 import json
 import os
 from pathlib import Path
+import runpy
 import stat
 import subprocess
 import tempfile
 import textwrap
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from scripts.vibesec.portable import PortableExecutionError, load_support, platform_id, select_execution_mode
 
@@ -67,6 +72,40 @@ class PortableCliTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 1, completed.stderr)
         payload = json.loads(completed.stdout)
         self.assertEqual(payload["status"], "unverifiable_legacy_installation")
+
+    def test_passthrough_preserves_complete_json_exit_four_and_bounded_diagnostics(self):
+        namespace = runpy.run_path(str(ROOT / "vibesec"))
+        payload = json.dumps({"value": "x" * (80 * 1024)}) + "\n"
+        diagnostic = "d" * (80 * 1024)
+        completed = SimpleNamespace(
+            returncode=4, stdout=payload, stderr=diagnostic,
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch.object(
+            namespace["_run"].__globals__["subprocess"],
+            "run",
+            return_value=completed,
+        ), redirect_stdout(stdout), redirect_stderr(stderr):
+            code = namespace["_passthrough"]("ignored.py", ["--json"])
+        self.assertEqual(code, 4)
+        self.assertEqual(json.loads(stdout.getvalue()), json.loads(payload))
+        self.assertEqual(stdout.getvalue(), payload)
+        self.assertEqual(
+            len(stderr.getvalue().rstrip("\n").encode("utf-8")),
+            namespace["MAX_DIAGNOSTIC_BYTES"],
+        )
+
+    def test_scanner_boundary_still_maps_unknown_exit_to_tool_failure(self):
+        namespace = runpy.run_path(str(ROOT / "vibesec"))
+        completed = SimpleNamespace(returncode=4, stdout='{"ok":true}\n', stderr="")
+        with patch.object(
+            namespace["_run"].__globals__["subprocess"],
+            "run",
+            return_value=completed,
+        ):
+            code, stdout, stderr = namespace["_run"](["ignored"])
+        self.assertEqual((code, json.loads(stdout), stderr), (2, {"ok": True}, ""))
 
     def test_cli_routes_initializer_dry_run_without_interactive_prompts(self):
         target = Path(self.temporary.name) / "init-target"

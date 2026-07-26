@@ -26,7 +26,9 @@ from vibesec.finding_intelligence import FindingIntelligenceError, SourceDocumen
 from vibesec.normalize import load_scanner_json, normalize_file  # noqa: E402
 from vibesec.policy import active_suppressions, load_json_yaml  # noqa: E402
 from vibesec.osv_database import validate_offline_database  # noqa: E402
-from vibesec.sbom import sanitize_repository_paths, validate_cyclonedx, validate_spdx  # noqa: E402
+from vibesec.sbom import (  # noqa: E402
+    build_syft_command, sanitize_repository_paths, validate_cyclonedx, validate_spdx,
+)
 
 ACTIONLINT_JSON_FORMAT = "{{json .}}"
 DIAGNOSTIC_DOCS = "docs/self-hosted-validation.md"
@@ -366,9 +368,11 @@ def main() -> int:
             print(f"offline mode configuration error: {exc}", file=sys.stderr)
             return 3
 
-    results.mkdir(parents=True, exist_ok=True)
+    results.mkdir(mode=0o700, parents=True, exist_ok=True)
+    results.chmod(0o700)
     raw = results / "raw"
-    raw.mkdir(exist_ok=True)
+    raw.mkdir(mode=0o700, exist_ok=True)
+    raw.chmod(0o700)
     for relative in KNOWN_OUTPUTS:
         try:
             (results / relative).unlink(missing_ok=True)
@@ -388,7 +392,8 @@ def main() -> int:
     environment = {key: value for key, value in os.environ.items() if not key.startswith(
         ("SYFT_", "OPENGREP_", "SEMGREP_", "OSV_SCANNER_", "GITLEAKS_", "TRIVY_", "CHECKOV_"))}
     scanner_home = results / ".scanner-home"
-    scanner_home.mkdir(exist_ok=True)
+    scanner_home.mkdir(mode=0o700, exist_ok=True)
+    scanner_home.chmod(0o700)
     environment.update({
         "HOME": str(scanner_home),
         "SYFT_CHECK_FOR_APP_UPDATE": "false", "SYFT_ENRICH": "",
@@ -472,10 +477,9 @@ def main() -> int:
     sbom_formats: list[str] = []
     if manifests:
         sbom_input_failure = False
-        error = run("syft", command(
-            tools / "syft", "dir:.", "--config", vibesec_root / "config/syft-standard.yaml",
-            "--base-path", ".", "--output", f"cyclonedx-json={cyclonedx}",
-            "--output", f"spdx-json={spdx}", "--quiet"), None, cwd=root, env=environment)
+        error = run("syft", build_syft_command(
+            tools / "syft", vibesec_root / "config/syft-standard.yaml", cyclonedx, spdx,
+        ), None, cwd=root, env=environment)
         if not error:
             try:
                 sanitize_repository_paths(cyclonedx, root)

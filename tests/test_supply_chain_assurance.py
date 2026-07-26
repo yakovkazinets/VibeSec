@@ -64,7 +64,7 @@ class SupplyChainAssuranceTests(unittest.TestCase):
             BUNDLE_NAME, CYCLONEDX_NAME, SPDX_NAME, READINESS_NAME, PROVENANCE_NAME, MANIFEST_NAME,
         ])
         self.assertNotIn(str(self.root), json.dumps(result.manifest))
-        self.assertEqual(result.manifest["schema_versions"]["cyclonedx"], "1.6")
+        self.assertEqual(result.manifest["schema_versions"]["cyclonedx"], "1.7")
         self.assertEqual(result.manifest["schema_versions"]["spdx"], "SPDX-2.3")
         self.assertEqual(
             [item["name"] for item in result.provenance["subject"]],
@@ -73,7 +73,7 @@ class SupplyChainAssuranceTests(unittest.TestCase):
 
     def test_sbom_versions_are_exact_and_bound_to_manifest(self):
         for path, field, wrong in (
-            (self.cyclonedx, "specVersion", "1.7"),
+            (self.cyclonedx, "specVersion", "1.6"),
             (self.spdx, "spdxVersion", "SPDX-2.2"),
         ):
             changed = json.loads(path.read_text())
@@ -91,7 +91,7 @@ class SupplyChainAssuranceTests(unittest.TestCase):
             (
                 self.cyclonedx, validate_cyclonedx,
                 b'{"bomFormat":"CycloneDX","bomFormat":"CycloneDX",'
-                b'"specVersion":"1.6","components":[{"name":"fixture"}]}\n',
+                b'"specVersion":"1.7","components":[{"name":"fixture"}]}\n',
             ),
             (
                 self.spdx, validate_spdx,

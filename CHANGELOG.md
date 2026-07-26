@@ -42,7 +42,8 @@ All notable changes are documented here. The project follows semantic versioning
 - Final v1 review now fails closed on ambiguous scanner, policy, SBOM, and repository JSON; bounds deep repository YAML; and keeps lazy quotes, indented code, and examples non-authoritative.
 - Portable CLI and extension envelopes now preserve complete machine output and exact scanner versus lifecycle failure categories; finding-intelligence documents are tied back to their source evidence.
 - Authenticated secret-bearing workflows are schedule-only, profile artifact inventories match starter workflows, and API-fuzzing workflow coverage is explicit.
-- Provenance, CycloneDX 1.6, SPDX 2.3, exact-source readiness evidence, all eleven migrations, and all eleven adoption examples now have aligned executable contracts.
+- Provenance, CycloneDX 1.7, SPDX 2.3, exact-source readiness evidence, all eleven migrations, and all eleven adoption examples now have aligned executable contracts.
+- Standard self-scans now accept the CycloneDX 1.7 document emitted by pinned Syft 1.49.0, preserve both validated SBOMs, and keep Syft process failures distinct from malformed artifacts.
 - Standard self-scan image expectations are now derived from trusted event context and product-view applicability, preventing pull-request and post-merge `push` states from being conflated.
 - Checkov 3.3.8 self-scans now use a trusted empty YAML mapping instead of the invalid empty `/dev/null` document, retain exact failure evidence in CI, and exercise the pinned isolated container against positive and negative fixtures.
 - Standard self-scans now use deterministic Actionlint JSON diagnostics, disable target-controlled Opengrep ignore files with supported pinned-version flags, and emit bounded safe component diagnostics on failure.

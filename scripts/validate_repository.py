@@ -474,7 +474,7 @@ def validate_v1_final_review() -> None:
     tests = review["tests"]
     if tests != {
         "reviewed_main_automated_tests": 406,
-        "post_fix_automated_tests": 430,
+        "post_fix_automated_tests": 436,
         "post_fix_skipped": 2,
         "required_ci_job_equivalents": 18,
         "representative_migrations_executed": 11,
@@ -495,7 +495,7 @@ def validate_v1_final_review() -> None:
     documentation = (ROOT / "docs/v1-final-review.md").read_text(encoding="utf-8")
     for marker in (
         review["reviewed_main_commit"], review["review_date"],
-        review["recommendation"], candidate["sha256"], "430 automated tests",
+        review["recommendation"], candidate["sha256"], "436 automated tests",
         "18 required CI job-equivalent", "No tag or release was created",
     ):
         if marker not in documentation:

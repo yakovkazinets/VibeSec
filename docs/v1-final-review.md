@@ -34,7 +34,7 @@ below. A clean result is not proof that VibeSec or an application is secure.
 | V1R-008 | release_blocker | Published profile artifact and coverage-state inventories differed from workflows. | Human, machine, starter-workflow, and regression inventories now agree. |
 | V1R-009 | release_blocker | Examples, public flags, and implementation-status statements contained stale or invalid claims. | All eleven examples now execute against harmless prerequisites, and generated references expose the frozen flags and artifacts. |
 | V1R-010 | release_blocker | Provenance emitted four subjects while its schema and documentation required three. | Runtime, schema, verification, tests, and documentation now require the same four subjects. |
-| V1R-011 | release_blocker | The manifest claimed CycloneDX 1.7 while actual Syft output is 1.6. | CycloneDX 1.6 and SPDX 2.3 are enforced exactly throughout the release contract. |
+| V1R-011 | release_blocker | The review incorrectly changed the release contract to CycloneDX 1.6, while pinned Syft 1.49.0 emits CycloneDX 1.7. | CycloneDX 1.7 and SPDX 2.3 are enforced exactly throughout the Standard and release contracts. |
 | V1R-012 | release_blocker | Migration records were metadata-only. | All eleven representative installations now run the real read-only planner and verify preservation by whole-tree digest. |
 | V1R-013 | release_blocker | Release readiness could reuse a stale test total. | The release workflow reruns the full suite and validator for the exact SHA and accepts only fresh commit-bound evidence. |
 | V1R-014 | release_blocker | The committed readiness record was stale and could be mistaken for a self-referential current-commit assertion. | It is now an explicit historical snapshot of the reviewed main SHA. |
@@ -43,7 +43,7 @@ below. A clean result is not proof that VibeSec or an application is secure.
 ## Validation
 
 - Reviewed main: 406 automated tests passed, with 2 filesystem-specific skips.
-- Final fix worktree: 430 automated tests passed, with 2 platform-specific skips.
+- Final fix worktree: 436 automated tests passed, with 2 platform-specific skips.
 - All 18 required CI job-equivalent matrices passed locally or used the closest
   controlled equivalent where the platform could not run the real tool.
 - All 11 representative migrations and all 11 adoption examples executed.
@@ -51,12 +51,12 @@ below. A clean result is not proof that VibeSec or an application is secure.
   Python, shell, Opengrep-rule, and actionlint validation passed.
 - Bundle build, byte comparison, verification, initializer, installation
   verification, doctor, and upgrade-plan checks passed.
-- Unsigned release structure, checksums, exact CycloneDX 1.6, exact SPDX 2.3,
+- Unsigned release structure, checksums, exact CycloneDX 1.7, exact SPDX 2.3,
   four-subject provenance, manifest, readiness, and tampering checks passed.
 
 The deterministic unsigned development consumer bundle used `source_commit:
-null`, contained 204 files, was 378,530 bytes, and had SHA-256
-`8d831d3389fbf02b795abfd484a818711cb1aef06bc65aa1a32b75f0734cd470`.
+null`, contained 204 files, was 378,775 bytes, and had SHA-256
+`10e7370c17c73c56d6046dca90cc82b2aa252353d4b0f980c5deccd7a02f51ba`.
 Two independent builds were byte-identical and the bundle verifier accepted it.
 
 ## Accepted limitations and deferred work

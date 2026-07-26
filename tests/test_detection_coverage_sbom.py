@@ -50,11 +50,11 @@ class DetectionCoverageSbomTests(unittest.TestCase):
     def test_sbom_structure_and_nonempty_requirements(self):
         cyclonedx = self.root / "cdx.json"
         spdx = self.root / "spdx.json"
-        cyclonedx.write_text(json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.6", "components": [{"name": "fixture"}]}), encoding="utf-8")
+        cyclonedx.write_text(json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.7", "components": [{"name": "fixture"}]}), encoding="utf-8")
         spdx.write_text(json.dumps({"spdxVersion": "SPDX-2.3", "SPDXID": "SPDXRef-DOCUMENT", "packages": [{"name": "fixture"}]}), encoding="utf-8")
         validate_cyclonedx(cyclonedx)
         validate_spdx(spdx)
-        cyclonedx.write_text(json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []}), encoding="utf-8")
+        cyclonedx.write_text(json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.7", "components": []}), encoding="utf-8")
         with self.assertRaises(ValueError):
             validate_cyclonedx(cyclonedx)
 
@@ -85,7 +85,7 @@ class DetectionCoverageSbomTests(unittest.TestCase):
     def test_sbom_absolute_repository_paths_are_removed(self):
         path = self.root / "sbom.json"
         absolute = str(self.root / "requirements.txt")
-        path.write_text(json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.6", "components": [{"name": absolute}]}), encoding="utf-8")
+        path.write_text(json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.7", "components": [{"name": absolute}]}), encoding="utf-8")
         sanitize_repository_paths(path, self.root)
         self.assertNotIn(str(self.root), path.read_text(encoding="utf-8"))
         self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["components"][0]["name"], "requirements.txt")

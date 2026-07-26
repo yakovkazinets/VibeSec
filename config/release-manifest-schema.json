@@ -40,7 +40,7 @@
       "properties": {
         "release_manifest": {"const": 1},
         "provenance": {"const": 1},
-        "cyclonedx": {"const": "1.6"},
+        "cyclonedx": {"const": "1.7"},
         "spdx": {"const": "SPDX-2.3"},
         "release_readiness": {"const": 1}
       }

@@ -13,8 +13,17 @@ from .strict_json import StrictJSONError, loads_strict
 MAX_SBOM_BYTES = 50 * 1024 * 1024
 MAX_DEPTH = 100
 MAX_SBOM_ITEMS = 250_000
-CYCLONEDX_SPEC_VERSION = "1.6"
+CYCLONEDX_SPEC_VERSION = "1.7"
 SPDX_SPEC_VERSION = "SPDX-2.3"
+
+
+def build_syft_command(binary: Path, config: Path, cyclonedx: Path, spdx: Path) -> list[str]:
+    """Build the pinned Syft 1.49 command used by the Standard profile."""
+    return [
+        str(binary), "dir:.", "--config", str(config), "--base-path", ".",
+        "--output", f"cyclonedx-json={cyclonedx}",
+        "--output", f"spdx-json={spdx}", "--quiet",
+    ]
 
 
 def _load(path: Path) -> dict[str, Any]:

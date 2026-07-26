@@ -4,7 +4,7 @@ The only prepared signing path is `.github/workflows/release-candidate.yml`.
 It is manual, runs only for this repository on `refs/heads/main`, checks out and
 verifies the exact dispatch commit, builds the deterministic bundle twice,
 reruns the complete test suite and repository validator for that exact commit,
-generates local CycloneDX 1.6 and SPDX 2.3 SBOMs, and creates an exact-commit
+generates local CycloneDX 1.7 and SPDX 2.3 SBOMs, and creates an exact-commit
 `release-readiness.json` only from the fresh validation evidence. It then
 creates provenance, signs only `SHA256SUMS`, verifies the complete set, and
 uploads a short-lived release-candidate artifact. It does not

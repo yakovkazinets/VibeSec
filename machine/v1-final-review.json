@@ -75,7 +75,7 @@
     {
       "id": "V1R-011",
       "classification": "release_blocker",
-      "summary": "The release manifest claimed CycloneDX 1.7 while Syft output and examples use CycloneDX 1.6.",
+      "summary": "The review incorrectly changed the release contract to CycloneDX 1.6 while pinned Syft 1.49.0 emits CycloneDX 1.7.",
       "resolution": "fixed"
     },
     {
@@ -130,7 +130,7 @@
   ],
   "tests": {
     "reviewed_main_automated_tests": 406,
-    "post_fix_automated_tests": 430,
+    "post_fix_automated_tests": 436,
     "post_fix_skipped": 2,
     "required_ci_job_equivalents": 18,
     "representative_migrations_executed": 11,
@@ -173,8 +173,8 @@
   "release_candidate": {
     "kind": "deterministic unsigned development consumer bundle",
     "source_commit": null,
-    "sha256": "8d831d3389fbf02b795abfd484a818711cb1aef06bc65aa1a32b75f0734cd470",
-    "bytes": 378530,
+    "sha256": "10e7370c17c73c56d6046dca90cc82b2aa252353d4b0f980c5deccd7a02f51ba",
+    "bytes": 378775,
     "file_count": 204,
     "byte_comparison": "identical",
     "verification": "valid"

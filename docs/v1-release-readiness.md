@@ -15,7 +15,7 @@ evidence and records it as `exact-sha-validate:<SHA>`.
 `ready_with_known_limitations` means required offline validation and artifact cross-verification passed while explicitly documented limitations remain. It is not a claim that VibeSec or an application is secure. `blocked` requires at least one blocker; a non-blocked report cannot contain blockers.
 
 The manual release-candidate workflow then builds the deterministic consumer
-bundle twice, compares it byte-for-byte, generates local CycloneDX 1.6 and SPDX
+bundle twice, compares it byte-for-byte, generates local CycloneDX 1.7 and SPDX
 2.3 SBOMs, prepares a strict artifact set, signs checksums with the trusted
 GitHub OIDC identity, verifies every digest and all four provenance subjects,
 and uploads only the candidate. It does not create a tag, GitHub release,

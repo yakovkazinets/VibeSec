@@ -85,7 +85,7 @@ for index, value in enumerate(sys.argv):
     if value == "--output":
         form, path = sys.argv[index + 1].split("=", 1)
         if mode == "malformed": open(path, "w").write("{"); continue
-        payload = ({"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"fixture"}]} if form == "cyclonedx-json" else {"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT","packages":[{"name":"fixture"}]})
+        payload = ({"bomFormat":"CycloneDX","specVersion":"1.7","components":[{"name":"fixture"}]} if form == "cyclonedx-json" else {"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT","packages":[{"name":"fixture"}]})
         json.dump(payload, open(path, "w"))
 ''')
         self.write_tool("trivy", r'''#!/usr/bin/env python3
@@ -206,7 +206,9 @@ if failed: raise SystemExit(1)
         self.assertTrue(all(entry["version"] for entry in coverage["tools"]))
         self.assertTrue(all(entry["application_code_executed"] is False for entry in coverage["tools"]))
         self.assertEqual(len({entry["tool"] for entry in coverage["tools"]}), 8)
-        self.assertEqual(coverage["sbom_formats"], ["CycloneDX 1.6", "SPDX-2.3"])
+        self.assertEqual(coverage["sbom_formats"], ["CycloneDX 1.7", "SPDX-2.3"])
+        self.assertEqual(self.results.stat().st_mode & 0o777, 0o700)
+        self.assertTrue(os.access(self.results, os.W_OK))
         self.assertIn("Standard profile coverage", (self.results / "report.md").read_text(encoding="utf-8"))
         groups = self.load_json("finding-groups.json")
         priorities = self.load_json("prioritized-findings.json")

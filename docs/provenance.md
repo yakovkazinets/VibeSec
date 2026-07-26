@@ -23,6 +23,6 @@ review must be evaluated separately. Consumers verify provenance with:
 python3 /trusted/vibesec/scripts/verify_release_artifacts.py /path/to/release-set
 ```
 
-The verifier also confirms that the CycloneDX 1.6 and SPDX 2.3 identities match
+The verifier also confirms that the CycloneDX 1.7 and SPDX 2.3 identities match
 the distributed files and their manifest schema declarations. It does not
 regenerate or modify SBOM contents for signing.

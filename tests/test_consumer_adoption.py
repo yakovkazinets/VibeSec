@@ -71,7 +71,7 @@ elif name == "syft":
     for index, value in enumerate(sys.argv):
         if value == "--output":
             form, output = sys.argv[index + 1].split("=", 1)
-            payload = {"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"fictional"}]} if form == "cyclonedx-json" else {"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT","packages":[{"name":"fictional"}]}
+            payload = {"bomFormat":"CycloneDX","specVersion":"1.7","components":[{"name":"fictional"}]} if form == "cyclonedx-json" else {"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT","packages":[{"name":"fictional"}]}
             json.dump(payload, open(output, "w"))
 elif name == "docker":
     print(json.dumps({"results":{"failed_checks":[]}}))

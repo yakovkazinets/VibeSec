@@ -4,7 +4,7 @@ The separate [bounded API fuzzing add-on](api-fuzzing.md) builds on this baselin
 
 Every run publishes sanitized `finding-groups.json` and `prioritized-findings.json` alongside the four core artifacts, including clean, not-configured, not-applicable, and tool-error states. Bearer-authenticated comparison rebuilds those views from both child result documents while retaining every original finding.
 
-The opt-in `api-security-baseline` add-on performs contract-driven testing of one local OpenAPI 3.0.x or 3.1.x document against one already-built immutable, non-root API image. It is separate from Minimal, Standard, and Passive DAST Baseline. It runs only on `workflow_dispatch` or `schedule`, never against VibeSec itself, a pull request, a public URL, or a host service. Optional authentication supports only the separately configured static bearer model.
+The opt-in `api-security-baseline` add-on performs contract-driven testing of one local OpenAPI 3.0.x or 3.1.x document against one already-built immutable, non-root API image. It is separate from Minimal, Standard, and Passive DAST Baseline. Unauthenticated operation runs only on `workflow_dispatch` or `schedule`; bearer-authenticated generated workflows are schedule-only so GitHub selects the default-branch revision. Neither mode runs against VibeSec itself, a pull request, a public URL, or a host service. Optional authentication supports only the separately configured static bearer model.
 
 Bearer mode uses the pinned Schemathesis CLI header option through a trusted in-process launcher after reading the opaque value from stdin. The value is not an OS argument, Docker environment setting, config file, curl reproduction, or report field. Raw NDJSON stays on container tmpfs until in-memory redaction and credential/JWT rejection complete. Safe methods, stateless execution, fixed origin, local schema, no hooks, and no arbitrary-header rules remain unchanged. See [authenticated security testing](authenticated-security-testing.md).
 
@@ -50,6 +50,6 @@ Unknown failed check IDs are parser errors. Schemathesis fatal, non-fatal, inter
 
 The independent artifacts are `normalized.json`, `coverage.json`, `policy-result.json`, and `report.md`; baselines and suppressions live in the API-specific policy files. Enforcement supports `observe`, `new`, and `all`. Tool, timeout, cleanup, parser, and configuration failures remain blocking and never become clean results.
 
-Passing means only that these bounded unauthenticated contract checks completed. It does not assess authorization, business logic, authenticated behavior, data persistence, concurrency, rate limits, browser behavior, or general exploitability, and it does not prove the API is secure. Authenticated API testing is deferred.
+Passing means only that these bounded contract checks completed. The default remains unauthenticated; the separate opt-in static-bearer capability can compare one authenticated identity, but does not assess roles, tenants, object authorization, token lifecycle, business logic, data persistence, concurrency, rate limits, browser behavior, or general exploitability. It does not prove the API is secure.
 
 The starter uses immutable Node 24 GitHub Action pins and requires Actions Runner 2.327.1 or newer.

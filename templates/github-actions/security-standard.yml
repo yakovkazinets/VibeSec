@@ -76,6 +76,7 @@ jobs:
           path: |
             ${{ runner.temp }}/vibesec-results/normalized.json
             ${{ runner.temp }}/vibesec-results/coverage.json
+            ${{ runner.temp }}/vibesec-results/policy-result.json
             ${{ runner.temp }}/vibesec-results/inventory.json
             ${{ runner.temp }}/vibesec-results/finding-groups.json
             ${{ runner.temp }}/vibesec-results/prioritized-findings.json

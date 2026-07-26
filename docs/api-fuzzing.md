@@ -6,6 +6,17 @@ The installed `.vibesec/api-fuzzing.json` supports four explicit modes: `contrac
 
 Reviewed ceilings are one worker, 25 generated examples per operation, 25 failures, five seconds per request, 15 minutes total, 200 operations, 64 KiB request bodies, 256 KiB response reads, 1,000 normalized findings, and 64 KiB diagnostics. Consumer values may be lowered but never raised. Stateful testing, project hooks/configuration, custom payload paths, authentication-header mutation, raw-body artifacts, public targets, remote schemas, external callbacks, file uploads, GraphQL, WebSockets, browser testing, race testing, brute force, and unrestricted concurrency or payloads fail closed.
 
+The public installer flags for the adjustable ceilings are:
+
+| Flag | Default | Accepted range |
+|---|---:|---:|
+| `--fuzzing-max-examples` | 25 | 1–25 |
+| `--fuzzing-max-failures` | 25 | 1–25 |
+| `--fuzzing-request-timeout` | 5 seconds | 1–5 |
+| `--fuzzing-total-timeout` | 15 minutes | 1–15 |
+
+These flags only lower the reviewed ceilings; values outside the range fail with invalid configuration.
+
 Schemathesis 4.24.2 remains pinned by immutable digest. Contract and fuzz modes use only reviewed phases, checks, deterministic generation, a fixed seed, no example database, no retries, no redirects, and no stateful phase. Injection mode uses a trusted in-container launcher and the repository-owned `safe-v1` payload registry. No `pip install`, `uvx`, floating image tag, project hook, or project-provided scanner configuration is used.
 
 The target is an immutable non-root image on a fresh internal Docker network with no host ports, host network, Docker socket, privilege, added capability, or external egress. Both target and scanner have read-only roots, dropped capabilities, `no-new-privileges`, and bounded CPU, memory, PIDs, tmpfs, time, input, output, and findings. The workflow is manual/scheduled only. The live controlled fixture remains outside required `validate`; normal CI validates the registry, commands, normalization, policy, correlation, failures, fixtures, and trust boundaries without Docker.

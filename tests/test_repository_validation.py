@@ -1,8 +1,12 @@
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
-from scripts.validate_repository import EXPECTED_TOOLS, ROOT, SHA256, validate_policy, validate_references, validate_tools
+from scripts.validate_repository import (
+    EXPECTED_TOOLS, ROOT, SHA256, load_object, validate_policy,
+    validate_references, validate_tools,
+)
 
 
 class RepositoryValidationTests(unittest.TestCase):
@@ -24,6 +28,20 @@ class RepositoryValidationTests(unittest.TestCase):
         validate_tools()
         validate_policy()
         validate_references()
+
+    def test_static_json_configuration_rejects_duplicate_and_non_finite_values(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
+            path = Path(temporary) / "ambiguous.json"
+            for payload in (
+                b'{"mode":"observe","mode":"all"}',
+                b'{"threshold":NaN}',
+            ):
+                with self.subTest(payload=payload):
+                    path.write_bytes(payload)
+                    with self.assertRaisesRegex(
+                        ValueError, "duplicate JSON key|invalid number",
+                    ):
+                        load_object(path)
 
     def test_yaml_dependency_is_exactly_pinned(self):
         self.assertEqual((ROOT / "requirements.txt").read_text(encoding="utf-8"), "PyYAML==6.0.3\n")

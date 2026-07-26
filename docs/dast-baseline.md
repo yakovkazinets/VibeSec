@@ -6,7 +6,7 @@ The DAST Baseline is a separate, opt-in, `conditionally_enforced` add-on for an 
 
 Authenticated mode uses ZAP's supported header environment mechanism inside the scanner process, scoped to the fixed `target` alias. The generated Automation Framework plan contains no credential and remains traditional-spider/passive-only. Scanner-native raw JSON stays on container tmpfs until exact-token and bearer-header redaction succeeds; only the sanitized report reaches normalization. Authenticated and unauthenticated findings correlate only on the narrow same-scanner identity.
 
-Only `workflow_dispatch` and `schedule` are trusted. Pull-request events produce `not_configured` without starting the target; unknown events fail closed. The copyable workflow intentionally exposes only `workflow_dispatch`. Configure repository variables `VIBESEC_DAST_IMAGE_REFERENCE`, and optionally `VIBESEC_DAST_CONTAINER_PORT` and `VIBESEC_DAST_BASE_PATH`. The image must use `registry/name@sha256:<64 lowercase hex>` and declare a non-root user in image metadata.
+Only `workflow_dispatch` and `schedule` are trusted for unauthenticated operation. Pull-request events produce `not_configured` without starting the target; unknown events fail closed. The copyable workflow exposes both trusted triggers. When bearer authentication is configured, the initializer removes manual dispatch and keeps schedule-only execution so the secret is delivered only to the default-branch workflow revision. Configure repository variables `VIBESEC_DAST_IMAGE_REFERENCE`, and optionally `VIBESEC_DAST_CONTAINER_PORT` and `VIBESEC_DAST_BASE_PATH`. The image must use `registry/name@sha256:<64 lowercase hex>` and declare a non-root user in image metadata.
 
 ## Isolation and scan mode
 
@@ -18,7 +18,7 @@ The reviewed normalization policy allows only passive rule `10020` (missing anti
 
 ## Results and policy
 
-Only `normalized.json`, `coverage.json`, `policy-result.json`, and `report.md` are retained. The generated plan and raw ZAP output exist only in a private two-file workspace and are deleted before artifacts are published. Normalization retains a bounded rule ID, severity, confidence, sanitized path, HTTP method, optional CWE/WASC IDs, remediation, and stable fingerprint. It omits query strings, request and response bodies, evidence, cookies, headers, absolute host paths, and arbitrary scanner metadata.
+Only `normalized.json`, `coverage.json`, `policy-result.json`, `report.md`, `finding-groups.json`, and `prioritized-findings.json` are retained. The generated plan and raw ZAP output exist only in a private two-file workspace and are deleted before artifacts are published. Normalization retains a bounded rule ID, severity, confidence, sanitized path, HTTP method, optional CWE/WASC IDs, remediation, and stable fingerprint. It omits query strings, request and response bodies, evidence, cookies, headers, absolute host paths, and arbitrary scanner metadata.
 
 DAST uses independent `policy/dast-baseline.json` and `policy/dast-suppressions.json` files. Suppression entries follow the common policy schema and must be reviewed, scoped, justified, owned, and time-bounded. Minimal and Standard baselines cannot suppress DAST findings. Exit codes are `0` completed without policy violation, `1` policy violation, `2` tool/runtime failure, and `3` invalid configuration or malformed scanner evidence.
 

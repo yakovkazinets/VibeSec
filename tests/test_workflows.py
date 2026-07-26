@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 import unittest
@@ -7,11 +8,12 @@ ROOT = Path(__file__).resolve().parents[1]
 CI = ROOT / ".github/workflows/ci.yml"
 DAST_INTEGRATION = ROOT / ".github/workflows/dast-integration.yml"
 API_INTEGRATION = ROOT / ".github/workflows/api-security-integration.yml"
+API_FUZZING_INTEGRATION = ROOT / ".github/workflows/api-fuzzing-integration.yml"
 AUTH_DAST_INTEGRATION = ROOT / ".github/workflows/authenticated-dast-integration.yml"
 AUTH_API_INTEGRATION = ROOT / ".github/workflows/authenticated-api-integration.yml"
 RELEASE_CANDIDATE = ROOT / ".github/workflows/release-candidate.yml"
 STARTERS = [ROOT / "templates/github-actions/security-baseline.yml", ROOT / "templates/github-actions/security-standard.yml", ROOT / "templates/github-actions/dast-baseline.yml", ROOT / "templates/github-actions/api-security-baseline.yml", ROOT / "templates/github-actions/api-fuzzing.yml"]
-WORKFLOWS = [CI, DAST_INTEGRATION, API_INTEGRATION, AUTH_DAST_INTEGRATION, AUTH_API_INTEGRATION, RELEASE_CANDIDATE, *STARTERS]
+WORKFLOWS = [CI, DAST_INTEGRATION, API_INTEGRATION, API_FUZZING_INTEGRATION, AUTH_DAST_INTEGRATION, AUTH_API_INTEGRATION, RELEASE_CANDIDATE, *STARTERS]
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -37,13 +39,13 @@ class WorkflowSecurityTests(unittest.TestCase):
             self.assertRegex(text, r"(?m)^permissions:\n  contents: read$")
 
     def test_no_secret_context_in_pull_request_workflows(self):
-        for path in [CI, DAST_INTEGRATION, API_INTEGRATION, *STARTERS]:
+        for path in [CI, DAST_INTEGRATION, API_INTEGRATION, API_FUZZING_INTEGRATION, *STARTERS]:
             self.assertNotIn("secrets.", path.read_text(encoding="utf-8"))
 
     def test_authenticated_live_workflows_scope_one_secret_to_the_scanner_step(self):
         for path in (AUTH_DAST_INTEGRATION, AUTH_API_INTEGRATION):
             text = path.read_text(encoding="utf-8")
-            self.assertIn("workflow_dispatch:", text)
+            self.assertNotIn("workflow_dispatch:", text)
             self.assertIn("schedule:", text)
             self.assertNotIn("pull_request:", text)
             self.assertNotIn("push:", text)
@@ -60,6 +62,61 @@ class WorkflowSecurityTests(unittest.TestCase):
             expected_results = "fuzzing-findings.json" if path.name == "api-fuzzing.yml" else "normalized.json"
             self.assertIn(expected_results, text)
             self.assertIn("report.md", text)
+
+    def test_profile_machine_contracts_match_published_workflow_artifacts_and_states(self):
+        interfaces = {
+            item["stable_id"]: item
+            for item in json.loads((ROOT / "machine/interfaces.json").read_text(encoding="utf-8"))["interfaces"]
+        }
+        expected = {
+            "vibesec.profiles.minimal": (
+                ROOT / "templates/github-actions/security-baseline.yml",
+                {"normalized.json", "coverage.json", "policy-result.json", "report.md"},
+                {"ran", "tool_error"},
+            ),
+            "vibesec.profiles.standard": (
+                ROOT / "templates/github-actions/security-standard.yml",
+                {"normalized.json", "coverage.json", "policy-result.json", "report.md", "inventory.json",
+                 "sbom.cyclonedx.json", "sbom.spdx.json", "finding-groups.json", "prioritized-findings.json"},
+                {"ran", "not_applicable", "not_configured", "tool_error"},
+            ),
+            "vibesec.profiles.dast-baseline": (
+                ROOT / "templates/github-actions/dast-baseline.yml",
+                {"normalized.json", "coverage.json", "policy-result.json", "report.md",
+                 "finding-groups.json", "prioritized-findings.json"},
+                {"ran", "not_applicable", "not_configured", "tool_error"},
+            ),
+            "vibesec.profiles.api-security-baseline": (
+                ROOT / "templates/github-actions/api-security-baseline.yml",
+                {"normalized.json", "coverage.json", "policy-result.json", "report.md",
+                 "finding-groups.json", "prioritized-findings.json"},
+                {"ran", "not_applicable", "not_configured", "tool_error"},
+            ),
+            "vibesec.profiles.api-fuzzing": (
+                ROOT / "templates/github-actions/api-fuzzing.yml",
+                {"fuzzing-findings.json", "fuzzing-coverage.json", "fuzzing-policy-result.json",
+                 "fuzzing-report.md", "finding-groups.json", "prioritized-findings.json"},
+                {"ran", "not_applicable", "not_configured", "tool_error"},
+            ),
+        }
+        for stable_id, (workflow, artifacts, states) in expected.items():
+            contract = interfaces[stable_id]
+            self.assertEqual(set(contract["artifacts"]), artifacts, stable_id)
+            self.assertEqual(set(contract["coverage_states"]), states, stable_id)
+            workflow_text = workflow.read_text(encoding="utf-8")
+            for artifact in artifacts:
+                self.assertIn(artifact, workflow_text, f"{stable_id}: {artifact}")
+
+        authenticated = interfaces["vibesec.profiles.authenticated-security-testing"]
+        self.assertEqual(
+            set(authenticated["artifacts"]),
+            {"normalized.json", "coverage.json", "policy-result.json", "report.md",
+             "finding-groups.json", "prioritized-findings.json"},
+        )
+        self.assertEqual(
+            set(authenticated["coverage_states"]),
+            {"ran", "not_applicable", "not_configured", "tool_error"},
+        )
 
     def test_standard_workflow_never_builds_or_installs_target_code(self):
         text = (ROOT / "templates/github-actions/security-standard.yml").read_text(encoding="utf-8")
@@ -96,6 +153,7 @@ class WorkflowSecurityTests(unittest.TestCase):
             ".github/workflows/ci.yml",
             ".github/workflows/dast-integration.yml",
             ".github/workflows/api-security-integration.yml",
+            ".github/workflows/api-fuzzing-integration.yml",
             ".github/workflows/authenticated-dast-integration.yml",
             ".github/workflows/authenticated-api-integration.yml",
             ".github/workflows/release-candidate.yml",
@@ -217,6 +275,19 @@ class WorkflowSecurityTests(unittest.TestCase):
         self.assertNotIn("api-security-integration", needs)
         self.assertNotIn("authenticated-dast-integration", needs)
         self.assertNotIn("authenticated-api-integration", needs)
+
+    def test_api_fuzzing_live_workflow_is_manual_scheduled_unprivileged_and_optional(self):
+        text = API_FUZZING_INTEGRATION.read_text(encoding="utf-8")
+        self.assertIn("workflow_dispatch:", text)
+        self.assertIn("schedule:", text)
+        for prohibited in ("pull_request:", "pull_request_target", "push:", "secrets."):
+            self.assertNotIn(prohibited, text)
+        needs = next(
+            line for line in CI.read_text(encoding="utf-8").splitlines()
+            if line.strip().startswith("needs: [")
+        )
+        self.assertIn("fuzzing-artifacts", needs)
+        self.assertNotIn("api-fuzzing-integration", needs)
 
     def test_ci_skips_security_upload_after_early_failure(self):
         text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")

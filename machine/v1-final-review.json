@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "stable_id": "vibesec.v1-final-review",
+  "reviewed_main_commit": "f19d5dcf29dc13b6b716d39bf11da1e31ca94234",
+  "review_date": "2026-07-25",
+  "review_branch": "fix/v1-final-review",
+  "reviewer_scopes": {
+    "A": "security and trust boundaries",
+    "B": "runtime behavior and exit contracts",
+    "C": "packaging, migration, and release artifacts",
+    "D": "human and machine documentation consistency",
+    "E": "tests, CI, platform claims, and maintainability"
+  },
+  "findings": [
+    {
+      "id": "V1R-001",
+      "classification": "release_blocker",
+      "summary": "Duplicate keys and non-finite values in scanner or policy JSON could be consumed permissively.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-002",
+      "classification": "release_blocker",
+      "summary": "Deep repository YAML could escape the documented exit contract through parser recursion.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-003",
+      "classification": "release_blocker",
+      "summary": "Lazy block-quote continuations and indented examples could be misclassified as authoritative skill prose.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-004",
+      "classification": "release_blocker",
+      "summary": "The root CLI truncated machine JSON and remapped lifecycle exit 4.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-005",
+      "classification": "release_blocker",
+      "summary": "Extension failures could be wrapped in a success-status envelope.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-006",
+      "classification": "release_blocker",
+      "summary": "Finding-group and priority documents were not fully cross-checked against source findings.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-007",
+      "classification": "release_blocker",
+      "summary": "Secret-bearing authenticated workflows allowed branch-selected manual dispatch.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-008",
+      "classification": "release_blocker",
+      "summary": "Published profile artifact and coverage-state inventories differed from workflow behavior.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-009",
+      "classification": "release_blocker",
+      "summary": "Several published examples, flags, and implementation-status statements were stale or not executable as documented.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-010",
+      "classification": "release_blocker",
+      "summary": "Provenance emitted four subjects while its public schema and documentation required three.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-011",
+      "classification": "release_blocker",
+      "summary": "The release manifest claimed CycloneDX 1.7 while Syft output and examples use CycloneDX 1.6.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-012",
+      "classification": "release_blocker",
+      "summary": "Representative migration and adoption-example records were validated as metadata rather than executed end to end.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-013",
+      "classification": "release_blocker",
+      "summary": "Release readiness could reuse stale test totals without fresh exact-source validation evidence.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-014",
+      "classification": "release_blocker",
+      "summary": "The committed readiness record was stale and did not clearly identify itself as a historical reviewed-main snapshot.",
+      "resolution": "fixed"
+    },
+    {
+      "id": "V1R-015",
+      "classification": "high",
+      "summary": "The API-fuzzing integration workflow was absent from workflow inventory regression coverage.",
+      "resolution": "fixed"
+    }
+  ],
+  "fixes": [
+    "Added bounded strict JSON parsing to scanner, policy, SBOM, and static repository configuration boundaries.",
+    "Added event-level YAML depth, document, and node bounds with fail-closed exit 3 behavior.",
+    "Expanded non-authoritative skill segmentation and fingerprint classification.",
+    "Preserved complete machine output and exact scanner versus lifecycle exit categories.",
+    "Cross-validated extension status, finding groups, priorities, profile artifacts, and coverage states.",
+    "Made secret-bearing authenticated workflows schedule-only and enforced that contract in initialization and doctor checks.",
+    "Aligned provenance, SBOM, release-readiness, migration, example, CLI, and generated documentation contracts.",
+    "Added exact-source release validation evidence and executable preservation tests for all eleven migrations and examples."
+  ],
+  "accepted_limitations": [
+    "A completed scanner run is not proof that an application is secure.",
+    "Complete native Minimal and Standard scanning is validated on Linux x86_64; other advertised platforms remain conditional or experimental as cataloged.",
+    "Live Docker targets and GitHub OIDC signing require controlled GitHub-hosted environments.",
+    "Installed extension code and external agent behavior remain maintainer trust decisions."
+  ],
+  "deferred_items": [
+    "Add explicit download-byte ceilings and fully streaming archive-member limits as defense-in-depth availability hardening.",
+    "Complete profile container runners, native Windows execution, and broader dynamic/runtime security remain post-v1 work.",
+    "A complete CommonMark semantic model beyond the explicitly classified authoritative structures remains deferred."
+  ],
+  "false_positives": [
+    "A suspected duplicate workflow timeout was caused by overlapping review output; strict YAML parsing confirmed one timeout per job.",
+    "Duplicate archive members were initially described too broadly; implementation rejects conflicting executable targets while the manifest rejects ambiguous bundled paths."
+  ],
+  "tests": {
+    "reviewed_main_automated_tests": 406,
+    "post_fix_automated_tests": 430,
+    "post_fix_skipped": 2,
+    "required_ci_job_equivalents": 18,
+    "representative_migrations_executed": 11,
+    "adoption_examples_executed": 11
+  },
+  "platform_limits": [
+    "Local review host: macOS arm64.",
+    "Docker was unavailable, so live Checkov, ZAP, Schemathesis, and container-target checks were not claimed locally.",
+    "ShellCheck was unavailable; bash syntax validation and actionlint workflow linting passed independently.",
+    "Pinned Linux scanner installers intentionally reject this host; controlled scanner fixtures and the latest reviewed-main GitHub run provide the nearest safe evidence."
+  ],
+  "local_checks": [
+    "full unittest discovery",
+    "repository configuration validation",
+    "all required CI job-equivalent test matrices",
+    "deterministic bundle generation and byte comparison",
+    "bundle, installation, doctor, and upgrade verification",
+    "release-candidate structure, checksums, SBOM, provenance, manifest, and readiness validation",
+    "agent, extension, migration, example, link, anchor, and generated-document validation",
+    "actionlint and JSON, YAML, TOML, Python, shell, skill, and Opengrep static validation"
+  ],
+  "github_only_checks": [
+    {
+      "check": "Linux x86_64 real-scanner Minimal and Standard self-scans",
+      "workflow": ".github/workflows/ci.yml",
+      "local_status": "controlled equivalent only"
+    },
+    {
+      "check": "Docker-backed live DAST, API, authenticated, and fuzzing integrations",
+      "workflow": ".github/workflows/dast-integration.yml and related trusted-event integration workflows",
+      "local_status": "not run because Docker was unavailable"
+    },
+    {
+      "check": "GitHub OIDC identity and signed release candidate",
+      "workflow": ".github/workflows/release-candidate.yml",
+      "local_status": "unsigned structural equivalent only"
+    }
+  ],
+  "remaining_blockers": [],
+  "release_candidate": {
+    "kind": "deterministic unsigned development consumer bundle",
+    "source_commit": null,
+    "sha256": "8d831d3389fbf02b795abfd484a818711cb1aef06bc65aa1a32b75f0734cd470",
+    "bytes": 378530,
+    "file_count": 204,
+    "byte_comparison": "identical",
+    "verification": "valid"
+  },
+  "recommendation": "ready_with_documented_limitations"
+}

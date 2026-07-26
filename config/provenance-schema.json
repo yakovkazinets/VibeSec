@@ -9,8 +9,14 @@
     "_type": {"const": "https://in-toto.io/Statement/v1"},
     "subject": {
       "type": "array",
-      "minItems": 3,
-      "maxItems": 3,
+      "minItems": 4,
+      "maxItems": 4,
+      "allOf": [
+        {"contains": {"properties": {"name": {"const": "vibesec-consumer-bundle.zip"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "sbom.cyclonedx.json"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "sbom.spdx.json"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "release-readiness.json"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1}
+      ],
       "items": {
         "type": "object",
         "additionalProperties": false,

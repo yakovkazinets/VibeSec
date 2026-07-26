@@ -18,7 +18,9 @@ import tempfile
 from typing import Any
 
 from .bundle import verify_bundle
-from .sbom import validate_cyclonedx, validate_spdx
+from .sbom import (
+    CYCLONEDX_SPEC_VERSION, SPDX_SPEC_VERSION, validate_cyclonedx, validate_spdx,
+)
 from .strict_json import StrictJSONError, canonical_json, loads_strict
 from .v1_contract import V1ContractError, validate_readiness
 from .version import validate_version
@@ -190,8 +192,8 @@ def create_release_manifest(*, directory: Path, version: str, source_commit: str
         "schema_versions": {
             "release_manifest": RELEASE_SCHEMA,
             "provenance": PROVENANCE_SCHEMA,
-            "cyclonedx": "1.7",
-            "spdx": "SPDX-2.3",
+            "cyclonedx": CYCLONEDX_SPEC_VERSION,
+            "spdx": SPDX_SPEC_VERSION,
             "release_readiness": 1,
         },
         "tool_versions": dict(sorted(tool_versions.items())),
@@ -224,7 +226,7 @@ def validate_release_manifest(value: Any) -> dict[str, Any]:
         raise SupplyChainError("release manifest source identity is invalid")
     expected_schema = {
         "release_manifest": RELEASE_SCHEMA, "provenance": PROVENANCE_SCHEMA,
-        "cyclonedx": "1.7", "spdx": "SPDX-2.3",
+        "cyclonedx": CYCLONEDX_SPEC_VERSION, "spdx": SPDX_SPEC_VERSION,
         "release_readiness": 1,
     }
     if value.get("schema_versions") != expected_schema:

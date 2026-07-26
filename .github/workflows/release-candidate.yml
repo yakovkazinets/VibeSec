@@ -27,11 +27,26 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           test "$(git symbolic-ref --short HEAD)" = "main"
+      - name: Run the complete test suite for the exact source commit
+        run: |
+          mkdir -p release-work
+          set -o pipefail
+          python3 -m unittest discover -s tests -v 2>&1 | tee release-work/tests.log
+      - name: Run repository validation for the exact source commit
+        run: |
+          set -o pipefail
+          python3 scripts/validate_repository.py | tee release-work/repository-validation.log
+      - name: Record fresh exact-source validation evidence
+        run: >-
+          python3 scripts/generate_release_validation_evidence.py
+          --output release-work/validation-evidence.json
+          --source-commit "${{ github.sha }}"
+          --test-log release-work/tests.log
+          --repository-validation-log release-work/repository-validation.log
       - name: Install checksum-pinned release tools
         run: scripts/install_release_tools.sh . .tools/bin
       - name: Build the deterministic consumer bundle twice
         run: |
-          mkdir -p release-work
           python3 scripts/build_consumer_bundle.py --output release-work/first.zip --source-commit "${{ github.sha }}"
           python3 scripts/build_consumer_bundle.py --output release-work/second.zip --source-commit "${{ github.sha }}"
           cmp release-work/first.zip release-work/second.zip
@@ -45,8 +60,7 @@ jobs:
           python3 scripts/generate_release_readiness.py
           --output release-work/release-readiness.json
           --main-commit "${{ github.sha }}"
-          --test-total-file machine/release-readiness.json
-          --test-evidence required-validate
+          --validation-evidence release-work/validation-evidence.json
       - name: Prepare checksums manifest and provenance
         run: >-
           python3 scripts/prepare_release_artifacts.py

@@ -1,8 +1,9 @@
 # Build provenance
 
 `provenance.intoto.jsonl` is one canonical JSON in-toto Statement v1 using the
-SLSA provenance v1 predicate type. Its subjects are the consumer ZIP and both
-SBOMs with exact SHA-256 digests. Its build definition records the immutable
+SLSA provenance v1 predicate type. Its four subjects are the consumer ZIP, both
+SBOMs, and the exact-commit release-readiness record, each with an exact SHA-256
+digest. Its build definition records the immutable
 source repository and commit, development version, creation mode, and reviewed
 Cosign and Syft versions. Run details record only the fixed release workflow
 identity and a bounded invocation identifier.
@@ -22,6 +23,6 @@ review must be evaluated separately. Consumers verify provenance with:
 python3 /trusted/vibesec/scripts/verify_release_artifacts.py /path/to/release-set
 ```
 
-The verifier also confirms that the CycloneDX and SPDX digest identities match
-the distributed files. It does not regenerate or modify SBOM contents for
-signing.
+The verifier also confirms that the CycloneDX 1.6 and SPDX 2.3 identities match
+the distributed files and their manifest schema declarations. It does not
+regenerate or modify SBOM contents for signing.

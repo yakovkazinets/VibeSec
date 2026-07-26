@@ -8,16 +8,26 @@ from pathlib import Path
 import tempfile
 from typing import Any
 
+from .strict_json import StrictJSONError, loads_strict
+
 MAX_SBOM_BYTES = 50 * 1024 * 1024
 MAX_DEPTH = 100
+MAX_SBOM_ITEMS = 250_000
+CYCLONEDX_SPEC_VERSION = "1.6"
+SPDX_SPEC_VERSION = "SPDX-2.3"
 
 
 def _load(path: Path) -> dict[str, Any]:
     try:
-        if path.stat().st_size > MAX_SBOM_BYTES:
-            raise ValueError("SBOM exceeds the accepted size limit")
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        if (path.is_symlink() or not path.is_file()
+                or path.stat(follow_symlinks=False).st_size > MAX_SBOM_BYTES):
+            raise ValueError("SBOM is unsafe or exceeds the accepted size limit")
+        payload = loads_strict(
+            path.read_bytes(), maximum_bytes=MAX_SBOM_BYTES,
+            maximum_depth=MAX_DEPTH, maximum_items=MAX_SBOM_ITEMS,
+            maximum_string=MAX_SBOM_BYTES,
+        )
+    except (OSError, UnicodeError, StrictJSONError) as exc:
         raise ValueError(f"invalid SBOM {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"invalid SBOM {path}: expected an object")
@@ -26,7 +36,8 @@ def _load(path: Path) -> dict[str, Any]:
 
 def validate_cyclonedx(path: Path) -> dict[str, Any]:
     payload = _load(path)
-    if payload.get("bomFormat") != "CycloneDX" or not isinstance(payload.get("specVersion"), str):
+    if (payload.get("bomFormat") != "CycloneDX"
+            or payload.get("specVersion") != CYCLONEDX_SPEC_VERSION):
         raise ValueError("invalid CycloneDX SBOM metadata")
     if not isinstance(payload.get("components"), list) or not payload["components"]:
         raise ValueError("CycloneDX SBOM contains no components")
@@ -35,7 +46,8 @@ def validate_cyclonedx(path: Path) -> dict[str, Any]:
 
 def validate_spdx(path: Path) -> dict[str, Any]:
     payload = _load(path)
-    if not str(payload.get("spdxVersion", "")).startswith("SPDX-") or payload.get("SPDXID") != "SPDXRef-DOCUMENT":
+    if (payload.get("spdxVersion") != SPDX_SPEC_VERSION
+            or payload.get("SPDXID") != "SPDXRef-DOCUMENT"):
         raise ValueError("invalid SPDX SBOM metadata")
     if not isinstance(payload.get("packages"), list) or not payload["packages"]:
         raise ValueError("SPDX SBOM contains no packages")
@@ -71,7 +83,10 @@ def sanitize_repository_paths(path: Path, repository_root: Path) -> None:
     handle, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as stream:
-            json.dump(sanitized, stream, separators=(",", ":"), sort_keys=True)
+            json.dump(
+                sanitized, stream, allow_nan=False, ensure_ascii=False,
+                separators=(",", ":"), sort_keys=True,
+            )
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())

@@ -21,28 +21,28 @@
       "stable_id": "vibesec.example.containerized-web",
       "summary": "Containerized web application",
       "fixture": "tests/consumer-fixtures/dockerfile-repo",
-      "commands": ["python3 scripts/init_vibesec.py --addon dast-baseline --target tests/consumer-fixtures/dockerfile-repo --all-capabilities"],
+      "commands": ["python3 scripts/init_vibesec.py --addon dast-baseline --target tests/consumer-fixtures/dockerfile-repo"],
       "human_documentation": ["docs/dast-baseline.md", "docs/examples.md"]
     },
     {
       "stable_id": "vibesec.example.openapi-api",
       "summary": "OpenAPI API",
       "fixture": "tests/security-fixtures/api-security/positive",
-      "commands": ["python3 scripts/init_vibesec.py --addon api-security-baseline --target tests/security-fixtures/api-security/positive --api-schema openapi.json --all-capabilities"],
+      "commands": ["python3 scripts/init_vibesec.py --addon api-security-baseline --target tests/security-fixtures/api-security/positive --api-schema openapi.json"],
       "human_documentation": ["docs/api-security-baseline.md", "docs/examples.md"]
     },
     {
       "stable_id": "vibesec.example.authenticated-api",
-      "summary": "Authenticated API using a secret name but no secret value",
+      "summary": "Authenticated API whose base-installation prerequisite records a secret name but no value",
       "fixture": "tests/security-fixtures/authenticated-security-testing/positive",
-      "commands": ["python3 scripts/init_vibesec.py --addon api-security-baseline --target tests/security-fixtures/authenticated-security-testing/positive --api-schema openapi.json --auth-secret-name VIBESEC_TEST_TOKEN --all-capabilities"],
+      "commands": ["python3 scripts/init_vibesec.py --addon api-security-baseline --target tests/security-fixtures/authenticated-security-testing/positive --api-schema openapi.json"],
       "human_documentation": ["docs/authenticated-security-testing.md", "docs/examples.md"]
     },
     {
       "stable_id": "vibesec.example.api-fuzzing",
       "summary": "Bounded opt-in API fuzzing",
       "fixture": "tests/security-fixtures/api-fuzzing/positive",
-      "commands": ["python3 scripts/init_vibesec.py --addon api-fuzzing --target tests/security-fixtures/api-fuzzing/positive --fuzzing-mode fuzz --fuzzing-enabled --all-capabilities"],
+      "commands": ["python3 scripts/init_vibesec.py --addon api-fuzzing --target tests/security-fixtures/api-fuzzing/positive --fuzzing-mode fuzz --fuzzing-enabled"],
       "human_documentation": ["docs/api-fuzzing.md", "docs/examples.md"]
     },
     {

@@ -33,6 +33,11 @@ CATALOGS = (
     "configuration", "policies", "artifacts", "findings", "extensions",
     "agents", "release", "compatibility",
 )
+VALIDATION_EVIDENCE_FIELDS = {
+    "schema_version", "stable_id", "status", "source_commit", "test_command",
+    "test_total", "test_result", "repository_validation_command",
+    "repository_validation_result",
+}
 
 
 class V1ContractError(ValueError):
@@ -310,6 +315,33 @@ def validate_migrations(root: Path) -> dict[str, Any]:
     return value
 
 
+def validate_release_validation_evidence(
+        value: Any, *, source_commit: str | None = None) -> dict[str, Any]:
+    """Validate fresh, exact-source evidence consumed by candidate readiness."""
+    if (not isinstance(value, dict) or set(value) != VALIDATION_EVIDENCE_FIELDS
+            or value.get("schema_version") != 1
+            or value.get("stable_id") != "vibesec.release-validation-evidence.v1"
+            or value.get("status") != "passed"):
+        raise V1ContractError("release validation evidence fields, identity, or status are invalid")
+    commit = value.get("source_commit")
+    if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise V1ContractError("release validation evidence commit is invalid")
+    if source_commit is not None and commit != source_commit:
+        raise V1ContractError("release validation evidence commit differs from requested source")
+    if value.get("test_command") != "python3 -m unittest discover -s tests -v":
+        raise V1ContractError("release validation evidence test command is not the reviewed full suite")
+    total = value.get("test_total")
+    if not isinstance(total, int) or isinstance(total, bool) or total < 1:
+        raise V1ContractError("release validation evidence requires a positive test total")
+    if value.get("test_result") != "passed":
+        raise V1ContractError("release validation evidence does not record a successful test run")
+    if value.get("repository_validation_command") != "python3 scripts/validate_repository.py":
+        raise V1ContractError("release validation evidence repository command is not reviewed")
+    if value.get("repository_validation_result") != "passed":
+        raise V1ContractError("release validation evidence does not record repository validation success")
+    return value
+
+
 def validate_readiness(value: Any, *, source_commit: str | None = None) -> dict[str, Any]:
     fields = {
         "schema_version", "stable_id", "status", "version", "main_commit",
@@ -360,16 +392,16 @@ def canonical_readiness(value: dict[str, Any]) -> bytes:
     return canonical_json(value)
 
 
-def build_readiness(root: Path, *, main_commit: str, test_total: int,
-                    test_evidence: str) -> dict[str, Any]:
+def build_readiness(root: Path, *, main_commit: str,
+                    validation_evidence: dict[str, Any]) -> dict[str, Any]:
     inventory, catalogs = validate_catalogs(root)
     validate_examples(root)
     migrations = validate_migrations(root)
     if not re.fullmatch(r"[0-9a-f]{40}", main_commit):
         raise V1ContractError("release readiness requires a full lowercase main commit")
-    if not isinstance(test_total, int) or isinstance(test_total, bool) or test_total < 1:
-        raise V1ContractError("release readiness requires a positive automated test total")
-    _text(test_evidence, "readiness.test_evidence")
+    evidence = validate_release_validation_evidence(
+        validation_evidence, source_commit=main_commit,
+    )
     statuses = {status: 0 for status in sorted(STATUSES)}
     for item in inventory["interfaces"]:
         statuses[item["status"]] += 1
@@ -388,8 +420,8 @@ def build_readiness(root: Path, *, main_commit: str, test_total: int,
         },
         "interface_statuses": statuses,
         "test_totals": {
-            "automated_tests": test_total,
-            "evidence": test_evidence,
+            "automated_tests": evidence["test_total"],
+            "evidence": f"exact-sha-validate:{main_commit}",
             "migration_paths": len(migrations["records"]),
             "machine_catalogs": len(catalogs),
         },

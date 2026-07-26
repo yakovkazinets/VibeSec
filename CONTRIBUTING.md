@@ -1,4 +1,4 @@
-# Contributing to VibeSec
+# Contributing to VibeSec Guardian
 
 Thank you for helping make practical security tooling easier to adopt.
 

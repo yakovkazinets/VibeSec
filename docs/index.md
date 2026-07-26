@@ -1,6 +1,8 @@
-# VibeSec documentation
+# VibeSec Guardian documentation
 
-This is the curated documentation index for VibeSec v1 preparation. Exact public IDs and statuses come from [`machine/`](../machine/); the generated [v1 interface reference](v1-interface-reference.md) is checked for drift.
+Open-source security for vibe-coded and AI-built software.
+
+This is the curated documentation index for VibeSec Guardian v1 preparation. Exact public IDs and statuses come from [`machine/`](../machine/); the generated [v1 interface reference](v1-interface-reference.md) is checked for drift.
 
 ## Adopt and operate
 

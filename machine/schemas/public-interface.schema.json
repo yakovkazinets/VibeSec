@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/yakovkazinets/VibeSec/machine/schemas/public-interface.schema.json",
-  "title": "VibeSec public interface v1",
+  "title": "VibeSec Guardian public interface v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "stable_id", "status", "summary", "owning_component", "dependencies", "configuration", "inputs", "outputs", "artifacts", "coverage_states", "exit_behavior", "security_boundaries", "limitations", "human_documentation", "owning_source_files", "machine_schema", "compatibility_guarantees", "deprecation_policy", "migration_notes"],

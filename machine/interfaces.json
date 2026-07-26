@@ -2,7 +2,7 @@
   "schema_version": 1,
   "stable_id": "vibesec.interfaces.v1",
   "status": "stable",
-  "summary": "Authoritative inventory of the supported VibeSec v1 public surface. Exact member lists are projected into the domain catalogs.",
+  "summary": "Authoritative inventory of the supported VibeSec Guardian v1 public surface. Exact member lists are projected into the domain catalogs.",
   "required_status": "validate",
   "coverage_states": ["ran", "not_applicable", "not_configured", "tool_error"],
   "interfaces": [
@@ -54,7 +54,7 @@
       "schema_version": 1,
       "stable_id": "vibesec.cli.doctor",
       "status": "stable",
-      "summary": "Diagnose an installed VibeSec profile without changing it.",
+      "summary": "Diagnose an installed VibeSec Guardian profile without changing it.",
       "owning_component": "installation doctor",
       "dependencies": ["installation manifest"],
       "configuration": ["--target", "--profile minimal|standard", "--json"],

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Standard against a fixed product-only view of this VibeSec checkout."""
+"""Run Standard against a fixed product-only view of this VibeSec Guardian checkout."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def main() -> int:
     except ValueError:
         pass
     else:
-        print("VibeSec self-scan results must be outside the source checkout", file=sys.stderr)
+        print("VibeSec Guardian self-scan results must be outside the source checkout", file=sys.stderr)
         return 3
     try:
         _, exclusions = load_scope(ROOT)
@@ -48,7 +48,7 @@ def main() -> int:
             finally:
                 make_removable(view)
     except (OSError, SelfScanError) as exc:
-        print(f"VibeSec self-scan scope failed closed: {exc}", file=sys.stderr)
+        print(f"VibeSec Guardian self-scan scope failed closed: {exc}", file=sys.stderr)
         return 3
 
 

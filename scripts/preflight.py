@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only consumer diagnostics for an installed VibeSec profile."""
+"""Read-only consumer diagnostics for an installed VibeSec Guardian profile."""
 
 from __future__ import annotations
 

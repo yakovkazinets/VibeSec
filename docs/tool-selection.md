@@ -1,6 +1,6 @@
 # Tool Selection
 
-OWASP ZAP 2.17.0 is available only through the independent DAST add-on. Its official GHCR image is pinned by immutable digest, and only VibeSec's generated, exact-shape passive Automation Framework plan is allowed. Active scan, AJAX/client spider, ZAP-native authentication jobs, external targets, arbitrary options, add-on management, and target builds are excluded. The separate authenticated-testing capability can supply one fixed bearer header through the scanner process without adding a credential to the plan.
+OWASP ZAP 2.17.0 is available only through the independent DAST add-on. Its official GHCR image is pinned by immutable digest, and only VibeSec Guardian's generated, exact-shape passive Automation Framework plan is allowed. Active scan, AJAX/client spider, ZAP-native authentication jobs, external targets, arbitrary options, add-on management, and target builds are excluded. The separate authenticated-testing capability can supply one fixed bearer header through the scanner process without adding a credential to the plan.
 
 ## Minimal profile
 
@@ -29,7 +29,7 @@ Selection must follow repository evidence. For example, configuration scanning i
 
 Gitleaks and actionlint remain active from Minimal. Standard intentionally removes Trivy source-dependency vulnerability scanning so OSV-Scanner is the primary source-dependency engine. Trivy remains for secrets and configuration, where overlap with Gitleaks and Checkov is useful but visible. Checkov is conditional on detected IaC; Opengrep is conditional on supported first-party source; OSV and Syft are conditional on supported manifests. Coverage records make these decisions reviewable.
 
-The local Opengrep rules are original VibeSec Apache-2.0 content with per-rule provenance, CWE, OWASP, confidence, remediation, and license metadata. The validator prohibits autofixes and unsupported languages. Opengrep receives only this local directory; remote registries and remote rule URLs are not configured.
+The local Opengrep rules are original VibeSec Guardian Apache-2.0 content with per-rule provenance, CWE, OWASP, confidence, remediation, and license metadata. The validator prohibits autofixes and unsupported languages. Opengrep receives only this local directory; remote registries and remote rule URLs are not configured.
 
 OSV online mode can transmit package names, versions, ecosystems, and file hashes to OSV.dev or deps.dev. Offline mode uses a caller-provisioned database, requires its explicit path and declared date, enforces a configurable maximum declared age, and never fetches or refreshes it. Checkov is offline at runtime. Syft enrichment, update checks, and language metadata network lookups are disabled. Trivy filesystem mode disables policy updates; optional image vulnerability scanning can access registries and scanner-managed vulnerability data. Private-registry credentials are not configured by the starter.
 

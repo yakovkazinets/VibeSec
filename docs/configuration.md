@@ -12,7 +12,7 @@ Authenticated runtime testing stores only its GitHub Actions secret name in `.vi
 
 `config/environment-variables.json` is the machine-readable source for this page. Unsupported values and malformed configuration fail closed; they are not clean results. Environment values must come from reviewed workflow configuration, not untrusted pull-request text.
 
-GitHub Action pins and embedded runtimes are configured only through the strict `config/github-actions.json` inventory. The supported baseline is Node 24 on Actions Runner 2.327.1 or newer; Node 20 runtime fallback and runtime-forcing environment overrides are invalid. These settings concern third-party actions, not an npm or Node runtime required by VibeSec. See [GitHub Actions runtime and pin policy](github-actions-runtime.md).
+GitHub Action pins and embedded runtimes are configured only through the strict `config/github-actions.json` inventory. The supported baseline is Node 24 on Actions Runner 2.327.1 or newer; Node 20 runtime fallback and runtime-forcing environment overrides are invalid. These settings concern third-party actions, not an npm or Node runtime required by VibeSec Guardian. See [GitHub Actions runtime and pin policy](github-actions-runtime.md).
 
 Portable platform and scanner declarations live in `config/portable-execution.json`; they are not environment overrides. Extension declarations use the exact versioned `vibesec-extension.json` contract and cannot add environment variables, core capability IDs, policy files, secret grants, or fallback modes. See [extension authoring](extension-authoring.md).
 
@@ -45,4 +45,4 @@ API target path, port, and base-path environment defaults come from the `install
 
 Result destinations are positional command arguments, not environment configuration. Minimal defaults to `results`; Standard's starter uses `$RUNNER_TEMP/vibesec-results`. No supported `VIBESEC_*` variable may contain a secret. Registry credentials are intentionally not accepted by the starter.
 
-OSV offline mode requires `<ecosystem>/all.zip` archives under the database root and a declared date within the configured maximum age. VibeSec validates them but never downloads or refreshes them. `VIBESEC_IMAGE_REFERENCE` is ignored as coverage on `pull_request` and unknown GitHub events even when supplied; the coverage report records `not_configured`.
+OSV offline mode requires `<ecosystem>/all.zip` archives under the database root and a declared date within the configured maximum age. VibeSec Guardian validates them but never downloads or refreshes them. `VIBESEC_IMAGE_REFERENCE` is ignored as coverage on `pull_request` and unknown GitHub events even when supplied; the coverage report records `not_configured`.

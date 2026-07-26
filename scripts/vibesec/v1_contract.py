@@ -7,6 +7,7 @@ import re
 import unicodedata
 from typing import Any
 
+from .branding import PRODUCT_DISPLAY_NAME, PRODUCT_ID, POSITIONING_LINE
 from .strict_json import StrictJSONError, canonical_json, loads_strict
 
 SCHEMA_VERSION = 1
@@ -343,7 +344,7 @@ def validate_release_validation_evidence(
 
 
 def validate_readiness(value: Any, *, source_commit: str | None = None) -> dict[str, Any]:
-    fields = {
+    legacy_fields = {
         "schema_version", "stable_id", "status", "version", "main_commit",
         "schema_versions", "interface_statuses", "test_totals", "platform_support",
         "known_limitations", "deferred_features", "experimental_features",
@@ -351,8 +352,18 @@ def validate_readiness(value: Any, *, source_commit: str | None = None) -> dict[
         "migration_coverage", "documentation_coverage", "unresolved_risks",
         "release_blockers",
     }
-    if not isinstance(value, dict) or set(value) != fields:
+    branding_fields = {"product_display_name", "positioning_line", "product_id"}
+    if (not isinstance(value, dict)
+            or frozenset(value) not in {
+                frozenset(legacy_fields), frozenset(legacy_fields | branding_fields),
+            }):
         raise V1ContractError("release readiness report has unknown or missing fields")
+    if branding_fields <= set(value) and (
+        value["product_display_name"] != PRODUCT_DISPLAY_NAME
+        or value["positioning_line"] != POSITIONING_LINE
+        or value["product_id"] != PRODUCT_ID
+    ):
+        raise V1ContractError("release readiness display branding or technical product identity is invalid")
     if value.get("schema_version") != 1 or value.get("stable_id") != "vibesec.release-readiness.v1":
         raise V1ContractError("release readiness identity is invalid")
     if value.get("status") not in {"ready", "ready_with_known_limitations", "blocked"}:
@@ -407,6 +418,9 @@ def build_readiness(root: Path, *, main_commit: str,
         statuses[item["status"]] += 1
     value = {
         "schema_version": 1,
+        "product_display_name": PRODUCT_DISPLAY_NAME,
+        "positioning_line": POSITIONING_LINE,
+        "product_id": PRODUCT_ID,
         "stable_id": "vibesec.release-readiness.v1",
         "status": "ready_with_known_limitations",
         "version": (root / "VERSION").read_text(encoding="utf-8").strip(),

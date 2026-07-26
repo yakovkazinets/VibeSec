@@ -1,6 +1,6 @@
 # Extension authoring
 
-The `agent-guidance` kind is reserved for reviewed first-party adapters. It may read trusted VibeSec contract and capability metadata, render in private staging, and write only its declared instruction path after explicit authorization. It must not execute scanners or agent CLIs, access secrets, use network or Docker, write arbitrary repository files, or override the canonical contract. Third-party v1 manifests remain `scanner` only.
+The `agent-guidance` kind is reserved for reviewed first-party adapters. It may read trusted VibeSec Guardian contract and capability metadata, render in private staging, and write only its declared instruction path after explicit authorization. It must not execute scanners or agent CLIs, access secrets, use network or Docker, write arbitrary repository files, or override the canonical contract. Third-party v1 manifests remain `scanner` only.
 
 An extension source directory contains `vibesec-extension.json`, its declared Python adapter, and only bounded regular files. Use `config/extension-manifest-schema.json` as a human-facing schema reference; runtime validation remains the authoritative strict parser.
 

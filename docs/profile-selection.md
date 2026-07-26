@@ -21,7 +21,7 @@ Profile selection and project capabilities are separate decisions. Complete the 
 | Image | no dedicated prebuilt-image input | optional immutable digest, trusted events only; never builds Dockerfiles |
 | Fork PR | read-only, no secrets | read-only, no secrets; trusted base harness; image/private-registry access disabled |
 | Best fit | solo developer or small team wanting a fast first baseline | team needing source/dependency/SBOM/IaC depth and able to maintain it |
-| Main gaps | no explicit coverage inventory or SBOM; broad dependency behavior | narrow VibeSec SAST rules; no builds, runtime, DAST, fuzzing, or business-logic analysis |
+| Main gaps | no explicit coverage inventory or SBOM; broad dependency behavior | narrow VibeSec Guardian SAST rules; no builds, runtime, DAST, fuzzing, or business-logic analysis |
 
 ## Deterministic recommendation
 

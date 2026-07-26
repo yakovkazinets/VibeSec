@@ -4,7 +4,7 @@ Static bearer authentication adds a separate credential boundary. Its secret lif
 
 ## Assets and trust boundaries
 
-Protected assets include runner credentials, the Docker daemon, neighboring networks, external services, scanner integrity, target image identity, and sanitized evidence. Trusted inputs are the checked-in VibeSec harness, immutable tool pins, repository variables configured by maintainers, and trusted-event metadata. Application image contents and HTTP responses are hostile scan data. Pull-request text, mutable tags, external URLs, application-supplied scanner configuration, and authentication material are never trusted configuration.
+Protected assets include runner credentials, the Docker daemon, neighboring networks, external services, scanner integrity, target image identity, and sanitized evidence. Trusted inputs are the checked-in VibeSec Guardian harness, immutable tool pins, repository variables configured by maintainers, and trusted-event metadata. Application image contents and HTTP responses are hostile scan data. Pull-request text, mutable tags, external URLs, application-supplied scanner configuration, and authentication material are never trusted configuration.
 
 The registry pull is the only intended external network activity. After pull and image metadata validation, target and scanner run on a unique Docker internal network without published ports. The target receives no host mount, environment secret, custom entrypoint, or command. ZAP receives one restrictive private workspace containing only the generated trusted plan and its raw report; no repository source or target-controlled configuration is mounted. Container resource bounds limit but cannot eliminate denial-of-service risk.
 

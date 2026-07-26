@@ -10,7 +10,7 @@ release, merge, push, or signed release candidate exists.
 `ready_with_documented_limitations`
 
 No reviewed release blocker remains after the fixes and validation described
-below. A clean result is not proof that VibeSec or an application is secure.
+below. A clean result is not proof that VibeSec Guardian or an application is secure.
 
 ## Review scopes
 

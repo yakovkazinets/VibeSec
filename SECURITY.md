@@ -6,7 +6,7 @@ Release-assurance reports should identify whether the issue affects deterministi
 
 ## Reporting a vulnerability
 
-Do not open a public issue for a vulnerability in VibeSec. Use GitHub private vulnerability reporting when it is enabled for the repository. If that channel is unavailable, contact a maintainer through a private channel listed in their GitHub profile and request a disclosure channel without including exploit details in the first message.
+Do not open a public issue for a vulnerability in VibeSec Guardian. Use GitHub private vulnerability reporting when it is enabled for the repository. If that channel is unavailable, contact a maintainer through a private channel listed in their GitHub profile and request a disclosure channel without including exploit details in the first message.
 
 Include the affected version or commit, impact, reproduction conditions, and a minimal safe demonstration. Never include real credentials, personal data, or third-party source code.
 
@@ -14,8 +14,8 @@ Maintainers will acknowledge a complete report when practical, assess scope, coo
 
 ## Scope and safe handling
 
-The policy covers VibeSec scripts, workflows, templates, policy logic, and documentation. Scanner vulnerabilities should also be reported to their upstream projects. Do not test against systems you do not own or lack permission to assess.
+The policy covers VibeSec Guardian scripts, workflows, templates, policy logic, and documentation. Scanner vulnerabilities should also be reported to their upstream projects. Do not test against systems you do not own or lack permission to assess.
 
 Official release preparation must originate from protected `main`, use the manual reviewed workflow, and pass the required `validate` aggregate. Maintainers must compare the intended version and commit before approving a candidate; no source-tree branch can by itself prove repository settings or signing identity are uncompromised.
 
-The [v1 security review](docs/v1-security-review.md) records the reviewed parser and trust boundaries. A passing suite or `ready_with_known_limitations` release-readiness record is evidence of those checks, not a claim that VibeSec or a scanned application is secure.
+The [v1 security review](docs/v1-security-review.md) records the reviewed parser and trust boundaries. A passing suite or `ready_with_known_limitations` release-readiness record is evidence of those checks, not a claim that VibeSec Guardian or a scanned application is secure.

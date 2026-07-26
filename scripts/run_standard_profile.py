@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Standard scanners from a trusted VibeSec harness against an untrusted tree."""
+"""Run Standard scanners from a trusted VibeSec Guardian harness against an untrusted tree."""
 
 from __future__ import annotations
 
@@ -315,7 +315,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", nargs="?", type=Path, default=Path("."), help="untrusted repository to scan")
     parser.add_argument("results", nargs="?", type=Path, default=Path("results"))
-    parser.add_argument("--vibesec-root", type=Path, default=SCRIPT_ROOT.parent, help="trusted VibeSec harness root")
+    parser.add_argument("--vibesec-root", type=Path, default=SCRIPT_ROOT.parent, help="trusted VibeSec Guardian harness root")
     parser.add_argument("--tool-dir", type=Path)
     parser.add_argument("--network-mode", choices=("online", "offline"), default=os.getenv("VIBESEC_NETWORK_MODE", "online"))
     parser.add_argument("--minimum-severity", choices=("low", "medium", "high", "critical"), default=os.getenv("VIBESEC_MIN_SEVERITY", "high"))

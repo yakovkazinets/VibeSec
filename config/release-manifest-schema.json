@@ -1,12 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/yakovkazinets/VibeSec/schemas/release-manifest-v1.json",
-  "title": "VibeSec release manifest v1",
+  "title": "VibeSec Guardian release manifest v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "version", "source", "artifacts", "schema_versions", "tool_versions", "creation_mode", "provenance", "checksum_file", "signature_bundle"],
   "properties": {
     "schema_version": {"const": 1},
+    "product_display_name": {"const": "VibeSec Guardian"},
+    "positioning_line": {"const": "Open-source security for vibe-coded and AI-built software."},
+    "product_id": {"const": "vibesec"},
     "version": {"type": "string", "maxLength": 64},
     "source": {
       "type": "object",

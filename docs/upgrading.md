@@ -1,4 +1,9 @@
-# Upgrading VibeSec
+# Upgrading VibeSec Guardian
+
+The VibeSec Guardian display name does not change the `vibesec` CLI,
+`.vibesec` installation paths, manifest formats, file ownership records, or
+upgrade channel. Installations created under the earlier VibeSec display name
+remain valid inputs to the same read-only verification and upgrade planner.
 
 Agent guidance uses `vibesec agents upgrade-plan <adapter> --target <repository> --json`. The plan never applies changes. It preserves user-maintained instruction files, local adapters, explicit capability answers, and disabled state; any digest change or unsupported state requires manual review. See [agent upgrades](agent-upgrades.md).
 
@@ -10,7 +15,7 @@ The planner also classifies `.vibesec/authenticated-security-testing.json` as `c
 
 Upgrade planning treats `policy/dast-baseline.json` and `policy/dast-suppressions.json` as preservation-sensitive and never applies a plan. Review add-on workflow, image pins, isolation bounds, baseline, and suppressions manually with the version-compatible support set.
 
-VibeSec has no destructive automatic upgrader and no `--apply` mode. Create a working branch, back up policy files and local modifications, verify a newer local bundle, and generate a read-only plan:
+VibeSec Guardian has no destructive automatic upgrader and no `--apply` mode. Create a working branch, back up policy files and local modifications, verify a newer local bundle, and generate a read-only plan:
 
 Installed extensions are separate preservation-sensitive local state. Core upgrade planning reports their verified inventory but does not replace, enable, disable, remove, or upgrade them. Use `./vibesec extensions upgrade-plan <reviewed-local-source>` for one extension; it has no apply mode. Preserve explicit enabled state and permission grants, and reinstall only after reviewing new bytes and version.
 
@@ -47,10 +52,10 @@ Preserve baselines, suppressions, user-modified policy and ignore files, and use
 
 ## Review procedure
 
-1. Record the installed VibeSec version and back up baselines, suppressions, and local configuration outside the working change.
+1. Record the installed VibeSec Guardian version and back up baselines, suppressions, and local configuration outside the working change.
 2. Compare local files to the new release by path and content. Do not replace locally modified files blindly.
 3. Review changed policy defaults and scanner versions against upstream release notes and verified checksums/signatures.
-4. Keep workflows and support files from the same VibeSec version; a newer workflow with older scripts can fail closed or misreport coverage.
+4. Keep workflows and support files from the same VibeSec Guardian version; a newer workflow with older scripts can fail closed or misreport coverage.
 5. Test reviewed changes in a branch with `observe`, run repository/skill/rule validation, lint workflows, and inspect JSON/Markdown artifacts before merging.
 6. Reconfirm network/privacy expectations, SBOM retention, fork behavior, and profile-specific baseline selection.
 

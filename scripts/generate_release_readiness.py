@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a deterministic exact-main VibeSec release-readiness report."""
+"""Generate a deterministic exact-main VibeSec Guardian release-readiness report."""
 
 from __future__ import annotations
 

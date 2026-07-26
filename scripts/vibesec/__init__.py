@@ -1,4 +1,4 @@
-"""VibeSec normalization and policy primitives."""
+"""VibeSec Guardian normalization and policy primitives."""
 
 from .model import Finding, fingerprint_for, normalize_severity
 

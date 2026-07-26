@@ -1,4 +1,4 @@
-name: VibeSec API Security Controlled Integration
+name: VibeSec Guardian API Security Controlled Integration
 
 on:
   workflow_dispatch:

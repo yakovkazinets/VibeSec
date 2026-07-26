@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the deterministic VibeSec repository inventory."""
+"""Write the deterministic VibeSec Guardian repository inventory."""
 
 import argparse
 import json

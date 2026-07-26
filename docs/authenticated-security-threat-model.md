@@ -4,7 +4,7 @@ Finding intelligence consumes only sanitized child `normalized.json` documents. 
 
 ## Assets and trust boundaries
 
-The bearer value is the primary asset. The trusted inputs are the reviewed capability manifest, generated secret-name-only configuration, pinned VibeSec runner, fixed scanner command builders, immutable scanner images, and the scheduled default-branch workflow revision. Application images, application responses, OpenAPI content, and scanner raw output are untrusted data. GitHub Actions supplies the bearer value only to the exact scanner step. Branch-selected manual dispatch is prohibited unless a separately reviewed protected GitHub Environment restricts deployment to the default branch.
+The bearer value is the primary asset. The trusted inputs are the reviewed capability manifest, generated secret-name-only configuration, pinned VibeSec Guardian runner, fixed scanner command builders, immutable scanner images, and the scheduled default-branch workflow revision. Application images, application responses, OpenAPI content, and scanner raw output are untrusted data. GitHub Actions supplies the bearer value only to the exact scanner step. Branch-selected manual dispatch is prohibited unless a separately reviewed protected GitHub Environment restricts deployment to the default branch.
 
 The target is always an immutable non-root container attached through alias `target` or `api-target` to a new `--internal` Docker network. There are no public targets, published ports, host networking, Docker socket mounts, privileged containers, capabilities, writable root filesystems where avoidable, or external egress. CPU, memory, PID, tmpfs, response, finding, and time bounds remain enforced.
 

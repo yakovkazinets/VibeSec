@@ -43,7 +43,7 @@ jobs:
         run: |
           mkdir -p "$VIBESEC_ROOT"
           git archive "$TRUSTED_SHA" scripts config policy rules | tar -x -C "$VIBESEC_ROOT"
-      - name: Install pinned VibeSec parser dependency
+      - name: Install pinned VibeSec Guardian parser dependency
         run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.3
       - name: Install checksum-verified scanners
         run: |
@@ -66,7 +66,7 @@ jobs:
           if [[ -f "$VIBESEC_RESULTS/report.md" ]]; then
             sed -E 's/([A-Za-z0-9_=-]{20,})/[redacted]/g' "$VIBESEC_RESULTS/report.md" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "VibeSec did not generate a report; treat this run as a tool failure." >> "$GITHUB_STEP_SUMMARY"
+            echo "VibeSec Guardian did not generate a report; treat this run as a tool failure." >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Retain required normalized results and coverage
         if: always()
@@ -92,7 +92,7 @@ jobs:
           if [[ -f "$VIBESEC_RESULTS/sbom.cyclonedx.json" && -f "$VIBESEC_RESULTS/sbom.spdx.json" ]]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           elif [[ -e "$VIBESEC_RESULTS/sbom.cyclonedx.json" || -e "$VIBESEC_RESULTS/sbom.spdx.json" ]]; then
-            echo "VibeSec produced an incomplete SBOM pair." >&2
+            echo "VibeSec Guardian produced an incomplete SBOM pair." >&2
             exit 1
           else
             echo "present=false" >> "$GITHUB_OUTPUT"

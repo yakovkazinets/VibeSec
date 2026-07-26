@@ -1,6 +1,6 @@
 # Software supply-chain assurance
 
-VibeSec prepares a closed, versioned release-candidate set without publishing
+VibeSec Guardian prepares a closed, versioned release-candidate set without publishing
 it. The set is exactly:
 
 ```text
@@ -47,12 +47,12 @@ restricted release authority; repository settings remain outside this source
 tree validator.
 
 Signing proves that the declared identity signed bytes whose digests match the
-metadata. It does not prove that VibeSec is safe, free of vulnerabilities, or
+metadata. It does not prove that VibeSec Guardian is safe, free of vulnerabilities, or
 appropriate for a consumer's environment.
 
 ## Bootstrap trust
 
-Obtain the verifier and expected identity from a separately trusted VibeSec
+Obtain the verifier and expected identity from a separately trusted VibeSec Guardian
 source checkout or independently reviewed copy. Do not execute a script from
 inside an unverified downloaded bundle as the first verification step. Pin or
 verify Cosign through its official Sigstore release process, then run the

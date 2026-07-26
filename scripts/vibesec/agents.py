@@ -87,19 +87,19 @@ def _validate_contract(value: dict[str, Any]) -> dict[str, Any]:
     }:
         raise AgentGuidanceError("agent action semantics differ from the reviewed contract")
     if value.get("coverage_states") != ["ran", "not_applicable", "not_configured", "tool_error"]:
-        raise AgentGuidanceError("agent coverage states differ from VibeSec")
+        raise AgentGuidanceError("agent coverage states differ from VibeSec Guardian")
     if value.get("exit_codes") != {
         "0": "success", "1": "policy_violation",
         "2": "tool_or_runtime_failure", "3": "invalid_configuration_or_malformed_input",
     }:
-        raise AgentGuidanceError("agent exit-code contract differs from VibeSec")
+        raise AgentGuidanceError("agent exit-code contract differs from VibeSec Guardian")
     if value.get("lifecycle_exit_codes") != {
         "0": "success", "1": "review_warning_or_modified_guidance",
         "2": "verification_failure",
         "3": "invalid_configuration_or_malformed_input",
         "4": "infrastructure_failure",
     }:
-        raise AgentGuidanceError("agent lifecycle exit-code contract differs from VibeSec")
+        raise AgentGuidanceError("agent lifecycle exit-code contract differs from VibeSec Guardian")
     if not isinstance(value.get("pre_commit_validation_loop"), list) or len(value["pre_commit_validation_loop"]) != 7:
         raise AgentGuidanceError("agent pre-commit validation loop is incomplete")
     if not isinstance(value.get("required_safety_rules"), list) or len(value["required_safety_rules"]) != 12:
@@ -330,8 +330,8 @@ def render_adapter(root: Path, target: Path, adapter_id: str) -> bytes:
     contract = catalog["contract"]
     task_states = capability_task_states(_target_root(target))
     lines = [
-        "<!-- Generated deterministically by VibeSec. Review before installation. -->",
-        f"# VibeSec guidance for {adapter['display_name']}",
+        "<!-- Generated deterministically by VibeSec Guardian. Review before installation. -->",
+        f"# VibeSec Guardian guidance for {adapter['display_name']}",
         "",
         f"Contract: `{contract['contract_id']}` version `{contract['contract_version']}`.",
         f"Adapter: `{adapter_id}` version `{adapter['version']}`.",
@@ -359,7 +359,7 @@ def render_adapter(root: Path, target: Path, adapter_id: str) -> bytes:
     lines.extend([
         "",
         "Use `vibesec agents render-task " + adapter_id + " <task-id>` to render complete task-specific guidance.",
-        "Do not invoke an external agent CLI as part of VibeSec installation, verification, doctor, or rendering.",
+        "Do not invoke an external agent CLI as part of VibeSec Guardian installation, verification, doctor, or rendering.",
         "",
     ])
     return "\n".join(lines).encode("utf-8")
@@ -583,7 +583,7 @@ def verify_adapters(root: Path, target: Path) -> dict[str, Any]:
         state = "valid"
         detail = "installed guidance matches its recorded digest"
         if adapter_id not in catalog["adapters"] or record["adapter_version"] != catalog["adapters"][adapter_id]["version"]:
-            state, detail = "unsupported", "installed adapter version is not supported by this VibeSec build"
+            state, detail = "unsupported", "installed adapter version is not supported by this VibeSec Guardian build"
         elif not record["enabled"]:
             state, detail = "disabled", "adapter is installed and intentionally disabled"
         elif not path.exists() and not path.is_symlink():

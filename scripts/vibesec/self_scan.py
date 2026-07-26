@@ -1,4 +1,4 @@
-"""Build and validate the trusted product-only VibeSec self-scan view."""
+"""Build and validate the trusted product-only VibeSec Guardian self-scan view."""
 
 from __future__ import annotations
 
@@ -174,9 +174,9 @@ def initialize_snapshot_repository(view: Path) -> None:
     commands = (
         ["git", "-c", f"core.hooksPath={os.devnull}", "init", "--quiet", "--template=", "--initial-branch=main"],
         ["git", "-c", f"core.hooksPath={os.devnull}", "add", "--all"],
-        ["git", "-c", f"core.hooksPath={os.devnull}", "-c", "user.name=VibeSec Self Scan",
+        ["git", "-c", f"core.hooksPath={os.devnull}", "-c", "user.name=VibeSec Guardian Self Scan",
          "-c", "user.email=self-scan@invalid", "commit", "--quiet", "--no-gpg-sign",
-         "-m", "VibeSec product snapshot"],
+         "-m", "VibeSec Guardian product snapshot"],
     )
     for command in commands:
         try:

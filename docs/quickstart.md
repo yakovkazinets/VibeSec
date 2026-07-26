@@ -4,13 +4,13 @@ After installing and reviewing the API Security Baseline, eligible projects may 
 
 Passive DAST is not part of either profile. After a valid base installation, maintainers may opt in with `python3 scripts/init_vibesec.py --addon dast-baseline --target <repository> --write`. Enable it only for an authorized non-production immutable non-root image on trusted manual or scheduled events; see [DAST Baseline](dast-baseline.md).
 
-VibeSec is a scanning baseline, not proof that an application is secure. Use a reviewed VibeSec checkout matching the version you intend to adopt. The initializer itself uses no network, installs nothing, executes no application code, and defaults to a preview.
+VibeSec Guardian is a scanning baseline, not proof that an application is secure. Use a reviewed VibeSec Guardian checkout matching the version you intend to adopt. The initializer itself uses no network, installs nothing, executes no application code, and defaults to a preview.
 
 For local routing, run `./vibesec --help`. `./vibesec scan --profile minimal --execution-mode auto --json` selects only a complete supported tool mode; it never converts missing or failed coverage into a clean fallback. See [local execution](local-execution.md) and the exact [platform matrix](platform-support.md).
 
 To preview agent-neutral repository guidance, run `./vibesec agents list --json` and `./vibesec agents plan codex --target /path/to/application --json`. Review the generated contract before adding `--write`. An existing instruction target produces a merge-required conflict and is never overwritten. See [multi-agent support](multi-agent-support.md).
 
-The supplied GitHub.com workflows use full-SHA actions that embed Node 24. GitHub-hosted runners meet the requirement; self-hosted runners need Actions Runner 2.327.1 or newer. Node 20 fallback is unsupported. VibeSec does not require npm or a Node application runtime. Review [the action runtime and GHES limits](github-actions-runtime.md) before adoption.
+The supplied GitHub.com workflows use full-SHA actions that embed Node 24. GitHub-hosted runners meet the requirement; self-hosted runners need Actions Runner 2.327.1 or newer. Node 20 fallback is unsupported. VibeSec Guardian does not require npm or a Node application runtime. Review [the action runtime and GHES limits](github-actions-runtime.md) before adoption.
 
 The initializer first asks the [project capability questionnaire](project-capabilities.md). Every question shows `[Y/n]`: Enter is Yes, and you should explicitly answer No for absent scopes. Its dry-run JSON includes the exact manifest and writes nothing. For automation, supply reviewed answers with `--capabilities-file`; do not pipe EOF and assume defaults.
 
@@ -22,7 +22,7 @@ Choose **Minimal** for the fastest first baseline: Trivy filesystem, Gitleaks, a
 
 ## Minimal: one-stage adoption
 
-From the VibeSec checkout:
+From the VibeSec Guardian checkout:
 
 ```shell
 python3 scripts/init_vibesec.py --profile minimal --target /path/to/application
@@ -49,13 +49,13 @@ python3 scripts/init_vibesec.py --profile standard --stage workflow --target /pa
 
 The second stage adds `.github/workflows/vibesec-standard.yml` and a separate installation manifest. Standard requires `scripts/`, `config/`, `policy/`, and `rules/`; it uses `policy/standard-baseline.json` and generates `normalized.json`, `coverage.json`, `policy-result.json`, `inventory.json`, `finding-groups.json`, `prioritized-findings.json`, `report.md`, and—when package evidence exists—a separately retained CycloneDX/SPDX SBOM pair.
 
-## Existing repository with no VibeSec files
+## Existing repository with no VibeSec Guardian files
 
 Run the dry run first. If it reports no conflicts, review warnings for CodeQL, Semgrep, Snyk, Dependabot, Renovate, Trivy, Gitleaks, OSV-Scanner, Checkov, Grype, or Anchore. Existing equivalent coverage is a reason to keep Minimal or adapt deliberately, not to install duplicates automatically.
 
 ## Repository with existing security workflows
 
-Do not replace or disable them. The initializer refuses VibeSec filename conflicts and warns about recognizable overlap. Compare scope, event permissions, report destinations, and maintenance ownership using [profile selection](profile-selection.md). Manual adoption remains available: use `config/adoption-files.json` as the authoritative file list, copy the selected template to its catalogued destination byte-for-byte, preserve executable bits, and do not combine Minimal and Standard baselines.
+Do not replace or disable them. The initializer refuses VibeSec Guardian filename conflicts and warns about recognizable overlap. Compare scope, event permissions, report destinations, and maintenance ownership using [profile selection](profile-selection.md). Manual adoption remains available: use `config/adoption-files.json` as the authoritative file list, copy the selected template to its catalogued destination byte-for-byte, preserve executable bits, and do not combine Minimal and Standard baselines.
 
 ## What the first run does
 
@@ -76,9 +76,9 @@ Download the JSON and Markdown artifacts, verify tool errors first, then review 
 
 The initializer makes no network calls. Workflow tool installation downloads pinned releases. Minimal's Trivy dependency database behavior is scanner-managed; Gitleaks and actionlint operate locally. Standard OSV online mode may send package names, versions, ecosystems, and file hashes to OSV.dev or deps.dev. Offline mode requires a caller-provisioned validated database. Opengrep, Syft, and Checkov do not upload source; Checkov has no network. A trusted-event image scan may contact the referenced registry. SBOMs can expose internal package names and versions.
 
-## Remove VibeSec
+## Remove VibeSec Guardian
 
-Use `.vibesec/install-*.json` as a review checklist. Remove only files that are still VibeSec-owned, preserve any local policy evidence you need, and remove the workflow in a reviewed change. The initializer deliberately has no destructive uninstall or overwrite mode. Removing VibeSec also removes its coverage; it does not resolve findings.
+Use `.vibesec/install-*.json` as a review checklist. Remove only files that are still VibeSec Guardian-owned, preserve any local policy evidence you need, and remove the workflow in a reviewed change. The initializer deliberately has no destructive uninstall or overwrite mode. Removing VibeSec Guardian also removes its coverage; it does not resolve findings.
 
 For problems, use [troubleshooting](troubleshooting.md). For upgrades, use [upgrading](upgrading.md).
 

@@ -281,7 +281,7 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
                      "exit_category": category, "clean": state == "ran" and exit_code == 0, "security_guarantee": False,
                      "findings": len(evaluation["findings"]), "violations": len(evaluation["violations"]),
                      "tool_errors": len(evaluation["tool_errors"]), "expired_suppressions": len(expired)}
-    lines = ["# VibeSec DAST baseline", "", f"Status: **{category}**", "",
+    lines = ["# VibeSec Guardian DAST baseline", "", f"Status: **{category}**", "",
              f"- Coverage: {state}", f"- Passive findings: {len(evaluation['findings'])}",
              f"- Policy violations: {len(evaluation['violations'])}", "- Active scanning: false",
              f"- Authentication: {'bearer' if authenticated else 'none'}", "- External egress: false", "",

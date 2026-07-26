@@ -3,7 +3,7 @@
   "contract_id": "vibesec.agent-guidance.v1",
   "contract_version": "1.0.0",
   "human_documentation": "docs/agent-contract.md",
-  "purpose": "Vendor-neutral operating contract for AI coding agents working with VibeSec.",
+  "purpose": "Vendor-neutral operating contract for AI coding agents working with VibeSec Guardian.",
   "authority": {
     "priority": [
       "human operator instructions",

@@ -207,7 +207,7 @@ def render_matrix(payload: dict[str, Any]) -> str:
         )) + " |")
     lines.extend([
         "", "## Interpretation", "",
-        "`enforced` means implementation, controlled fixtures, normalization or artifact checks, failure paths, documentation, and CI evidence are all linked. `conditionally_enforced` means the safe routing and controlled evidence are enforced but live execution needs an explicit trusted condition. No passing row is a claim that VibeSec or a scanned application is secure.", "",
+        "`enforced` means implementation, controlled fixtures, normalization or artifact checks, failure paths, documentation, and CI evidence are all linked. `conditionally_enforced` means the safe routing and controlled evidence are enforced but live execution needs an explicit trusted condition. No passing row is a claim that VibeSec Guardian or a scanned application is secure.", "",
     ])
     return "\n".join(lines)
 

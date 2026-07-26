@@ -1,4 +1,4 @@
-# VibeSec doctor
+# VibeSec Guardian doctor
 
 Agent-specific doctor is available as `vibesec agents doctor --target <repository> --json`. It validates the canonical contract and inventory, classifies adapter files as `valid`, `modified`, `missing`, `conflicting`, `unsupported`, or `disabled`, reports capability-driven task suppression, and confirms zero external agent invocations. It never repairs or rewrites guidance.
 
@@ -27,7 +27,7 @@ provenance. Signing is not required for local source-tree development.
 
 For authenticated testing, doctor validates the dependency rules, strict secret name, fixed bearer model, schedule-only trigger, and exact workflow placement. It reports literal credentials, bearer values, JWT-like material, unsupported modes, public or raw-report markers, manual/PR/push/reusable triggers, dynamic secret expressions, secret references outside the scanner environment assignment, upload exposure, and authenticated workflow material when the capability is false. Diagnostics redact values and never inspect the GitHub secret itself.
 
-Doctor reports `GITHUB_ACTION_NODE20_PIN` when an installed VibeSec workflow still contains a known checkout v4.2.2 or upload-artifact v4.6.2 pin. The repair is a reviewed, preservation-aware upgrade to the inventory's Node 24 pin—not a fallback override. Doctor cannot query the runner service, so self-hosted maintainers must confirm Actions Runner 2.327.1 or newer separately.
+Doctor reports `GITHUB_ACTION_NODE20_PIN` when an installed VibeSec Guardian workflow still contains a known checkout v4.2.2 or upload-artifact v4.6.2 pin. The repair is a reviewed, preservation-aware upgrade to the inventory's Node 24 pin—not a fallback override. Doctor cannot query the runner service, so self-hosted maintainers must confirm Actions Runner 2.327.1 or newer separately.
 
 Doctor also validates the strict project capability manifest and detects missing or malformed data, unknown capabilities, dependency conflicts, changes since installation, partial installation, DAST installed while `dast_target=false`, and missing DAST support while `dast_target=true`. It reports `not_applicable` separately from `not_configured` and never translates either into a clean scan.
 

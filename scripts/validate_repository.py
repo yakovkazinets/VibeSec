@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate static VibeSec configuration without third-party Python packages."""
+"""Validate static VibeSec Guardian configuration without third-party Python packages."""
 
 from __future__ import annotations
 

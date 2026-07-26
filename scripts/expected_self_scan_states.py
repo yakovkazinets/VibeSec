@@ -49,7 +49,7 @@ def main() -> int:
             finally:
                 make_removable(view)
     except (CapabilityError, DetectionError, ImageStateError, OSError, SelfScanError) as exc:
-        print(f"VibeSec self-scan expectation failed closed: {exc}", file=sys.stderr)
+        print(f"VibeSec Guardian self-scan expectation failed closed: {exc}", file=sys.stderr)
         return 3
     print(f"TRIVY_IMAGE_STATE={expectation.state}")
     return 0

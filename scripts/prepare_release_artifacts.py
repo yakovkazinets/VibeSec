@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare, but do not publish or sign, a strict VibeSec release artifact set."""
+"""Prepare, but do not publish or sign, a strict VibeSec Guardian release artifact set."""
 
 from __future__ import annotations
 

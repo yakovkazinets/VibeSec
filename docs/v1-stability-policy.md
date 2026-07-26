@@ -1,4 +1,4 @@
-# VibeSec v1 stability and deprecation policy
+# VibeSec Guardian v1 stability and deprecation policy
 
 The machine-readable source of truth is [`machine/interfaces.json`](../machine/interfaces.json) plus the domain catalogs under [`machine/`](../machine/). Human tables are generated from those files. A prose statement cannot silently override a machine status.
 

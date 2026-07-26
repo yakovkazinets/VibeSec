@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify an installed VibeSec configuration without modifying the target."""
+"""Verify an installed VibeSec Guardian configuration without modifying the target."""
 
 from __future__ import annotations
 

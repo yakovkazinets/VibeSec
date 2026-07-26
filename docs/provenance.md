@@ -15,7 +15,7 @@ against the release manifest and checksum file and rejects unknown fields,
 missing subjects, duplicate JSON keys, malformed digests, or a different
 builder identity.
 
-This is SLSA-aligned provenance preparation; VibeSec claims no SLSA level.
+This is SLSA-aligned provenance preparation; VibeSec Guardian claims no SLSA level.
 GitHub-hosted build isolation, branch policy, dependency integrity, and release
 review must be evaluated separately. Consumers verify provenance with:
 

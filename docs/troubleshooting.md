@@ -13,7 +13,7 @@ Exit `0` means required files/configuration passed preflight; `2` means missing 
 
 ## Installation and bootstrap
 
-- **Missing VibeSec file:** preflight identifies the path. Run the initializer dry run from the matching VibeSec version and compare the installation manifest. Do not copy one missing file from a different release.
+- **Missing VibeSec Guardian file:** preflight identifies the path. Run the initializer dry run from the matching VibeSec Guardian version and compare the installation manifest. Do not copy one missing file from a different release.
 - **Standard workflow absent:** support bootstrap is incomplete. Merge support files to the default branch, then run the documented `--stage workflow` dry run and write in a second change.
 - **Filename conflict or partial install:** initializer exit `2` lists every conflict and creates nothing. Preserve existing files; compare ownership and resolve manually. There is no force option.
 - **Unsupported architecture:** installers require Linux x86_64. Use the supported GitHub runner; do not substitute unverified binaries.
@@ -21,7 +21,7 @@ Exit `0` means required files/configuration passed preflight; `2` means missing 
 ## Tool installation
 
 - **Download/tool installation failure:** category `tool_error`. Confirm the runner can reach the pinned official release and has disk space. Never expose tokens in diagnostic output.
-- **Checksum/signature failure:** stop. Do not change a pin to match an unexpected artifact. Verify the official upstream release, identity, checksum, and VibeSec tool manifest before a reviewed update.
+- **Checksum/signature failure:** stop. Do not change a pin to match an unexpected artifact. Verify the official upstream release, identity, checksum, and VibeSec Guardian tool manifest before a reviewed update.
 - **Workflow permission failure:** starters require only `contents: read`. Check organization policy and action availability; do not add write permissions or secrets to make a pull-request scan work.
 
 ## Results and exit codes
@@ -42,11 +42,11 @@ Exit `0` means required files/configuration passed preflight; `2` means missing 
 
 ## Standard-specific diagnostics
 
-- **Dockerfile but no image reference:** `trivy-image` is `not_configured`. Supply only an already-built immutable digest on a trusted event. VibeSec never builds Dockerfiles.
+- **Dockerfile but no image reference:** `trivy-image` is `not_configured`. Supply only an already-built immutable digest on a trusted event. VibeSec Guardian never builds Dockerfiles.
 - **Tag-only image reference:** invalid configuration, exit `3`. Use `registry/name@sha256:<64 lowercase hex>`.
 - **Fork pull request:** image and private-registry scanning remain disabled, no secrets are passed, and coverage reports `not_configured`; this is expected trust-boundary behavior.
 - **Docker unavailable:** Checkov becomes a tool error only when supported IaC requires it. Install Docker on the trusted runner or accept/document the missing IaC capability; network/capability isolation must not be weakened.
-- **OSV offline database unavailable/stale:** provide `VIBESEC_OSV_DATABASE_DIR`, `VIBESEC_OSV_DATABASE_DATE`, and a suitable maximum age. VibeSec never downloads or refreshes offline data. Future, stale, empty, corrupt, linked, or oversized database content fails closed.
+- **OSV offline database unavailable/stale:** provide `VIBESEC_OSV_DATABASE_DIR`, `VIBESEC_OSV_DATABASE_DATE`, and a suitable maximum age. VibeSec Guardian never downloads or refreshes offline data. Future, stale, empty, corrupt, linked, or oversized database content fails closed.
 - **SBOM failure:** both CycloneDX and SPDX files must be valid and nonempty. A partial pair fails. SBOMs are separate because package names/versions may be sensitive.
 
 ## Artifact upload

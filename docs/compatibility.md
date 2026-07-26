@@ -14,7 +14,7 @@ Status meanings: **tested** has an automated fixture; **supported but not fully 
 | Java | `.java` | Opengrep local Java rules | tested | none | no build/classpath analysis |
 | Go | `.go` | Opengrep local Go rules | tested | none | OSV call analysis disabled |
 
-Minimal does not use this language router; Trivy support depends on the pinned scanner. Other languages are not supported by VibeSec-owned SAST rules.
+Minimal does not use this language router; Trivy support depends on the pinned scanner. Other languages are not supported by VibeSec Guardian-owned SAST rules.
 
 ## Package ecosystems
 

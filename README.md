@@ -1,22 +1,31 @@
-# VibeSec
+# VibeSec Guardian
+
+Open-source security for vibe-coded and AI-built software.
+
+VibeSec Guardian is an open-source application-security toolkit for vibe coders, solo developers, startups, and small teams. It combines a repository-aware coding-agent skill with a copyable GitHub Actions baseline.
+
+VibeSec Guardian cannot guarantee that an application is secure. Scanner coverage is incomplete, findings may be wrong, and a clean scan covers only the checks that completed successfully.
+
+The public product name is VibeSec Guardian. For backward compatibility, the
+repository remains `yakovkazinets/VibeSec`, the CLI remains `vibesec`, and
+existing `.vibesec` paths, `VIBESEC_*` configuration keys, stable
+`vibesec.*` identifiers, artifact filenames, and installation metadata remain
+unchanged. Existing VibeSec installations can upgrade without a rename or
+reinstallation.
 
 The [Passive DAST Baseline add-on](docs/dast-baseline.md) is deliberately outside the Minimal and Standard profiles. It is manual/scheduled, unauthenticated, passive-only, and limited to an explicitly configured immutable non-root image on an isolated internal Docker network. Review its [threat model](docs/dast-threat-model.md) before enabling it.
 
 The [API Security Baseline add-on](docs/api-security-baseline.md) is also separate and opt-in. It uses a local OpenAPI 3.x contract and an immutable non-root API image on trusted manual/scheduled events, defaults to GET/HEAD/OPTIONS, and never accepts credentials or public targets. Review its [threat model](docs/api-security-threat-model.md).
 
-The [bounded API fuzzing add-on](docs/api-fuzzing.md) is a further explicit opt-in for eligible isolated API targets. It adds deterministic contract, fuzz, injection, and combined modes, retains safe methods by default, uses only reviewed inert payload families, and publishes no raw request/response bodies. VibeSec itself declares this capability `not_applicable`. Review the [injection-testing rules](docs/injection-testing.md) and [threat model](docs/fuzzing-threat-model.md).
+The [bounded API fuzzing add-on](docs/api-fuzzing.md) is a further explicit opt-in for eligible isolated API targets. It adds deterministic contract, fuzz, injection, and combined modes, retains safe methods by default, uses only reviewed inert payload families, and publishes no raw request/response bodies. VibeSec Guardian itself declares this capability `not_applicable`. Review the [injection-testing rules](docs/injection-testing.md) and [threat model](docs/fuzzing-threat-model.md).
 
 [Authenticated security testing](docs/authenticated-security-testing.md) is a bearer-only opt-in for eligible DAST or API targets. The GitHub secret is scoped to the exact scanner step, passed to the fixed scanner launcher over stdin, and excluded from configuration, arguments, reports, diagnostics, and artifacts. Review the dedicated [threat model](docs/authenticated-security-threat-model.md).
 
-VibeSec is an open-source application-security toolkit for vibe coders, solo developers, startups, and small teams. It combines a repository-aware coding-agent skill with a copyable GitHub Actions baseline.
-
-VibeSec cannot guarantee that an application is secure. Scanner coverage is incomplete, findings may be wrong, and a clean scan covers only the checks that completed successfully.
-
 ## Maintainer note and disclaimer
 
-VibeSec was created by a practicing cybersecurity engineer with relevant security certifications, but I do not claim to be a foremost expert in every area of application security. This project was also developed in part through AI-assisted—or “vibe coding”—workflows, supported by technical research, automated testing, and manual review.
+VibeSec Guardian was created by a practicing cybersecurity engineer with relevant security certifications, but I do not claim to be a foremost expert in every area of application security. This project was also developed in part through AI-assisted—or “vibe coding”—workflows, supported by technical research, automated testing, and manual review.
 
-AI-assisted development can introduce mistakes, incomplete assumptions, insecure patterns, and subtle implementation defects. VibeSec should therefore be treated as an opinionated starting point, not as proof that an application is secure or as a substitute for threat modeling, secure design review, penetration testing, or review by qualified security professionals.
+AI-assisted development can introduce mistakes, incomplete assumptions, insecure patterns, and subtle implementation defects. VibeSec Guardian should therefore be treated as an opinionated starting point, not as proof that an application is secure or as a substitute for threat modeling, secure design review, penetration testing, or review by qualified security professionals.
 
 Review the code and configuration before using it, validate it against your own environment and risk model, and report anything that appears incorrect or unsafe. Independent review and security-focused contributions are strongly encouraged.
 
@@ -43,9 +52,9 @@ Review the code and configuration before using it, validate it against your own 
 - [OpenAPI API Security Baseline](docs/api-security-baseline.md)
 - [Bounded API fuzzing and injection-oriented testing](docs/api-fuzzing.md)
 
-Supplied workflows target GitHub.com and require Actions Runner 2.327.1 or newer on self-hosted runners. Their reviewed JavaScript actions embed Node 24 and use full commit SHAs; Node 20 is end-of-life and unsupported, and no fallback is provided. VibeSec itself requires no npm or Node application runtime. Node 26 remains a future compatibility target rather than a requirement. See the runtime policy for the separate GHES limitation.
+Supplied workflows target GitHub.com and require Actions Runner 2.327.1 or newer on self-hosted runners. Their reviewed JavaScript actions embed Node 24 and use full commit SHAs; Node 20 is end-of-life and unsupported, and no fallback is provided. VibeSec Guardian itself requires no npm or Node application runtime. Node 26 remains a future compatibility target rather than a requirement. See the runtime policy for the separate GHES limitation.
 
-Minimal uses Trivy filesystem, Gitleaks, and actionlint. Standard adds framework-aware VibeSec-owned Opengrep rules, OSV-Scanner, Syft SBOMs, conditional isolated Checkov, deterministic finding correlation and explainable priority, explicit coverage reporting, and optional trusted-event scanning of an existing immutable image. Original findings and baseline fingerprints remain authoritative. Neither profile builds or executes application code, installs project dependencies, builds Dockerfiles, or applies infrastructure. Separate opt-in add-ons provide passive ZAP DAST and bounded Schemathesis OpenAPI contract testing against explicitly supplied immutable, non-root images.
+Minimal uses Trivy filesystem, Gitleaks, and actionlint. Standard adds framework-aware VibeSec Guardian-owned Opengrep rules, OSV-Scanner, Syft SBOMs, conditional isolated Checkov, deterministic finding correlation and explainable priority, explicit coverage reporting, and optional trusted-event scanning of an existing immutable image. Original findings and baseline fingerprints remain authoritative. Neither profile builds or executes application code, installs project dependencies, builds Dockerfiles, or applies infrastructure. Separate opt-in add-ons provide passive ZAP DAST and bounded Schemathesis OpenAPI contract testing against explicitly supplied immutable, non-root images.
 <!-- claimed-scanners: actionlint,checkov,gitleaks,opengrep,osv-scanner,schemathesis,syft,trivy,zap-baseline -->
 
 Preview adoption without changing the application repository:

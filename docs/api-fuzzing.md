@@ -1,6 +1,6 @@
 # Bounded API fuzzing
 
-VibeSec's `api-fuzzing` add-on extends the opt-in OpenAPI API Security Baseline with bounded, stateless active testing. It is supported only when `api=true`, `container_image=true`, `api_security_target=true`, and `api_fuzzing_target=true`. The VibeSec repository declares `api_fuzzing_target=false`, so its state is exactly `not_applicable` and it is never fuzzed.
+VibeSec Guardian's `api-fuzzing` add-on extends the opt-in OpenAPI API Security Baseline with bounded, stateless active testing. It is supported only when `api=true`, `container_image=true`, `api_security_target=true`, and `api_fuzzing_target=true`. The VibeSec Guardian repository declares `api_fuzzing_target=false`, so its state is exactly `not_applicable` and it is never fuzzed.
 
 The installed `.vibesec/api-fuzzing.json` supports four explicit modes: `contract`, `fuzz`, `injection`, and `combined`. Installation defaults to `contract`, with `fuzzing_enabled=false`, `injection_testing_enabled=false`, and `safe_methods_only=true`. Selecting `fuzz` or `combined` requires `--fuzzing-enabled`; selecting `injection` or `combined` requires `--injection-testing-enabled`. POST, PUT, PATCH, and DELETE additionally require both `--fuzzing-safe-methods-only false` and `--fuzzing-mutating-methods`. Existing installations do not become stricter or more active automatically.
 

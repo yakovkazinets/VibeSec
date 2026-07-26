@@ -14,6 +14,13 @@ class NormalizeTests(unittest.TestCase):
         self.addCleanup(Path(temporary.name).unlink, missing_ok=True)
         return Path(temporary.name)
 
+    def write_raw(self, payload: bytes) -> Path:
+        temporary = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        temporary.write(payload)
+        temporary.close()
+        self.addCleanup(Path(temporary.name).unlink, missing_ok=True)
+        return Path(temporary.name)
+
     def test_trivy_normalization(self):
         path = self.write_json({"Results": [{"Target": "requirements.txt", "Vulnerabilities": [{"VulnerabilityID": "CVE-TEST-1", "Severity": "HIGH", "Title": "Harmless test finding"}]}]})
         result = normalize_trivy(path)
@@ -111,6 +118,34 @@ class NormalizeTests(unittest.TestCase):
         self.addCleanup(Path(temporary.name).unlink, missing_ok=True)
         result = normalize_actionlint(Path(temporary.name))[0]
         self.assertEqual(result.file, ".github/workflows/ci.yml")
+
+    def test_duplicate_scanner_json_keys_cannot_erase_findings(self):
+        cases = (
+            (normalize_trivy, b'{"Results":[{"Target":"app","Vulnerabilities":[{"VulnerabilityID":"CVE-TEST","Severity":"HIGH"}]}],"Results":[]}'),
+            (normalize_gitleaks, b'[{"RuleID":"first","RuleID":"second","File":"fixture","Description":"fixture"}]'),
+            (normalize_opengrep, b'{"results":[],"results":[]}'),
+            (normalize_osv, b'{"results":[],"results":[]}'),
+            (normalize_checkov, b'{"results":{"failed_checks":[]},"results":{"failed_checks":[]}}'),
+            (normalize_actionlint, b'[{"filepath":"workflow.yml","message":"first","message":"second"}]'),
+        )
+        for normalizer, payload in cases:
+            with self.subTest(normalizer=normalizer.__name__), self.assertRaisesRegex(
+                ValueError, "duplicate JSON key"
+            ):
+                normalizer(self.write_raw(payload))
+
+    def test_non_finite_scanner_json_numbers_fail_closed(self):
+        for payload in (
+            b'{"Results":[],"ignored":NaN}',
+            b'{"Results":[],"ignored":Infinity}',
+            b'{"Results":[],"ignored":-Infinity}',
+        ):
+            with self.subTest(payload=payload), self.assertRaisesRegex(ValueError, "invalid number"):
+                normalize_trivy(self.write_raw(payload))
+        with self.assertRaisesRegex(ValueError, "invalid number"):
+            normalize_actionlint(
+                self.write_raw(b'[{"filepath":"workflow.yml","message":"fixture","ignored":NaN}]')
+            )
 
 
 if __name__ == "__main__":

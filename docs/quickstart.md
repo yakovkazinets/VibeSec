@@ -14,7 +14,7 @@ The supplied GitHub.com workflows use full-SHA actions that embed Node 24. GitHu
 
 The initializer first asks the [project capability questionnaire](project-capabilities.md). Every question shows `[Y/n]`: Enter is Yes, and you should explicitly answer No for absent scopes. Its dry-run JSON includes the exact manifest and writes nothing. For automation, supply reviewed answers with `--capabilities-file`; do not pipe EOF and assume defaults.
 
-If `authenticated_security_testing=true`, also pass `--auth-secret-name MY_BEARER_SECRET`. This is only the GitHub Actions secret name; never pass the bearer value. The generated configuration stores the name and fixed `Authorization`/`Bearer` model. When DAST or API support is later installed, its manual/scheduled workflow receives `${{ secrets.MY_BEARER_SECRET }}` only on the exact scanner step. See [authenticated security testing](authenticated-security-testing.md).
+If `authenticated_security_testing=true`, also pass `--auth-secret-name MY_BEARER_SECRET`. This is only the GitHub Actions secret name; never pass the bearer value. The generated configuration stores the name and fixed `Authorization`/`Bearer` model. When DAST or API support is later installed, its schedule-only workflow receives `${{ secrets.MY_BEARER_SECRET }}` only on the exact scanner step. Schedule-only execution ensures GitHub uses the default-branch workflow revision; a maintainer who needs manual authenticated execution must first design a separately reviewed protected-environment boundary restricted to the default branch. See [authenticated security testing](authenticated-security-testing.md).
 
 ## Choose a profile
 
@@ -47,7 +47,7 @@ python3 scripts/init_vibesec.py --profile standard --stage workflow --target /pa
 python3 scripts/init_vibesec.py --profile standard --stage workflow --target /path/to/application --write
 ```
 
-The second stage adds `.github/workflows/vibesec-standard.yml` and a separate installation manifest. Standard requires `scripts/`, `config/`, `policy/`, and `rules/`; it uses `policy/standard-baseline.json` and generates `normalized.json`, `coverage.json`, `inventory.json`, `report.md`, and—when package evidence exists—a separately retained CycloneDX/SPDX SBOM pair.
+The second stage adds `.github/workflows/vibesec-standard.yml` and a separate installation manifest. Standard requires `scripts/`, `config/`, `policy/`, and `rules/`; it uses `policy/standard-baseline.json` and generates `normalized.json`, `coverage.json`, `policy-result.json`, `inventory.json`, `finding-groups.json`, `prioritized-findings.json`, `report.md`, and—when package evidence exists—a separately retained CycloneDX/SPDX SBOM pair.
 
 ## Existing repository with no VibeSec files
 
@@ -59,7 +59,7 @@ Do not replace or disable them. The initializer refuses VibeSec filename conflic
 
 ## What the first run does
 
-Both starters begin with `VIBESEC_ENFORCEMENT: observe`. Findings are reported but do not fail policy, allowing historical results to be reviewed before gating. Scanner/tool failure and malformed input still fail closed. Minimal retains `results/normalized.json` and `results/report.md`; Standard retains its required reports from the runner temporary directory and uploads validated SBOMs separately.
+Both starters begin with `VIBESEC_ENFORCEMENT: observe`. Findings are reported but do not fail policy, allowing historical results to be reviewed before gating. Scanner/tool failure and malformed input still fail closed. Minimal retains `results/normalized.json`, `results/coverage.json`, `results/policy-result.json`, and `results/report.md`; Standard retains its required reports from the runner temporary directory and uploads validated SBOMs separately.
 
 Coverage terms are exact:
 

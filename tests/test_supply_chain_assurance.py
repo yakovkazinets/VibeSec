@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.bundle import build_bundle_bytes, verify_bundle  # noqa: E402
 from vibesec.strict_json import canonical_json  # noqa: E402
+from vibesec.sbom import validate_cyclonedx, validate_spdx  # noqa: E402
 from vibesec.supply_chain import (  # noqa: E402
     BUNDLE_NAME, CHECKSUMS_NAME, CYCLONEDX_NAME, MANIFEST_NAME,
     OIDC_ISSUER, PROVENANCE_NAME, READINESS_NAME, SIGNATURE_NAME, SPDX_NAME,
@@ -63,6 +64,46 @@ class SupplyChainAssuranceTests(unittest.TestCase):
             BUNDLE_NAME, CYCLONEDX_NAME, SPDX_NAME, READINESS_NAME, PROVENANCE_NAME, MANIFEST_NAME,
         ])
         self.assertNotIn(str(self.root), json.dumps(result.manifest))
+        self.assertEqual(result.manifest["schema_versions"]["cyclonedx"], "1.7")
+        self.assertEqual(result.manifest["schema_versions"]["spdx"], "SPDX-2.3")
+        self.assertEqual(
+            [item["name"] for item in result.provenance["subject"]],
+            [BUNDLE_NAME, CYCLONEDX_NAME, SPDX_NAME, READINESS_NAME],
+        )
+
+    def test_sbom_versions_are_exact_and_bound_to_manifest(self):
+        for path, field, wrong in (
+            (self.cyclonedx, "specVersion", "1.6"),
+            (self.spdx, "spdxVersion", "SPDX-2.2"),
+        ):
+            changed = json.loads(path.read_text())
+            changed[field] = wrong
+            path.write_text(json.dumps(changed), encoding="utf-8")
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.prepare(f"wrong-{field}")
+            if field == "specVersion":
+                path.write_bytes((ROOT / "examples/reports/sbom.cyclonedx.json").read_bytes())
+            else:
+                path.write_bytes((ROOT / "examples/reports/sbom.spdx.json").read_bytes())
+
+    def test_sbom_duplicate_keys_and_non_finite_numbers_fail_closed(self):
+        cases = (
+            (
+                self.cyclonedx, validate_cyclonedx,
+                b'{"bomFormat":"CycloneDX","bomFormat":"CycloneDX",'
+                b'"specVersion":"1.7","components":[{"name":"fixture"}]}\n',
+            ),
+            (
+                self.spdx, validate_spdx,
+                b'{"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT",'
+                b'"packages":[{"name":"fixture","score":NaN}]}\n',
+            ),
+        )
+        for path, validator, data in cases:
+            path.write_bytes(data)
+            with self.subTest(path=path.name), self.assertRaisesRegex(
+                    ValueError, "duplicate JSON key|invalid number"):
+                validator(path)
 
     def test_bundle_sbom_manifest_provenance_and_checksum_tampering_fail(self):
         cases = (BUNDLE_NAME, CYCLONEDX_NAME, SPDX_NAME, READINESS_NAME, MANIFEST_NAME, PROVENANCE_NAME, CHECKSUMS_NAME)

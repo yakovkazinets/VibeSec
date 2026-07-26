@@ -1,7 +1,6 @@
 name: Authenticated API integration accountability
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: "37 6 * * 4"
 

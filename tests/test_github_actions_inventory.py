@@ -146,10 +146,16 @@ class GitHubActionsInventoryTests(unittest.TestCase):
                 "${{ runner.temp }}/vibesec-dast-results/finding-groups.json",
                 "${{ runner.temp }}/vibesec-dast-results/prioritized-findings.json",
             ]],
-            "templates/github-actions/security-baseline.yml": [["results/normalized.json", "results/report.md"]],
+            "templates/github-actions/security-baseline.yml": [[
+                "results/normalized.json",
+                "results/coverage.json",
+                "results/policy-result.json",
+                "results/report.md",
+            ]],
             "templates/github-actions/security-standard.yml": [[
                 "${{ runner.temp }}/vibesec-results/normalized.json",
                 "${{ runner.temp }}/vibesec-results/coverage.json",
+                "${{ runner.temp }}/vibesec-results/policy-result.json",
                 "${{ runner.temp }}/vibesec-results/inventory.json",
                 "${{ runner.temp }}/vibesec-results/finding-groups.json",
                 "${{ runner.temp }}/vibesec-results/prioritized-findings.json",

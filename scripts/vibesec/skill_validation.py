@@ -30,6 +30,8 @@ NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 LINK_PATTERN = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
 FENCE_START = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 HEADING = re.compile(r"^(#{1,6})[ \t]+(.+?)\s*$")
+BLOCK_QUOTE = re.compile(r"^ {0,3}>")
+EXAMPLE_HEADING = re.compile(r"\bexamples?\b")
 MAPPING_LIKE = re.compile(r"^[ \t]*[A-Za-z_][A-Za-z0-9_-]*[ \t]*:")
 
 
@@ -142,7 +144,7 @@ def _parse_metadata(source: str) -> tuple[dict[str, str], str]:
         metadata = yaml.load(yaml_text, Loader=StrictSafeLoader)
     except SkillValidationError:
         raise
-    except yaml.YAMLError as exc:
+    except (yaml.YAMLError, RecursionError) as exc:
         raise SkillValidationError(f"metadata YAML is invalid or uses a prohibited tag: {exc}") from exc
     if not isinstance(metadata, dict):
         raise SkillValidationError("metadata must be a mapping")
@@ -173,9 +175,30 @@ def _segment_markdown(body: str) -> tuple[ContentSegment, ...]:
     in_fence: tuple[str, int] | None = None
     in_comment = False
     example_level: int | None = None
+    lazy_quote = False
     classified: list[tuple[str, int, str]] = []
     for line_number, line in enumerate(lines, start=1):
         stripped = line.rstrip("\n")
+        quote = BLOCK_QUOTE.match(stripped)
+        if lazy_quote:
+            if not stripped.strip():
+                lazy_quote = False
+            elif quote is None:
+                starts_new_block = (
+                    FENCE_START.match(stripped) is not None
+                    or HEADING.match(stripped) is not None
+                    or stripped.lstrip().startswith("<!--")
+                    or line.startswith("    ")
+                    or line.startswith("\t")
+                )
+                if starts_new_block:
+                    lazy_quote = False
+                else:
+                    # CommonMark permits an unmarked paragraph continuation
+                    # after a block-quote line. Retain that paragraph text as
+                    # quoted data rather than promoting it to active prose.
+                    classified.append(("block_quote", line_number, line))
+                    continue
         match = FENCE_START.match(stripped)
         if in_fence is not None:
             if match:
@@ -224,10 +247,15 @@ def _segment_markdown(body: str) -> tuple[ContentSegment, ...]:
                 example_level = None
             if title == "example" or title == "examples" or title.startswith("example "):
                 example_level = level
+            elif EXAMPLE_HEADING.search(title):
+                example_level = level
         if example_level is not None:
             classified.append(("example", line_number, line))
-        elif line.lstrip().startswith(">"):
+        elif quote is not None:
             classified.append(("block_quote", line_number, line))
+            lazy_quote = bool(stripped[quote.end():].strip())
+        elif line.strip() and (line.startswith("    ") or line.startswith("\t")):
+            classified.append(("indented_code", line_number, line))
         else:
             classified.append(("prose", line_number, line))
     if in_fence is not None:
@@ -263,7 +291,7 @@ def _reject_competing_front_matter(segments: tuple[ContentSegment, ...]) -> None
             candidate = "\n".join(line for _, line in candidate_lines)
             try:
                 parsed = yaml.load(candidate, Loader=StrictSafeLoader)
-            except (yaml.YAMLError, SkillValidationError) as exc:
+            except (yaml.YAMLError, SkillValidationError, RecursionError) as exc:
                 if any(MAPPING_LIKE.match(line) for _, line in candidate_lines):
                     raise SkillValidationError("ambiguous later YAML-like metadata block") from exc
                 continue

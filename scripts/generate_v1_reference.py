@@ -31,13 +31,19 @@ def _replace(path: Path, begin: str, end: str, body: str) -> str:
 def _reference() -> str:
     inventory, catalogs = validate_catalogs(ROOT)
     lines = [
-        "| Stable ID | Status | Owner | Summary |",
-        "|---|---|---|---|",
+        "| Stable ID | Status | Owner | Summary | Configuration and flags | Artifacts | Coverage states | Exit behavior |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for item in sorted(inventory["interfaces"], key=lambda record: record["stable_id"]):
+        configuration = "<br>".join(
+            f"`{value.replace('|', '&#124;')}`" for value in item["configuration"]
+        ) or "—"
+        artifacts = "<br>".join(f"`{value}`" for value in item["artifacts"]) or "—"
+        coverage = "<br>".join(f"`{value}`" for value in item["coverage_states"]) or "—"
         lines.append(
             f"| `{item['stable_id']}` | `{item['status']}` | "
-            f"{item['owning_component']} | {item['summary']} |"
+            f"{item['owning_component']} | {item['summary']} | {configuration} | "
+            f"{artifacts} | {coverage} | {item['exit_behavior'].replace('|', '&#124;')} |"
         )
     lines.extend(["", "## Domain members", ""])
     for name in CATALOGS:

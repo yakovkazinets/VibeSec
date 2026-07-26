@@ -26,17 +26,24 @@ def _bounded(value: str) -> str:
 
 
 def _run(command: Sequence[str], *, environment: dict[str, str] | None = None,
-         working_directory: Path = ROOT) -> tuple[int, str, str]:
+         working_directory: Path = ROOT, lifecycle: bool = False) -> tuple[int, str, str]:
     completed = subprocess.run(
         list(command), cwd=working_directory, env=environment, stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30 * 60, check=False,
     )
-    code = completed.returncode if completed.returncode in {0, 1, 2, 3} else VERIFICATION_FAILED
-    return code, _bounded(completed.stdout), _bounded(completed.stderr)
+    allowed_codes = {0, 1, 2, 3, 4} if lifecycle else {0, 1, 2, 3}
+    fallback = INFRASTRUCTURE_FAILURE if lifecycle else VERIFICATION_FAILED
+    code = completed.returncode if completed.returncode in allowed_codes else fallback
+    # Standard output is the command's machine-readable result and must remain
+    # complete. Only human-readable diagnostics are bounded.
+    return code, completed.stdout, _bounded(completed.stderr)
 
 
 def _passthrough(script: str, arguments: list[str]) -> int:
-    code, stdout, stderr = _run([sys.executable, str(ROOT / "scripts" / script), *arguments])
+    code, stdout, stderr = _run(
+        [sys.executable, str(ROOT / "scripts" / script), *arguments],
+        lifecycle=True,
+    )
     if stdout:
         sys.stdout.write(stdout + ("" if stdout.endswith("\n") else "\n"))
     if stderr:

@@ -54,6 +54,8 @@ output = sys.argv[sys.argv.index("--json-output") + 1]
 mode = os.getenv("FAKE_OPENGREP_MODE", "pass")
 if mode == "fail": raise SystemExit(9)
 if mode == "malformed": open(output, "w").write("not-json")
+elif mode == "duplicate-json": open(output, "w").write('{"results":[{"check_id":"must-not-disappear","path":"fixture.py","start":{"line":1},"extra":{"severity":"ERROR","message":"fixture"}}],"results":[]}')
+elif mode == "non-finite-json": open(output, "w").write('{"results":[],"ignored":NaN}')
 elif mode == "finding": json.dump({"results":[{"check_id":"vibesec.python.test","path":"fixture.py","start":{"line":1},"extra":{"severity":"ERROR","message":"Synthetic test finding","lines":"OMITTED_SECRET"}}]}, open(output, "w"))
 else: json.dump({"results":[]}, open(output, "w"))
 ''')
@@ -83,7 +85,7 @@ for index, value in enumerate(sys.argv):
     if value == "--output":
         form, path = sys.argv[index + 1].split("=", 1)
         if mode == "malformed": open(path, "w").write("{"); continue
-        payload = ({"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"fixture"}]} if form == "cyclonedx-json" else {"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT","packages":[{"name":"fixture"}]})
+        payload = ({"bomFormat":"CycloneDX","specVersion":"1.7","components":[{"name":"fixture"}]} if form == "cyclonedx-json" else {"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT","packages":[{"name":"fixture"}]})
         json.dump(payload, open(path, "w"))
 ''')
         self.write_tool("trivy", r'''#!/usr/bin/env python3
@@ -204,7 +206,9 @@ if failed: raise SystemExit(1)
         self.assertTrue(all(entry["version"] for entry in coverage["tools"]))
         self.assertTrue(all(entry["application_code_executed"] is False for entry in coverage["tools"]))
         self.assertEqual(len({entry["tool"] for entry in coverage["tools"]}), 8)
-        self.assertEqual(coverage["sbom_formats"], ["CycloneDX 1.6", "SPDX-2.3"])
+        self.assertEqual(coverage["sbom_formats"], ["CycloneDX 1.7", "SPDX-2.3"])
+        self.assertEqual(self.results.stat().st_mode & 0o777, 0o700)
+        self.assertTrue(os.access(self.results, os.W_OK))
         self.assertIn("Standard profile coverage", (self.results / "report.md").read_text(encoding="utf-8"))
         groups = self.load_json("finding-groups.json")
         priorities = self.load_json("prioritized-findings.json")
@@ -532,6 +536,26 @@ if failed: raise SystemExit(1)
         completed = self.run_profile(FAKE_OPENGREP_MODE="finding", VIBESEC_ENFORCEMENT="observe")
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("Synthetic test finding", json.dumps(self.load_json("normalized.json")))
+
+    def test_ambiguous_scanner_json_is_invalid_input_never_clean(self):
+        for mode in ("duplicate-json", "non-finite-json"):
+            with self.subTest(mode=mode):
+                completed = self.run_profile(FAKE_OPENGREP_MODE=mode)
+                self.assertEqual(completed.returncode, 3, completed.stderr)
+                self.assertIn("component=opengrep category=invalid_input", completed.stderr)
+                self.assertFalse((self.results / "raw/opengrep.json").exists())
+                policy = self.load_json("policy-result.json")
+                self.assertEqual(policy["exit_category"], "invalid_input")
+                self.assertFalse(policy["clean"])
+
+    def test_deep_repository_yaml_fails_bounded_as_invalid_input(self):
+        (self.target / "deep.yaml").write_text("[" * 2000 + "0" + "]" * 2000, encoding="utf-8")
+        completed = self.run_profile()
+        self.assertEqual(completed.returncode, 3, completed.stderr)
+        self.assertIn("repository detection failed closed", completed.stderr)
+        self.assertIn("YAML nesting exceeds", completed.stderr)
+        self.assertNotIn("Traceback", completed.stderr)
+        self.assertFalse((self.results / "normalized.json").exists())
 
     def test_new_mode_blocks_unbaselined_finding(self):
         completed = self.run_profile(FAKE_OPENGREP_MODE="finding", VIBESEC_ENFORCEMENT="new")

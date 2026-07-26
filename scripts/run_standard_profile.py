@@ -23,10 +23,12 @@ from vibesec.detection import (  # noqa: E402
 )
 from vibesec.model import Finding  # noqa: E402
 from vibesec.finding_intelligence import FindingIntelligenceError, SourceDocument, build as build_finding_intelligence  # noqa: E402
-from vibesec.normalize import normalize_file  # noqa: E402
-from vibesec.policy import active_suppressions  # noqa: E402
+from vibesec.normalize import load_scanner_json, normalize_file  # noqa: E402
+from vibesec.policy import active_suppressions, load_json_yaml  # noqa: E402
 from vibesec.osv_database import validate_offline_database  # noqa: E402
-from vibesec.sbom import sanitize_repository_paths, validate_cyclonedx, validate_spdx  # noqa: E402
+from vibesec.sbom import (  # noqa: E402
+    build_syft_command, sanitize_repository_paths, validate_cyclonedx, validate_spdx,
+)
 
 ACTIONLINT_JSON_FORMAT = "{{json .}}"
 DIAGNOSTIC_DOCS = "docs/self-hosted-validation.md"
@@ -157,8 +159,8 @@ def validate_checkov_relative_file(root: Path, relative_file: str) -> tuple[str,
 def _checkov_reported_paths(path: Path) -> list[tuple[str | None, str | None]]:
     """Extract only scanner path claims after the main normalizer validates the report."""
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        payload = load_scanner_json(path)
+    except ValueError as exc:
         raise ValueError("Checkov path metadata is malformed") from exc
     documents = payload if isinstance(payload, list) else [payload]
     reported: list[tuple[str | None, str | None]] = []
@@ -366,9 +368,11 @@ def main() -> int:
             print(f"offline mode configuration error: {exc}", file=sys.stderr)
             return 3
 
-    results.mkdir(parents=True, exist_ok=True)
+    results.mkdir(mode=0o700, parents=True, exist_ok=True)
+    results.chmod(0o700)
     raw = results / "raw"
-    raw.mkdir(exist_ok=True)
+    raw.mkdir(mode=0o700, exist_ok=True)
+    raw.chmod(0o700)
     for relative in KNOWN_OUTPUTS:
         try:
             (results / relative).unlink(missing_ok=True)
@@ -388,7 +392,8 @@ def main() -> int:
     environment = {key: value for key, value in os.environ.items() if not key.startswith(
         ("SYFT_", "OPENGREP_", "SEMGREP_", "OSV_SCANNER_", "GITLEAKS_", "TRIVY_", "CHECKOV_"))}
     scanner_home = results / ".scanner-home"
-    scanner_home.mkdir(exist_ok=True)
+    scanner_home.mkdir(mode=0o700, exist_ok=True)
+    scanner_home.chmod(0o700)
     environment.update({
         "HOME": str(scanner_home),
         "SYFT_CHECK_FOR_APP_UPDATE": "false", "SYFT_ENRICH": "",
@@ -427,9 +432,10 @@ def main() -> int:
         except ValueError:
             input_failure = True
             message = f"{tool} output failed structural validation"
+            output.unlink(missing_ok=True)
             diagnostic(tool, "invalid_input", message, output_rel)
             normalized.append(tool_error(tool, message))
-            record(tool, scope, "tool_error", message, artifacts, [output_rel], network)
+            record(tool, scope, "tool_error", message, artifacts, [], network)
             return
         record(tool, scope, "ran", reason, artifacts, [output_rel], network)
 
@@ -471,10 +477,9 @@ def main() -> int:
     sbom_formats: list[str] = []
     if manifests:
         sbom_input_failure = False
-        error = run("syft", command(
-            tools / "syft", "dir:.", "--config", vibesec_root / "config/syft-standard.yaml",
-            "--base-path", ".", "--output", f"cyclonedx-json={cyclonedx}",
-            "--output", f"spdx-json={spdx}", "--quiet"), None, cwd=root, env=environment)
+        error = run("syft", build_syft_command(
+            tools / "syft", vibesec_root / "config/syft-standard.yaml", cyclonedx, spdx,
+        ), None, cwd=root, env=environment)
         if not error:
             try:
                 sanitize_repository_paths(cyclonedx, root)
@@ -601,8 +606,8 @@ def main() -> int:
         diagnostic("coverage", "invalid_input", f"coverage output failed validation: {exc}", "coverage.json")
         return 3
     try:
-        baseline_payload = json.loads((vibesec_root / "policy/standard-baseline.json").read_text(encoding="utf-8"))
-        suppression_payload = json.loads((vibesec_root / "policy/suppressions.yml").read_text(encoding="utf-8"))
+        baseline_payload = load_json_yaml(vibesec_root / "policy/standard-baseline.json")
+        suppression_payload = load_json_yaml(vibesec_root / "policy/suppressions.yml")
         baseline_values = baseline_payload.get("fingerprints")
         if not isinstance(baseline_values, list) or not all(isinstance(item, str) for item in baseline_values):
             raise FindingIntelligenceError("Standard baseline fingerprints are malformed")

@@ -10,7 +10,7 @@ VibeSec does not replace threat modeling, code review, penetration testing, inci
 
 ## Non-goals
 
-Neither profile executes application builds, test suites, package lifecycle scripts, Dockerfiles, or deployment code. The Standard profile executes a pinned Checkov scanner container, not a target application container. VibeSec does not provide runtime, business-logic, authorization, cloud-account, production-configuration, or DAST assurance. It is not a vulnerability-management service and does not automatically remediate, suppress, merge, or deploy changes.
+Neither repository-scanning profile executes application builds, test suites, package lifecycle scripts, Dockerfiles, or deployment code. The Standard profile executes a pinned Checkov scanner container, not a target application container. Separate opt-in DAST, API, authenticated-testing, and bounded-fuzzing add-ons execute an explicitly supplied disposable target under their documented isolation boundaries; they do not provide runtime, business-logic, authorization, cloud-account, production-configuration, or comprehensive DAST assurance. VibeSec is not a vulnerability-management service and does not automatically remediate, suppress, merge, or deploy changes.
 
 ## Components and order
 
@@ -43,6 +43,6 @@ Every trigger starts in observation mode. After maintainers review historical fi
 
 ## Planned, not implemented
 
-Fuzzing and an external OpenSSF Scorecard service remain future candidates. Release preparation now emits SLSA-aligned provenance and an offline Scorecard-oriented posture report, but claims no SLSA level or external OpenSSF score. Neither changes Minimal or Standard scanner coverage.
+General-purpose fuzzing, exploit automation, and an external OpenSSF Scorecard service remain future candidates. The implemented API fuzzing add-on is deliberately bounded and opt-in. Release preparation emits SLSA-aligned provenance and an offline Scorecard-oriented posture report, but claims no SLSA level or external OpenSSF score. Neither changes Minimal or Standard scanner coverage.
 
 A complete skill package manager, archive ingestion, automatic external installation, cross-agent execution, and imported-script execution are also outside v0.1.

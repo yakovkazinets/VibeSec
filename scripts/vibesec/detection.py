@@ -9,10 +9,14 @@ import re
 from typing import Any
 
 import yaml
+from yaml.events import CollectionEndEvent, CollectionStartEvent, DocumentStartEvent, NodeEvent
 
 MAX_FILES = 100_000
 MAX_DEPTH = 40
 MAX_YAML_BYTES = 1_000_000
+MAX_YAML_DEPTH = 64
+MAX_YAML_DOCUMENTS = 64
+MAX_YAML_NODES = 100_000
 SKIP_DIRS = {value.casefold() for value in (
     ".git", ".tools", ".cache", "node_modules", "vendor", "dist", "build",
     "results", "reports", ".venv", "venv", ".tox", ".mypy_cache", ".pytest_cache",
@@ -91,15 +95,44 @@ def derive_image_expectation(
     )
 
 
+def _validate_yaml_shape(text: str, path: Path) -> None:
+    depth = 0
+    documents = 0
+    nodes = 0
+    try:
+        for event in yaml.parse(text, Loader=yaml.SafeLoader):
+            if isinstance(event, DocumentStartEvent):
+                documents += 1
+                if documents > MAX_YAML_DOCUMENTS:
+                    raise DetectionError(
+                        f"YAML document count exceeds {MAX_YAML_DOCUMENTS} in {path.name}"
+                    )
+            if isinstance(event, NodeEvent):
+                nodes += 1
+                if nodes > MAX_YAML_NODES:
+                    raise DetectionError(f"YAML node count exceeds {MAX_YAML_NODES} in {path.name}")
+            if isinstance(event, CollectionStartEvent):
+                depth += 1
+                if depth > MAX_YAML_DEPTH:
+                    raise DetectionError(f"YAML nesting exceeds {MAX_YAML_DEPTH} in {path.name}")
+            elif isinstance(event, CollectionEndEvent):
+                depth -= 1
+    except RecursionError as exc:
+        raise DetectionError(f"YAML parser recursion limit reached in {path.name}") from exc
+
+
 def _yaml_mappings(path: Path) -> list[dict[str, Any]]:
     try:
         size = path.stat().st_size
         if size > MAX_YAML_BYTES:
             return []
         text = path.read_text(encoding="utf-8")
+        _validate_yaml_shape(text, path)
         values = list(yaml.safe_load_all(text))
     except (UnicodeError, yaml.YAMLError):
         return []
+    except RecursionError as exc:
+        raise DetectionError(f"YAML parser recursion limit reached in {path.name}") from exc
     except OSError as exc:
         raise DetectionError(f"could not inspect {path.name}: {exc}") from exc
     return [value for value in values if isinstance(value, dict)]

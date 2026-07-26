@@ -1,7 +1,11 @@
 from datetime import date
+from pathlib import Path
+import tempfile
 import unittest
 
-from scripts.vibesec.policy import ConfigurationError, active_suppressions, evaluate, evaluate_priority
+from scripts.vibesec.policy import (
+    ConfigurationError, active_suppressions, evaluate, evaluate_priority, load_json_yaml,
+)
 
 
 def finding(fingerprint="new", severity="high", result_type="finding"):
@@ -13,6 +17,14 @@ def finding(fingerprint="new", severity="high", result_type="finding"):
 
 
 class PolicyTests(unittest.TestCase):
+    def load_raw(self, content: bytes):
+        temporary = tempfile.NamedTemporaryFile(delete=False)
+        temporary.write(content)
+        temporary.close()
+        path = Path(temporary.name)
+        self.addCleanup(path.unlink, missing_ok=True)
+        return load_json_yaml(path)
+
     def test_baseline_comparison_only_blocks_new_findings(self):
         result = evaluate([finding("old"), finding("new")], minimum_severity="high", enforcement="new", baseline={"old"}, suppressions=set(), today=date(2026, 7, 20))
         self.assertEqual([item["fingerprint"] for item in result["violations"]], ["new"])
@@ -49,6 +61,15 @@ class PolicyTests(unittest.TestCase):
     def test_malformed_priority_policy_fails_closed(self):
         with self.assertRaises(ConfigurationError):
             evaluate_priority([], {"enabled": True})
+
+    def test_duplicate_and_non_finite_policy_json_fail_closed(self):
+        for content in (
+            b'{"enforcement":"observe","enforcement":"all"}',
+            b'{"minimum":NaN}',
+            b'{"minimum":Infinity}',
+        ):
+            with self.subTest(content=content), self.assertRaises(ConfigurationError):
+                self.load_raw(content)
 
 
 if __name__ == "__main__":

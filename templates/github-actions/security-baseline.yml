@@ -50,6 +50,8 @@ jobs:
           name: security-baseline-${{ github.run_id }}
           path: |
             results/normalized.json
+            results/coverage.json
+            results/policy-result.json
             results/report.md
           if-no-files-found: error
           retention-days: 14

@@ -39,6 +39,17 @@ class V1DocumentationTests(unittest.TestCase):
         self.assertIn("`vibesec.cli.scan`", reference)
         self.assertIn("`vibesec.execution.modes` | `experimental`", reference)
         self.assertIn("`vibesec.profiles.dast-baseline` | `conditionally_enforced`", reference)
+        for flag in (
+            "--tool-dir", "--repository", "--fuzzing-max-examples",
+            "--fuzzing-max-failures", "--fuzzing-request-timeout",
+            "--fuzzing-total-timeout",
+        ):
+            self.assertIn(f"`{flag}`", reference)
+        for artifact in (
+            "inventory.json", "fuzzing-findings.json", "fuzzing-coverage.json",
+            "finding-groups.json", "prioritized-findings.json",
+        ):
+            self.assertIn(f"`{artifact}`", reference)
         self.assertIn("`validate`", (ROOT / "docs/v1-stability-policy.md").read_text(encoding="utf-8"))
 
 

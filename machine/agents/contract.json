@@ -49,9 +49,16 @@
   ],
   "exit_codes": {
     "0": "success",
-    "1": "policy_violation_or_verification_failure",
+    "1": "policy_violation",
     "2": "tool_or_runtime_failure",
     "3": "invalid_configuration_or_malformed_input"
+  },
+  "lifecycle_exit_codes": {
+    "0": "success",
+    "1": "review_warning_or_modified_guidance",
+    "2": "verification_failure",
+    "3": "invalid_configuration_or_malformed_input",
+    "4": "infrastructure_failure"
   },
   "coverage_states": [
     "ran",

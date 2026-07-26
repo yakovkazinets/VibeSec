@@ -13,36 +13,30 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.strict_json import loads_strict  # noqa: E402
 from vibesec.v1_contract import (  # noqa: E402
-    V1ContractError, build_readiness, canonical_readiness, validate_readiness,
+    V1ContractError, build_readiness, canonical_readiness,
+    validate_release_validation_evidence,
 )
 
 
-def _test_total(args: argparse.Namespace) -> int:
-    if args.test_total is not None:
-        return args.test_total
-    value = loads_strict(args.test_total_file.read_bytes())
-    validate_readiness(value)
-    total = value["test_totals"].get("automated_tests")
-    if not isinstance(total, int) or isinstance(total, bool):
-        raise V1ContractError("test-total file has no integer automated_tests count")
-    return total
+def _validation_evidence(path: Path, source_commit: str) -> dict[str, object]:
+    value = loads_strict(path.read_bytes())
+    return validate_release_validation_evidence(value, source_commit=source_commit)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--main-commit", required=True)
-    totals = parser.add_mutually_exclusive_group(required=True)
-    totals.add_argument("--test-total", type=int)
-    totals.add_argument("--test-total-file", type=Path)
-    parser.add_argument("--test-evidence", required=True)
+    parser.add_argument("--validation-evidence", required=True, type=Path)
     args = parser.parse_args()
     try:
         if args.output.exists() or args.output.is_symlink() or not args.output.parent.is_dir():
             raise V1ContractError("readiness output must be a new file in an existing directory")
         value = build_readiness(
-            ROOT, main_commit=args.main_commit, test_total=_test_total(args),
-            test_evidence=args.test_evidence,
+            ROOT, main_commit=args.main_commit,
+            validation_evidence=_validation_evidence(
+                args.validation_evidence, args.main_commit,
+            ),
         )
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{args.output.name}.", dir=args.output.parent,

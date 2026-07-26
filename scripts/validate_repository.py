@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 import re
 import sys
@@ -47,8 +46,8 @@ EXPECTED_VIBESEC_VARIABLES = {
 
 def load_object(path: Path) -> dict:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        value = loads_strict(path.read_bytes())
+    except (OSError, ValueError) as exc:
         raise ValueError(f"{path.relative_to(ROOT)} is not valid JSON-compatible YAML: {exc}") from exc
     if not isinstance(value, dict):
         raise ValueError(f"{path.relative_to(ROOT)} must contain an object")
@@ -170,7 +169,9 @@ def validate_references() -> None:
         "docs/api-fuzzing.md", "docs/injection-testing.md", "docs/fuzzing-threat-model.md",
         "docs/authenticated-security-testing.md", "docs/authenticated-security-threat-model.md",
         "docs/software-supply-chain-assurance.md", "docs/release-signing.md", "docs/provenance.md", "docs/release-threat-model.md",
-        "scripts/install_release_tools.sh", "scripts/prepare_release_artifacts.py", "scripts/sign_release_artifacts.py", "scripts/verify_release_artifacts.py", "scripts/validate_supply_chain_posture.py",
+        "scripts/install_release_tools.sh", "scripts/generate_release_validation_evidence.py",
+        "scripts/prepare_release_artifacts.py", "scripts/sign_release_artifacts.py",
+        "scripts/verify_release_artifacts.py", "scripts/validate_supply_chain_posture.py",
         "scripts/vibesec/supply_chain.py", "config/release-manifest-schema.json", "config/provenance-schema.json", "config/supply-chain-policy.json",
         "vibesec", "scripts/manage_extensions.py", "scripts/vibesec/portable.py", "scripts/vibesec/extensions.py",
         "scripts/manage_agents.py", "scripts/vibesec/agents.py",
@@ -179,6 +180,7 @@ def validate_references() -> None:
         "docs/local-execution.md", "docs/platform-support.md", "docs/extensions.md", "docs/extension-security-model.md", "docs/extension-authoring.md",
         "docs/multi-agent-support.md", "docs/agent-contract.md", "docs/agent-adapters.md",
         "docs/agent-task-pack.md", "docs/agent-safety-model.md", "docs/agent-installation.md", "docs/agent-upgrades.md",
+        "docs/v1-final-review.md", "machine/v1-final-review.json",
         "machine/agents/contract.json", "machine/agents/safety-rules.json",
         "machine/agents/capabilities.json", "machine/agents/documentation-map.json",
         "machine/schemas/agent-contract.schema.json", "machine/schemas/agent-adapter.schema.json",
@@ -434,7 +436,7 @@ def validate_v1_release_contract() -> None:
     validate_migrations(ROOT)
     load_readiness(
         ROOT / "machine/release-readiness.json",
-        source_commit="eb8fb0e0f2b8a8c2c89de0cc77b801558d9f3f9a",
+        source_commit="f19d5dcf29dc13b6b716d39bf11da1e31ca94234",
     )
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     for job in (
@@ -443,6 +445,61 @@ def validate_v1_release_contract() -> None:
     ):
         if ci.count(f"\n  {job}:\n") != 1:
             raise ValueError(f"required v1 accountability job is missing or duplicated: {job}")
+
+
+def validate_v1_final_review() -> None:
+    review = load_object(ROOT / "machine/v1-final-review.json")
+    required = {
+        "schema_version", "stable_id", "reviewed_main_commit", "review_date",
+        "review_branch", "reviewer_scopes", "findings", "fixes",
+        "accepted_limitations", "deferred_items", "false_positives", "tests",
+        "platform_limits", "local_checks", "github_only_checks",
+        "remaining_blockers", "release_candidate", "recommendation",
+    }
+    if set(review) != required:
+        raise ValueError("v1 final-review record has unknown or missing fields")
+    if (review["schema_version"] != 1
+            or review["stable_id"] != "vibesec.v1-final-review"
+            or review["reviewed_main_commit"] != "f19d5dcf29dc13b6b716d39bf11da1e31ca94234"
+            or review["review_date"] != "2026-07-25"
+            or review["review_branch"] != "fix/v1-final-review"
+            or review["recommendation"] != "ready_with_documented_limitations"
+            or review["remaining_blockers"] != []):
+        raise ValueError("v1 final-review identity, recommendation, or blocker state is invalid")
+    if set(review["reviewer_scopes"]) != {"A", "B", "C", "D", "E"}:
+        raise ValueError("v1 final-review reviewer scopes are incomplete")
+    if (not isinstance(review["findings"], list) or len(review["findings"]) != 15
+            or any(item.get("resolution") != "fixed" for item in review["findings"])):
+        raise ValueError("v1 final-review findings are incomplete or unresolved")
+    tests = review["tests"]
+    if tests != {
+        "reviewed_main_automated_tests": 406,
+        "post_fix_automated_tests": 436,
+        "post_fix_skipped": 2,
+        "required_ci_job_equivalents": 18,
+        "representative_migrations_executed": 11,
+        "adoption_examples_executed": 11,
+    }:
+        raise ValueError("v1 final-review test totals differ from reviewed evidence")
+    candidate = review["release_candidate"]
+    if (candidate.get("source_commit") is not None
+            or not isinstance(candidate.get("sha256"), str)
+            or not SHA256.fullmatch(candidate["sha256"])
+            or not isinstance(candidate.get("bytes"), int)
+            or isinstance(candidate.get("bytes"), bool)
+            or candidate["bytes"] < 1
+            or candidate.get("file_count") != 204
+            or candidate.get("byte_comparison") != "identical"
+            or candidate.get("verification") != "valid"):
+        raise ValueError("v1 final-review candidate evidence differs from local verification")
+    documentation = (ROOT / "docs/v1-final-review.md").read_text(encoding="utf-8")
+    for marker in (
+        review["reviewed_main_commit"], review["review_date"],
+        review["recommendation"], candidate["sha256"], "436 automated tests",
+        "18 required CI job-equivalent", "No tag or release was created",
+    ):
+        if marker not in documentation:
+            raise ValueError(f"v1 final-review human record is missing: {marker}")
 
 
 def main() -> int:
@@ -458,6 +515,7 @@ def main() -> int:
         validate_portable_extension_platform()
         validate_agent_documentation_contract()
         validate_v1_release_contract()
+        validate_v1_final_review()
         inventory = load_action_inventory(ROOT / "config/github-actions.json")
         action_errors = audit_tracked_files(ROOT, inventory)
         if action_errors:

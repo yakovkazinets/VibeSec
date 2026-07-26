@@ -342,6 +342,10 @@ def build_addon_plan(catalog: dict[str, Any], addon: str,
                 secret_name = authenticated_configuration["secret_name"]
                 replacement = (f"          VIBESEC_AUTH_MODE: bearer\n"
                                f"          VIBESEC_AUTH_BEARER_TOKEN: ${{{{ secrets.{secret_name} }}}}\n").encode("ascii")
+                manual_trigger = b"  workflow_dispatch:\n"
+                if data.count(manual_trigger) != 1:
+                    raise InvalidTarget("authenticated workflow manual trigger is missing or ambiguous")
+                data = data.replace(manual_trigger, b"")
             data = data.replace(marker, replacement)
         mode = 0o755 if source_path in executable else 0o644
         if source_mode != mode:

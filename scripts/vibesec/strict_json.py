@@ -26,30 +26,74 @@ def _object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _validate(value: Any, depth: int = 0) -> None:
-    if depth > MAX_DEPTH:
+def _validate(
+    value: Any,
+    depth: int = 0,
+    *,
+    maximum_depth: int = MAX_DEPTH,
+    maximum_items: int = MAX_ITEMS,
+    maximum_string: int = MAX_STRING,
+    reject_controls: bool = True,
+) -> None:
+    if depth > maximum_depth:
         raise StrictJSONError("JSON nesting exceeds limit")
     if isinstance(value, str):
-        if len(value) > MAX_STRING or any(unicodedata.category(character) in {"Cc", "Cs"} for character in value):
+        prohibited_categories = {"Cc", "Cs"} if reject_controls else {"Cs"}
+        has_prohibited_character = any(
+            unicodedata.category(character) in prohibited_categories
+            for character in value
+        )
+        if len(value) > maximum_string or has_prohibited_character:
             raise StrictJSONError("JSON string is oversized or contains controls")
     elif isinstance(value, list):
-        if len(value) > MAX_ITEMS:
+        if len(value) > maximum_items:
             raise StrictJSONError("JSON array exceeds limit")
         for item in value:
-            _validate(item, depth + 1)
+            _validate(
+                item,
+                depth + 1,
+                maximum_depth=maximum_depth,
+                maximum_items=maximum_items,
+                maximum_string=maximum_string,
+                reject_controls=reject_controls,
+            )
     elif isinstance(value, dict):
-        if len(value) > MAX_ITEMS:
+        if len(value) > maximum_items:
             raise StrictJSONError("JSON object exceeds limit")
         for key, item in value.items():
-            _validate(key, depth + 1)
-            _validate(item, depth + 1)
+            _validate(
+                key,
+                depth + 1,
+                maximum_depth=maximum_depth,
+                maximum_items=maximum_items,
+                maximum_string=maximum_string,
+                reject_controls=reject_controls,
+            )
+            _validate(
+                item,
+                depth + 1,
+                maximum_depth=maximum_depth,
+                maximum_items=maximum_items,
+                maximum_string=maximum_string,
+                reject_controls=reject_controls,
+            )
     elif isinstance(value, float) and not math.isfinite(value):
         raise StrictJSONError("JSON number must be finite")
     elif value is not None and not isinstance(value, (bool, int, float)):
         raise StrictJSONError("JSON contains an unsupported value")
 
 
-def loads_strict(data: bytes, *, maximum_bytes: int = MAX_JSON_BYTES) -> Any:
+def loads_strict(
+    data: bytes,
+    *,
+    maximum_bytes: int = MAX_JSON_BYTES,
+    maximum_depth: int = MAX_DEPTH,
+    maximum_items: int = MAX_ITEMS,
+    maximum_string: int = MAX_STRING,
+    reject_controls: bool = True,
+) -> Any:
+    if min(maximum_bytes, maximum_depth, maximum_items, maximum_string) < 1:
+        raise StrictJSONError("JSON parser bounds must be positive")
     if len(data) > maximum_bytes:
         raise StrictJSONError("JSON input exceeds size limit")
     if data.startswith(b"\xef\xbb\xbf"):
@@ -57,9 +101,17 @@ def loads_strict(data: bytes, *, maximum_bytes: int = MAX_JSON_BYTES) -> Any:
     try:
         text = data.decode("utf-8")
         value = json.loads(text, object_pairs_hook=_object, parse_constant=lambda item: (_ for _ in ()).throw(StrictJSONError(f"invalid number: {item}")))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except StrictJSONError:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError) as exc:
         raise StrictJSONError(f"invalid JSON: {exc}") from exc
-    _validate(value)
+    _validate(
+        value,
+        maximum_depth=maximum_depth,
+        maximum_items=maximum_items,
+        maximum_string=maximum_string,
+        reject_controls=reject_controls,
+    )
     return value
 
 

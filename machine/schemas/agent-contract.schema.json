@@ -3,7 +3,7 @@
   "$id": "https://vibesec.dev/schemas/agent-contract-v1.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "contract_id", "contract_version", "human_documentation", "purpose", "authority", "actions", "pre_commit_validation_loop", "required_safety_rules", "exit_codes", "coverage_states", "forbidden_data"],
+  "required": ["schema_version", "contract_id", "contract_version", "human_documentation", "purpose", "authority", "actions", "pre_commit_validation_loop", "required_safety_rules", "exit_codes", "lifecycle_exit_codes", "coverage_states", "forbidden_data"],
   "properties": {
     "schema_version": {"const": 1},
     "contract_id": {"const": "vibesec.agent-guidance.v1"},
@@ -44,9 +44,21 @@
       "required": ["0", "1", "2", "3"],
       "properties": {
         "0": {"const": "success"},
-        "1": {"const": "policy_violation_or_verification_failure"},
+        "1": {"const": "policy_violation"},
         "2": {"const": "tool_or_runtime_failure"},
         "3": {"const": "invalid_configuration_or_malformed_input"}
+      }
+    },
+    "lifecycle_exit_codes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["0", "1", "2", "3", "4"],
+      "properties": {
+        "0": {"const": "success"},
+        "1": {"const": "review_warning_or_modified_guidance"},
+        "2": {"const": "verification_failure"},
+        "3": {"const": "invalid_configuration_or_malformed_input"},
+        "4": {"const": "infrastructure_failure"}
       }
     },
     "coverage_states": {"const": ["ran", "not_applicable", "not_configured", "tool_error"]},

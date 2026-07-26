@@ -58,6 +58,28 @@ class AgentGuidanceTests(unittest.TestCase):
             ):
                 self.assertTrue(task[field])
 
+    def test_scanner_and_agent_lifecycle_exit_contracts_are_distinct(self):
+        contract = load_catalog(ROOT)["contract"]
+        self.assertEqual(
+            contract["exit_codes"],
+            {
+                "0": "success",
+                "1": "policy_violation",
+                "2": "tool_or_runtime_failure",
+                "3": "invalid_configuration_or_malformed_input",
+            },
+        )
+        self.assertEqual(
+            contract["lifecycle_exit_codes"],
+            {
+                "0": "success",
+                "1": "review_warning_or_modified_guidance",
+                "2": "verification_failure",
+                "3": "invalid_configuration_or_malformed_input",
+                "4": "infrastructure_failure",
+            },
+        )
+
     def test_positive_adapter_fixtures_match_deterministic_output(self):
         for fixture_path in sorted((FIXTURES / "positive").glob("*.json")):
             fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
@@ -163,6 +185,23 @@ class AgentGuidanceTests(unittest.TestCase):
         (self.target / ".vibesec/agents.json").write_bytes(canonical_json(inventory))
         with self.assertRaisesRegex(AgentGuidanceError, "unsupported"):
             load_inventory(self.target)
+
+    def test_modified_guidance_is_a_review_warning_not_verification_failure(self):
+        install_adapter(ROOT, self.target, "codex", write=True)
+        (self.target / "AGENTS.md").write_text(
+            "maintainer-modified guidance\n", encoding="utf-8",
+        )
+        completed = subprocess.run(
+            [
+                str(ROOT / "vibesec"), "agents", "verify", "codex",
+                "--target", str(self.target), "--json",
+            ],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(completed.returncode, 1, completed.stderr + completed.stdout)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["status"], "invalid")
+        self.assertEqual(payload["result"]["adapters"][0]["state"], "modified")
 
     def test_symlink_target_and_duplicate_inventory_fail_closed(self):
         link = self.target / "AGENTS.md"

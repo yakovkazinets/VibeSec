@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from datetime import date
-import json
 from pathlib import Path
 from typing import Any
 
+from .strict_json import StrictJSONError, loads_strict
+
 SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 PRIORITY_RANK = {"informational": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
+MAX_POLICY_INPUT_BYTES = 25 * 1024 * 1024
+MAX_POLICY_ITEMS = 100_000
 
 
 class ConfigurationError(ValueError):
@@ -17,8 +20,22 @@ class ConfigurationError(ValueError):
 
 def load_json_yaml(path: Path) -> Any:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        with path.open("rb") as stream:
+            data = stream.read(MAX_POLICY_INPUT_BYTES + 1)
+        if len(data) > MAX_POLICY_INPUT_BYTES:
+            raise ConfigurationError(
+                f"invalid configuration in {path}: JSON input exceeds size limit"
+            )
+        return loads_strict(
+            data,
+            maximum_bytes=MAX_POLICY_INPUT_BYTES,
+            maximum_depth=64,
+            maximum_items=MAX_POLICY_ITEMS,
+            maximum_string=MAX_POLICY_INPUT_BYTES,
+        )
+    except ConfigurationError:
+        raise
+    except (OSError, StrictJSONError) as exc:
         raise ConfigurationError(f"invalid configuration in {path}: {exc}") from exc
 
 

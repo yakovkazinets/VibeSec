@@ -116,6 +116,33 @@ class SkillValidationTests(unittest.TestCase):
         result = validate_skill(self.make_skill(self.source(body=body)))
         self.assertEqual(result.references, ())
 
+    def test_lazy_block_quote_continuation_remains_non_authoritative(self):
+        body = (
+            "> quoted instruction data\n"
+            "lazy continuation data\n"
+            "\n"
+            "Active prose.\n"
+        )
+        result = validate_skill(self.make_skill(self.source(body=body)))
+        self.assertEqual(result.non_authoritative_segments[0].segment_type, "block_quote")
+        self.assertIn("lazy continuation data", result.non_authoritative_segments[0].text)
+        self.assertNotIn("lazy continuation data", result.authoritative_body)
+        self.assertIn("Active prose.", result.authoritative_body)
+
+    def test_indented_code_remains_non_authoritative(self):
+        result = validate_skill(
+            self.make_skill(self.source(body="Active prose.\n\n    indented code data\n"))
+        )
+        self.assertEqual(result.non_authoritative_segments[0].segment_type, "indented_code")
+        self.assertNotIn("indented code data", result.authoritative_body)
+
+    def test_usage_example_section_remains_non_authoritative(self):
+        body = "Active prose.\n## Usage example\nexample data\n## Active section\nActive again.\n"
+        result = validate_skill(self.make_skill(self.source(body=body)))
+        self.assertIn("example", [segment.segment_type for segment in result.non_authoritative_segments])
+        self.assertNotIn("example data", result.authoritative_body)
+        self.assertIn("Active again.", result.authoritative_body)
+
     def test_machine_readable_authority_segments_are_explicit(self):
         body = (
             "Active prose.\n"
@@ -146,6 +173,7 @@ class SkillValidationTests(unittest.TestCase):
         alternatives = {
             "block_quote": "> same text\n",
             "code_fence": "```text\nsame text\n```\n",
+            "indented_code": "    same text\n",
             "html_comment": "<!-- same text -->\n",
             "example": "## Example\nsame text\n",
         }

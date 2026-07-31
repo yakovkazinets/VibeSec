@@ -4,16 +4,24 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import stat
 from typing import Any
 
 from .api_security import ApiSecurityError
+from .authenticated import (
+    AuthenticatedSecurityError, sanitize_diagnostic, validate_publishable_bytes,
+)
 
 REPORT_FILENAME = "schemathesis.ndjson"
 CONTAINER_SCHEMA = "/schema/openapi.yaml"
 CONTAINER_REPORT = "/results/schemathesis.ndjson"
 CONTAINER_RAW_REPORT = "/scanner-raw/schemathesis.ndjson"
 ACTIVE_EVENTS = "/results/fuzzing-events.ndjson"
+SENSITIVE_DIAGNOSTIC_FIELD = re.compile(
+    r"(?i)\b(?:request|response)[ _-](?:body|headers?)\b|\b(?:cookie|set-cookie)\b",
+)
+DIAGNOSTIC_URL = re.compile(r"https?://\S+", re.IGNORECASE)
 AUTHENTICATED_LAUNCHER = r'''import contextlib,os,re,sys
 from schemathesis.cli import schemathesis
 token=sys.stdin.readline(16385).rstrip("\n")
@@ -41,6 +49,32 @@ with os.fdopen(fd,"wb") as stream: stream.write(data); stream.flush(); os.fsync(
 os.remove(raw)
 raise SystemExit(code)
 '''
+
+
+def _non_root_host_identity() -> tuple[int, int]:
+    uid, gid = os.getuid(), os.getgid()
+    if uid == 0:
+        raise ApiSecurityError("Schemathesis container execution as root is prohibited")
+    return uid, gid
+
+
+def render_accountability_diagnostic(*, return_code: int, report: Path,
+                                     stderr: str, token: str | None = None) -> str:
+    """Return bounded scanner state without publishing request or response data."""
+    sanitized = sanitize_diagnostic(stderr, token)
+    sanitized = DIAGNOSTIC_URL.sub("[REDACTED URL]", sanitized)
+    if SENSITIVE_DIAGNOSTIC_FIELD.search(sanitized):
+        sanitized = "[REDACTED SENSITIVE SCANNER OUTPUT]"
+    try:
+        validate_publishable_bytes(sanitized.encode("utf-8"), token)
+    except AuthenticatedSecurityError:
+        sanitized = "[REDACTED SENSITIVE SCANNER OUTPUT]"
+    report_exists = report.is_file() and not report.is_symlink()
+    return (
+        f"scanner_return_code={return_code} "
+        f"report_exists={str(report_exists).lower()} "
+        f"stderr={sanitized or '[empty]'}"
+    )
 
 
 def validate_private_workspace(path: Path, *, report_required: bool) -> None:
@@ -83,20 +117,29 @@ def trusted_scanner_container_command(*, docker: str, container_name: str, netwo
                                       schema: Path, workspace: Path, image: str,
                                       port: int, base_path: str, config: dict[str, Any],
                                       safe_methods_only: bool, authenticated: bool = False) -> list[str]:
+    uid, gid = _non_root_host_identity()
     command = [
         docker, "run", "--rm", "--name", container_name, "--network", network,
+        "--user", f"{uid}:{gid}",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
         "--cpus", str(config["container_cpu_limit"]), "--memory", f"{config['container_memory_megabytes']}m",
         "--pids-limit", str(config["container_pid_limit"]),
-        "--tmpfs", f"/tmp:rw,noexec,nosuid,nodev,size={config['scanner_tmpfs_megabytes']}m",
-        "--workdir", "/results", "--env", "SCHEMATHESIS_COVERAGE=false", "--env", "SCHEMATHESIS_HOOKS=",
+        "--tmpfs", (
+            f"/tmp:rw,noexec,nosuid,nodev,size={config['scanner_tmpfs_megabytes']}m,"
+            f"uid={uid},gid={gid},mode=0700"
+        ),
+        "--workdir", "/results", "--env", "HOME=/tmp",
+        "--env", "SCHEMATHESIS_COVERAGE=false", "--env", "SCHEMATHESIS_HOOKS=",
         "--mount", f"type=bind,src={schema},dst={CONTAINER_SCHEMA},readonly",
         "--mount", f"type=bind,src={workspace},dst=/results",
     ]
     scanner = trusted_schemathesis_command(port=port, base_path=base_path, config=config,
                                            safe_methods_only=safe_methods_only, authenticated=authenticated)
     if authenticated:
-        command.extend(("--tmpfs", f"/scanner-raw:rw,noexec,nosuid,nodev,size={config['scanner_tmpfs_megabytes']}m",
+        command.extend(("--tmpfs", (
+                            f"/scanner-raw:rw,noexec,nosuid,nodev,size={config['scanner_tmpfs_megabytes']}m,"
+                            f"uid={uid},gid={gid},mode=0700"
+                        ),
                         "--interactive", "--entrypoint", "python", image, "-c", AUTHENTICATED_LAUNCHER, *scanner))
     else:
         command.extend((image, *scanner))
@@ -134,11 +177,14 @@ def trusted_active_scanner_container_command(*, docker: str, container_name: str
                                              port: int, base_path: str, config: dict[str, Any],
                                              mode: str, safe_methods_only: bool,
                                              authenticated: bool = False) -> list[str]:
+    uid, gid = _non_root_host_identity()
     command = [
         docker, "run", "--rm", "--name", container_name, "--network", network,
+        "--user", f"{uid}:{gid}",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
         "--cpus", "1", "--memory", "1024m", "--pids-limit", "256",
-        "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=256m", "--workdir", "/results",
+        "--tmpfs", f"/tmp:rw,noexec,nosuid,nodev,size=256m,uid={uid},gid={gid},mode=0700",
+        "--workdir", "/results", "--env", "HOME=/tmp",
         "--env", "SCHEMATHESIS_COVERAGE=false", "--env", "SCHEMATHESIS_HOOKS=",
         "--mount", f"type=bind,src={schema},dst={CONTAINER_SCHEMA},readonly",
         "--mount", f"type=bind,src={workspace},dst=/results",
@@ -146,7 +192,10 @@ def trusted_active_scanner_container_command(*, docker: str, container_name: str
     scanner = trusted_active_schemathesis_command(port=port, base_path=base_path, config=config, mode=mode,
                                                    safe_methods_only=safe_methods_only, authenticated=authenticated)
     if authenticated:
-        command.extend(("--tmpfs", "/scanner-raw:rw,noexec,nosuid,nodev,size=256m", "--interactive",
+        command.extend(("--tmpfs", (
+                            f"/scanner-raw:rw,noexec,nosuid,nodev,size=256m,"
+                            f"uid={uid},gid={gid},mode=0700"
+                        ), "--interactive",
                         "--entrypoint", "python", image, "-c", AUTHENTICATED_LAUNCHER, *scanner))
     else:
         command.extend((image, *scanner))
@@ -158,11 +207,14 @@ def trusted_injection_container_command(*, docker: str, container_name: str, net
                                         registry: Path, port: int, base_path: str,
                                         config: dict[str, Any], safe_methods_only: bool,
                                         authenticated: bool = False) -> list[str]:
+    uid, gid = _non_root_host_identity()
     command = [
         docker, "run", "--rm", "--name", container_name, "--network", network,
+        "--user", f"{uid}:{gid}",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
         "--cpus", "1", "--memory", "1024m", "--pids-limit", "256",
-        "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m", "--workdir", "/results",
+        "--tmpfs", f"/tmp:rw,noexec,nosuid,nodev,size=64m,uid={uid},gid={gid},mode=0700",
+        "--workdir", "/results", "--env", "HOME=/tmp",
         "--mount", f"type=bind,src={workspace},dst=/results",
         "--mount", f"type=bind,src={launcher},dst=/vibesec/launcher.py,readonly",
         "--mount", f"type=bind,src={plan},dst=/vibesec/plan.json,readonly",

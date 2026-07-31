@@ -128,6 +128,27 @@ class DastBaselineTests(unittest.TestCase):
         serialized = json.dumps(findings)
         for prohibited in ("private=value", "fragment", "sensitive evidence", "Sensitive raw description", "param"):
             self.assertNotIn(prohibited, serialized)
+        self.assertEqual(
+            findings[0]["remediation"],
+            "Add an anti-clickjacking response header.",
+        )
+
+    def test_reviewed_rule_ignores_oversized_scanner_solution(self):
+        payload = json.loads((FIXTURE / "positive/raw.json").read_text(encoding="utf-8"))
+        scanner_solution = "scanner-controlled remediation " * 40
+        payload["site"][0]["alerts"][0]["solution"] = scanner_solution
+        report = self.work / "oversized-solution.json"
+        report.write_text(json.dumps(payload), encoding="utf-8")
+        findings, urls = normalize_zap_report(
+            report, port=8080, maximum_bytes=5_000_000, maximum_findings=100,
+        )
+        self.assertEqual(urls, 1)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(
+            findings[0]["remediation"],
+            "Add an anti-clickjacking response header.",
+        )
+        self.assertNotIn(scanner_solution, json.dumps(findings))
         self.assertEqual(findings[0]["method"], "GET")
         self.assertEqual(findings[0]["path_template"], "/positive")
         self.assertEqual(findings[0]["cwe"], "CWE-1021")

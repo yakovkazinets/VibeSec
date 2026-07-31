@@ -19,6 +19,9 @@ jobs:
       - name: Install pinned schema validation dependency
         run: python3 -m pip install --disable-pip-version-check --requirement requirements.txt
       - name: Exercise authenticated Schemathesis against the controlled internal fixture
-        env:
-          VIBESEC_AUTH_BEARER_TOKEN: ${{ secrets.VIBESEC_AUTH_FIXTURE_BEARER }}
-        run: python3 scripts/test_api_security_container.py --authenticated
+        run: |
+          token="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          trap 'unset token' EXIT
+          VIBESEC_AUTH_BEARER_TOKEN="$token" python3 scripts/test_api_security_container.py --authenticated
+          unset token
+          trap - EXIT

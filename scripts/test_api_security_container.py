@@ -24,7 +24,8 @@ from vibesec.api_security import (  # noqa: E402
 )
 from vibesec.authenticated import consume_bearer_token  # noqa: E402
 from vibesec.schemathesis_runtime import (  # noqa: E402
-    REPORT_FILENAME, trusted_scanner_container_command, validate_private_workspace,
+    REPORT_FILENAME, render_accountability_diagnostic,
+    trusted_scanner_container_command, validate_private_workspace,
 )
 from vibesec.strict_json import loads_strict  # noqa: E402
 
@@ -113,7 +114,14 @@ def main() -> int:
             ), config["total_scan_timeout_minutes"] * 60 + 60,
                 input_text=(token + "\n") if token is not None else None)
             if scan.returncode not in {0, 1} or not report.is_file():
-                raise RuntimeError("live Schemathesis fixture did not produce a completed report")
+                diagnostic = render_accountability_diagnostic(
+                    return_code=scan.returncode, report=report,
+                    stderr=scan.stderr, token=token,
+                )
+                raise RuntimeError(
+                    "live Schemathesis fixture did not produce a completed report; "
+                    + diagnostic
+                )
             validate_private_workspace(private, report_required=True)
             report_size = report.stat().st_size
             findings, observed_operations = normalize_schemathesis_report(

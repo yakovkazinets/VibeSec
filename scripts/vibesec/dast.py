@@ -196,7 +196,7 @@ def normalize_zap_payload(payload: Any, *, port: int, maximum_findings: int) -> 
                 base["contract_class"] = "passive-response-header"
                 base["cwe"] = f"CWE-{_scalar(alert['cweid'], 'cweid', 16)}" if alert.get("cweid") not in (None, "", "-1") else None
                 base["wasc"] = _scalar(alert["wascid"], "wascid", 16) if alert.get("wascid") not in (None, "", "-1") else None
-                base["remediation"] = _scalar(alert.get("solution") or "Add an anti-clickjacking response header.", "solution", 300)
+                base["remediation"] = "Add an anti-clickjacking response header."
                 stable = "\0".join(("zap-baseline", rule_id, path, method)).encode("utf-8")
                 base["fingerprint"] = hashlib.sha256(stable).hexdigest()
                 findings.append(base)

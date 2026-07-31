@@ -42,17 +42,33 @@ class WorkflowSecurityTests(unittest.TestCase):
         for path in [CI, DAST_INTEGRATION, API_INTEGRATION, API_FUZZING_INTEGRATION, *STARTERS]:
             self.assertNotIn("secrets.", path.read_text(encoding="utf-8"))
 
-    def test_authenticated_live_workflows_scope_one_secret_to_the_scanner_step(self):
+    def test_authenticated_controlled_workflows_scope_ephemeral_token_to_scanner_process(self):
         for path in (AUTH_DAST_INTEGRATION, AUTH_API_INTEGRATION):
             text = path.read_text(encoding="utf-8")
             self.assertNotIn("workflow_dispatch:", text)
             self.assertIn("schedule:", text)
             self.assertNotIn("pull_request:", text)
             self.assertNotIn("push:", text)
-            self.assertEqual(text.count("secrets.VIBESEC_AUTH_FIXTURE_BEARER"), 1)
+            self.assertNotIn("${{ secrets.", text)
+            self.assertNotIn("VIBESEC_AUTH_FIXTURE_BEARER", text)
+            self.assertNotIn("GITHUB_ENV", text)
+            self.assertNotIn("GITHUB_OUTPUT", text)
             checkout, scanner = text.split("- name: Exercise authenticated", 1)
-            self.assertNotIn("secrets.", checkout)
-            self.assertIn("VIBESEC_AUTH_BEARER_TOKEN", scanner)
+            self.assertNotIn("token_urlsafe", checkout)
+            self.assertEqual(scanner.count("secrets.token_urlsafe(32)"), 1)
+            self.assertEqual(
+                scanner.count('VIBESEC_AUTH_BEARER_TOKEN="$token" python3 '),
+                1,
+            )
+            self.assertIn("trap 'unset token' EXIT", scanner)
+            self.assertIn("unset token", scanner)
+            self.assertNotRegex(scanner, r"(?m)^\s*env:\s*$")
+
+    def test_consumer_authenticated_workflows_keep_configured_secret_contract(self):
+        initializer = (ROOT / "scripts/init_vibesec.py").read_text(encoding="utf-8")
+        self.assertIn("secrets.{secret_name}", initializer)
+        self.assertIn("VIBESEC_AUTH_BEARER_TOKEN", initializer)
+        self.assertNotIn("token_urlsafe", initializer)
 
     def test_required_scripts_and_outputs_align(self):
         for script in ("install_tools.sh", "run_minimal_profile.sh", "normalize_results.py", "append_tool_errors.py", "policy_gate.py", "validate_repository.py", "run_api_fuzzing.py", "validate_api_fuzzing_artifacts.py"):

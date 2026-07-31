@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from scripts.vibesec.api_fuzzing import (
     ApiFuzzingError, build_injection_plan, default_installed_config, load_config, load_payload_registry,
@@ -13,6 +14,9 @@ from scripts.vibesec.api_fuzzing import (
 )
 from scripts.vibesec.authenticated import AUTH_ENVIRONMENT_VARIABLE, configuration_bytes
 from scripts.vibesec.capabilities import all_capabilities, capability_bytes, scanner_applicability
+from scripts.vibesec.api_security import (
+    ApiSecurityError, load_config as load_api_config, validate_openapi_schema,
+)
 from scripts.vibesec.schemathesis_runtime import (
     trusted_active_schemathesis_command, trusted_active_scanner_container_command,
     trusted_injection_container_command,
@@ -243,30 +247,86 @@ class ApiFuzzingTests(unittest.TestCase):
         private.mkdir()
         schema = self.work / "openapi.yaml"
         schema.write_text("openapi: 3.1.0\n")
-        active = trusted_active_scanner_container_command(
-            docker="docker", container_name="scanner", network="internal", schema=schema,
-            workspace=private, image="scanner@sha256:" + "b" * 64, port=8080, base_path="/",
-            config=config, mode="fuzz", safe_methods_only=True, authenticated=True,
-        )
         plan = self.work / "plan.json"
         registry = ROOT / "config/injection-payloads.json"
         launcher = ROOT / "scripts/vibesec/api_fuzzing_launcher.py"
-        injection = trusted_injection_container_command(
-            docker="docker", container_name="injection", network="internal", workspace=private,
-            image="scanner@sha256:" + "b" * 64, launcher=launcher, plan=plan, registry=registry,
-            port=8080, base_path="/", config=config, safe_methods_only=True, authenticated=True,
-        )
+        with (
+            patch("scripts.vibesec.schemathesis_runtime.os.getuid", return_value=1234),
+            patch("scripts.vibesec.schemathesis_runtime.os.getgid", return_value=5678),
+        ):
+            active = trusted_active_scanner_container_command(
+                docker="docker", container_name="scanner", network="internal", schema=schema,
+                workspace=private, image="scanner@sha256:" + "b" * 64, port=8080, base_path="/",
+                config=config, mode="fuzz", safe_methods_only=True, authenticated=True,
+            )
+            injection = trusted_injection_container_command(
+                docker="docker", container_name="injection", network="internal", workspace=private,
+                image="scanner@sha256:" + "b" * 64, launcher=launcher, plan=plan, registry=registry,
+                port=8080, base_path="/", config=config, safe_methods_only=True, authenticated=True,
+            )
         for container in (active, injection):
             joined = "\0".join(container)
+            self.assertIn("--user\0001234:5678", joined)
             self.assertIn("--cap-drop\0ALL", joined)
             self.assertIn("--security-opt\0no-new-privileges", joined)
             self.assertIn("--read-only", container)
+            self.assertIn("--env\0HOME=/tmp", joined)
             self.assertNotIn("vibesec-obvious-active-fixture-token", joined)
             self.assertNotIn(AUTH_ENVIRONMENT_VARIABLE, joined)
             self.assertNotIn("--network\0host", joined)
+            output_mount = next(
+                container[index + 1]
+                for index, value in enumerate(container)
+                if value == "--mount" and container[index + 1].endswith("dst=/results")
+            )
+            self.assertNotIn("readonly", output_mount)
+        active_tmpfs = [
+            active[index + 1]
+            for index, value in enumerate(active)
+            if value == "--tmpfs"
+        ]
+        self.assertIn(
+            "/scanner-raw:rw,noexec,nosuid,nodev,size=256m,"
+            "uid=1234,gid=5678,mode=0700",
+            active_tmpfs,
+        )
+        self.assertIn("/results/fuzzing-events.ndjson", injection)
+        accountability = (
+            ROOT / "scripts/test_api_fuzzing_container.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("render_accountability_diagnostic(", accountability)
+
+    def test_active_and_injection_root_identity_fail_closed(self):
+        config = load_config(ROOT)
+        private = self.work / "private-root"
+        private.mkdir()
+        schema = self.work / "root-openapi.yaml"
+        schema.write_text("openapi: 3.1.0\n")
+        common = {
+            "docker": "docker", "network": "internal",
+            "workspace": private, "image": "scanner@sha256:" + "b" * 64,
+            "port": 8080, "base_path": "/", "config": config,
+            "safe_methods_only": True,
+        }
+        with (
+            patch("scripts.vibesec.schemathesis_runtime.os.getuid", return_value=0),
+            patch("scripts.vibesec.schemathesis_runtime.os.getgid", return_value=0),
+        ):
+            with self.assertRaisesRegex(ApiSecurityError, "root is prohibited"):
+                trusted_active_scanner_container_command(
+                    container_name="scanner", schema=schema, mode="fuzz",
+                    authenticated=False, **common,
+                )
+            with self.assertRaisesRegex(ApiSecurityError, "root is prohibited"):
+                trusted_injection_container_command(
+                    container_name="injection",
+                    launcher=ROOT / "scripts/vibesec/api_fuzzing_launcher.py",
+                    plan=self.work / "plan.json",
+                    registry=ROOT / "config/injection-payloads.json",
+                    authenticated=False, **common,
+                )
 
     def test_plan_excludes_authentication_headers_and_contains_no_schema_values(self):
-        from scripts.vibesec.api_security import load_config as load_api_config, validate_openapi_schema
         repository = self.repository()
         _, schema, _ = validate_openapi_schema(repository, "openapi.yaml", config=load_api_config(ROOT), port=8080, base_path="/")
         plan = build_injection_plan(schema, maximum_operations=200)

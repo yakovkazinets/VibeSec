@@ -18,7 +18,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.api_fuzzing import build_injection_plan, load_config, load_payload_registry, normalize_events  # noqa: E402
 from vibesec.api_security import load_config as load_api_config, validate_openapi_schema  # noqa: E402
 from vibesec.authenticated import consume_bearer_token  # noqa: E402
-from vibesec.schemathesis_runtime import trusted_injection_container_command  # noqa: E402
+from vibesec.schemathesis_runtime import (  # noqa: E402
+    render_accountability_diagnostic, trusted_injection_container_command,
+)
 from vibesec.strict_json import canonical_json, loads_strict  # noqa: E402
 
 READY = "import urllib.request; urllib.request.urlopen('http://api-target:8080/compliant',timeout=5).read(1024)"
@@ -99,7 +101,14 @@ def main() -> int:
             ), config["total_timeout_minutes"] * 60, input_text=(token + "\n") if token else None)
             report = results / "fuzzing-events.ndjson"
             if completed.returncode != 0 or not report.is_file():
-                raise RuntimeError("trusted injection launcher did not produce evidence")
+                diagnostic = render_accountability_diagnostic(
+                    return_code=completed.returncode, report=report,
+                    stderr=completed.stderr, token=token,
+                )
+                raise RuntimeError(
+                    "trusted injection launcher did not produce evidence; "
+                    + diagnostic
+                )
             findings, operations, runtime_failure = normalize_events(
                 report, schema_source="openapi.yaml", mode="injection", registry=registry,
                 maximum_bytes=config["maximum_raw_report_bytes"], maximum_findings=config["maximum_normalized_findings"],

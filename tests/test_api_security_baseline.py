@@ -5,13 +5,17 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from scripts.vibesec.api_security import (
     ApiSecurityError, CHECKS, load_config, normalize_schemathesis_report,
     operation_index, validate_openapi_schema,
 )
 from scripts.vibesec.capabilities import all_capabilities, capability_bytes, scanner_applicability
-from scripts.vibesec.schemathesis_runtime import trusted_schemathesis_command, trusted_scanner_container_command
+from scripts.vibesec.schemathesis_runtime import (
+    render_accountability_diagnostic, trusted_schemathesis_command,
+    trusted_scanner_container_command,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/security-fixtures/api-security"
@@ -165,22 +169,93 @@ class ApiSecurityBaselineTests(unittest.TestCase):
 
     def test_container_command_uses_immutable_image_internal_network_and_two_mounts(self):
         config = load_config(ROOT)
-        command = trusted_scanner_container_command(docker="docker", container_name="scanner", network="internal",
-                                                     schema=FIXTURE / "openapi.yaml", workspace=self.work,
-                                                     image="ghcr.io/schemathesis/schemathesis@sha256:" + "b" * 64,
-                                                     port=8080, base_path="/", config=config, safe_methods_only=True)
+        with (
+            patch("scripts.vibesec.schemathesis_runtime.os.getuid", return_value=1234),
+            patch("scripts.vibesec.schemathesis_runtime.os.getgid", return_value=5678),
+        ):
+            command = trusted_scanner_container_command(
+                docker="docker", container_name="scanner", network="internal",
+                schema=FIXTURE / "openapi.yaml", workspace=self.work,
+                image="ghcr.io/schemathesis/schemathesis@sha256:" + "b" * 64,
+                port=8080, base_path="/", config=config, safe_methods_only=True,
+                authenticated=True,
+            )
         flattened = " ".join(map(str, command))
-        for expected in ("--cap-drop ALL", "no-new-privileges", "--read-only", "SCHEMATHESIS_COVERAGE=false", "SCHEMATHESIS_HOOKS="):
+        for expected in (
+            "--user 1234:5678", "--cap-drop ALL", "no-new-privileges",
+            "--read-only", "HOME=/tmp", "SCHEMATHESIS_COVERAGE=false",
+            "SCHEMATHESIS_HOOKS=",
+        ):
             self.assertIn(expected, flattened)
         self.assertEqual(command.count("--mount"), 2)
+        mounts = [
+            command[index + 1]
+            for index, value in enumerate(command)
+            if value == "--mount"
+        ]
+        output_mount = next(value for value in mounts if value.endswith("dst=/results"))
+        self.assertNotIn("readonly", output_mount)
+        tmpfs = [
+            command[index + 1]
+            for index, value in enumerate(command)
+            if value == "--tmpfs"
+        ]
+        self.assertIn(
+            "/scanner-raw:rw,noexec,nosuid,nodev,size=256m,"
+            "uid=1234,gid=5678,mode=0700",
+            tmpfs,
+        )
         for forbidden in ("--publish", "--privileged", "/var/run/docker.sock", "--network host", "--env-file"):
             self.assertNotIn(forbidden, flattened)
+
+    def test_root_scanner_identity_fails_closed(self):
+        config = load_config(ROOT)
+        with (
+            patch("scripts.vibesec.schemathesis_runtime.os.getuid", return_value=0),
+            patch("scripts.vibesec.schemathesis_runtime.os.getgid", return_value=0),
+            self.assertRaisesRegex(ApiSecurityError, "root is prohibited"),
+        ):
+            trusted_scanner_container_command(
+                docker="docker", container_name="scanner", network="internal",
+                schema=FIXTURE / "openapi.yaml", workspace=self.work,
+                image="scanner@sha256:" + "b" * 64, port=8080, base_path="/",
+                config=config, safe_methods_only=True,
+            )
+
+    def test_accountability_diagnostic_is_bounded_and_redacted(self):
+        token = "opaque-controlled-fixture-token"
+        report = self.work / "schemathesis.ndjson"
+        diagnostic = render_accountability_diagnostic(
+            return_code=1,
+            report=report,
+            stderr=(
+                f"Authorization: Bearer {token} request body=private "
+                "response headers=private https://api-target:8080/private?"
+                + "x" * 4_000
+            ),
+            token=token,
+        )
+        self.assertIn("scanner_return_code=1", diagnostic)
+        self.assertIn("report_exists=false", diagnostic)
+        self.assertLessEqual(len(diagnostic.split("stderr=", 1)[1]), 2_000)
+        for prohibited in (
+            token, "Authorization", "Bearer", "request body",
+            "response headers", "https://", "api-target",
+        ):
+            self.assertNotIn(prohibited, diagnostic)
+        report.write_text("{}\n", encoding="utf-8")
+        existing = render_accountability_diagnostic(
+            return_code=1, report=report, stderr="permission denied", token=token,
+        )
+        self.assertIn("report_exists=true", existing)
+        self.assertIn("stderr=permission denied", existing)
 
     def test_production_and_accountability_share_the_closed_command_builder(self):
         production = (ROOT / "scripts/run_api_security_baseline.py").read_text(encoding="utf-8")
         accountability = (ROOT / "scripts/test_api_security_container.py").read_text(encoding="utf-8")
         for source in (production, accountability):
             self.assertIn("trusted_scanner_container_command(", source)
+        self.assertIn("render_accountability_diagnostic(", accountability)
         self.assertIn("tests/security-fixtures/api-security", accountability)
         self.assertIn('"--internal"', accountability)
         self.assertNotIn("http://127.0.0.1", accountability)

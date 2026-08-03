@@ -84,6 +84,9 @@ def _ensure_private_directory(path: Path) -> None:
         if path.is_symlink() or not stat.S_ISDIR(details.st_mode):
             raise ToolchainError("managed cache hierarchy contains an unsafe path")
         return
+    if path.parent == path:
+        raise ToolchainError("managed cache directory has no creatable parent")
+    _ensure_private_directory(path.parent)
     try:
         path.mkdir(mode=0o700)
     except OSError as exc:

@@ -50,6 +50,9 @@ assert sys.argv[sys.argv.index("--config") + 1] == expected + "/rules/opengrep"
 assert "--no-git-ignore" in sys.argv
 assert "--legacy" in sys.argv and "--x-ignore-semgrepignore-files" in sys.argv
 assert "--semgrepignore-filename" not in sys.argv
+cache = os.path.join(os.environ["XDG_CACHE_HOME"], "opengrep", "1.25.0")
+assert os.path.isdir(cache)
+assert os.stat(cache).st_mode & 0o777 == 0o700
 output = sys.argv[sys.argv.index("--json-output") + 1]
 mode = os.getenv("FAKE_OPENGREP_MODE", "pass")
 if mode == "fail": raise SystemExit(9)

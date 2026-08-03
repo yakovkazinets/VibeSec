@@ -119,6 +119,18 @@ class ManagedToolchainTests(unittest.TestCase):
             tool_cache_dir(self.cache, "1.1.0-dev", "macos-arm64", "minimal").exists()
         )
 
+    def test_nested_explicit_cache_override_is_created_privately(self):
+        metadata = self.fixture_metadata()
+        nested = self.base / "new" / "nested" / "cache"
+        tool_dir, reused = install_profile_tools(
+            metadata_path=metadata, cache_home=nested, version="1.1.0-dev",
+            platform_name="macos-arm64", profile="minimal", download=self.downloader,
+        )
+        self.assertFalse(reused)
+        self.assertTrue(tool_dir.is_dir())
+        for directory in (self.base / "new", self.base / "new/nested", nested):
+            self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
+
     def test_opengrep_signature_failure_never_publishes_standard(self):
         metadata = self.fixture_metadata("standard", cosign_exit=7)
         with self.assertRaisesRegex(ToolchainError, "signature"):

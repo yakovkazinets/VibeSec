@@ -64,6 +64,18 @@ def command(binary: Path | str, *arguments: str | Path) -> list[str]:
     return [str(binary), *map(str, arguments)]
 
 
+def prepare_opengrep_runtime_cache(raw: Path, version: str) -> Path:
+    """Create the private versioned directory required by Opengrep one-file binaries."""
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+        raise ValueError("Opengrep version is not a safe semantic-version path component")
+    current = raw
+    for component in ("cache", "opengrep", version):
+        current = current / component
+        current.mkdir(mode=0o700, exist_ok=True)
+        current.chmod(0o700)
+    return raw / "cache"
+
+
 def checkov_command(root: Path, config: Path, image: str, relative_file: str,
                     *extra_arguments: str, docker_binary: str = "docker") -> list[str]:
     """Build an isolated pinned Checkov command for exactly one repository file."""
@@ -405,15 +417,22 @@ def main() -> int:
     environment = {key: value for key, value in os.environ.items() if not key.startswith(
         ("SYFT_", "OPENGREP_", "SEMGREP_", "OSV_SCANNER_", "GITLEAKS_", "TRIVY_", "CHECKOV_"))}
     scanner_home = raw / ".scanner-home"
-    scanner_home.mkdir(mode=0o700, exist_ok=True)
-    scanner_home.chmod(0o700)
+    try:
+        scanner_home.mkdir(mode=0o700, exist_ok=True)
+        scanner_home.chmod(0o700)
+        scanner_cache = prepare_opengrep_runtime_cache(
+            raw, str(tool_manifest["opengrep"]["version"]),
+        )
+    except (OSError, ValueError) as exc:
+        print(f"could not prepare private scanner runtime: {type(exc).__name__}", file=sys.stderr)
+        return 3
     environment.update({
         "HOME": str(scanner_home),
         "SYFT_CHECK_FOR_APP_UPDATE": "false", "SYFT_ENRICH": "",
         "SYFT_JAVA_USE_NETWORK": "false", "SYFT_JAVASCRIPT_SEARCH_REMOTE_LICENSES": "false",
         "SYFT_PYTHON_SEARCH_REMOTE_LICENSES": "false", "OPENGREP_ENABLE_VERSION_CHECK": "0",
         "SEMGREP_SEND_METRICS": "off", "TRIVY_DISABLE_TELEMETRY": "true",
-        "XDG_CACHE_HOME": str(raw / "cache"),
+        "XDG_CACHE_HOME": str(scanner_cache),
     })
     if osv_database:
         environment["OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY"] = str(osv_database["path"])

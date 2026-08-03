@@ -2,7 +2,7 @@
 
 Open-source security for vibe-coded and AI-built software.
 
-VibeSec Guardian is an open-source application-security toolkit for vibe coders, solo developers, startups, and small teams. It combines a repository-aware coding-agent skill with a copyable GitHub Actions baseline.
+VibeSec Guardian is an open-source application-security toolkit for vibe coders, solo developers, startups, and small teams. It combines a repository-aware coding-agent skill that can run verified local scanners with copyable GitHub Actions profiles for continuous scanning.
 
 VibeSec Guardian cannot guarantee that an application is secure. Scanner coverage is incomplete, findings may be wrong, and a clean scan covers only the checks that completed successfully.
 
@@ -51,6 +51,7 @@ Review the code and configuration before using it, validate it against your own 
 - [GitHub Actions Node 24 runtime and immutable pin policy](docs/github-actions-runtime.md)
 - [OpenAPI API Security Baseline](docs/api-security-baseline.md)
 - [Bounded API fuzzing and injection-oriented testing](docs/api-fuzzing.md)
+- [v1.1.0 release notes](docs/v1.1.0-release-notes.md)
 
 Supplied workflows target GitHub.com and require Actions Runner 2.327.1 or newer on self-hosted runners. Their reviewed JavaScript actions embed Node 24 and use full commit SHAs; Node 20 is end-of-life and unsupported, and no fallback is provided. VibeSec Guardian itself requires no npm or Node application runtime. Node 26 remains a future compatibility target rather than a requirement. See the runtime policy for the separate GHES limitation.
 
@@ -64,7 +65,19 @@ python3 scripts/init_vibesec.py --profile minimal --target /path/to/application
 python3 scripts/init_vibesec.py --profile standard --target /path/to/application
 ```
 
-The bundled `./vibesec` CLI routes scan, init, doctor, verification, upgrade planning, and extension commands through the existing reviewed implementations. Complete native profile pins currently support Linux x86_64. Other platforms and complete-profile containers fail explicitly until verified artifacts exist; `auto` never silently selects partial or unverified coverage.
+Installing only the AppSec Guardian skill is enough for an immediate managed local scan. Ask:
+
+```text
+$appsec-guardian Run the Standard profile against this repository using real scanners. Install the verified tools if missing. Do not remediate anything yet.
+```
+
+The skill explains the exact downloads, network behavior, user cache, scanners, and result files before asking for approval. It then verifies the pinned v1.1.0 consumer runtime, installs or reuses the exact toolchain outside the application repository, runs real scanners, and reports only validated scanner evidence. Assessment-only requests install and execute nothing. Installing a profile into GitHub Actions remains a separate action for continuous CI scanning.
+
+The bundled `./vibesec` CLI routes scan, init, doctor, verification, upgrade planning, and extension commands through the existing reviewed implementations. Managed Minimal and Standard scanning supports Linux x86_64, macOS arm64, and macOS x86_64. Linux arm64, Windows, and complete-profile containers fail explicitly; `auto` never silently selects partial or unverified coverage.
+
+```shell
+./vibesec scan --profile standard --target /path/to/repository --install-tools --json
+```
 
 `./vibesec agents` renders the same vendor-neutral safety and validation contract for Codex, Claude Code, Gemini CLI, and Kimi Code CLI. Planning is read-only, installation requires `--write`, existing instruction files are never overwritten, and no agent CLI, cloud API, credential store, model, or telemetry endpoint is invoked.
 

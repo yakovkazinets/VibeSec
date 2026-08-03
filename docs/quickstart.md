@@ -1,12 +1,22 @@
 # Five-minute Quick Start
 
+## Run a real local scan from the installed skill
+
+Installing the AppSec Guardian skill makes managed local scanning immediately available; it does not require a sibling VibeSec Guardian checkout, preinstalled CLI, existing results, or GitHub Actions workflow.
+
+```text
+$appsec-guardian Run the Standard profile against this repository using real scanners. Install the verified tools if missing. Do not remediate anything yet.
+```
+
+The skill first inventories the repository and explains the exact v1.1.0 runtime/tool downloads, supported platform, user cache, scanners, network behavior, and sanitized result files. After explicit approval it verifies and caches the runtime and scanner set, executes the real profile, validates artifacts, and summarizes only scanner evidence. Ask “Assess this repository” for a read-only recommendation with no install or scan. Ask “Install Standard into CI” for the separate two-stage GitHub Actions adoption workflow.
+
 After installing and reviewing the API Security Baseline, eligible projects may separately preview `--addon api-fuzzing`. It defaults to contract-only safe methods. `--fuzzing-enabled` and `--injection-testing-enabled` are explicit, independent opt-ins; do not enable them against production or public targets.
 
 Passive DAST is not part of either profile. After a valid base installation, maintainers may opt in with `python3 scripts/init_vibesec.py --addon dast-baseline --target <repository> --write`. Enable it only for an authorized non-production immutable non-root image on trusted manual or scheduled events; see [DAST Baseline](dast-baseline.md).
 
 VibeSec Guardian is a scanning baseline, not proof that an application is secure. Use a reviewed VibeSec Guardian checkout matching the version you intend to adopt. The initializer itself uses no network, installs nothing, executes no application code, and defaults to a preview.
 
-For local routing, run `./vibesec --help`. `./vibesec scan --profile minimal --execution-mode auto --json` selects only a complete supported tool mode; it never converts missing or failed coverage into a clean fallback. See [local execution](local-execution.md) and the exact [platform matrix](platform-support.md).
+For local routing from a reviewed source tree or consumer runtime, run `./vibesec --help`. `./vibesec scan --profile minimal --target /path/to/repository --install-tools --json` installs or reuses only the exact complete supported tool set; it never converts missing or failed coverage into a clean fallback. See [local execution](local-execution.md) and the exact [platform matrix](platform-support.md).
 
 To preview agent-neutral repository guidance, run `./vibesec agents list --json` and `./vibesec agents plan codex --target /path/to/application --json`. Review the generated contract before adding `--write`. An existing instruction target produces a merge-required conflict and is never overwritten. See [multi-agent support](multi-agent-support.md).
 
@@ -74,7 +84,7 @@ Download the JSON and Markdown artifacts, verify tool errors first, then review 
 
 ## Network and privacy
 
-The initializer makes no network calls. Workflow tool installation downloads pinned releases. Minimal's Trivy dependency database behavior is scanner-managed; Gitleaks and actionlint operate locally. Standard OSV online mode may send package names, versions, ecosystems, and file hashes to OSV.dev or deps.dev. Offline mode requires a caller-provisioned validated database. Opengrep, Syft, and Checkov do not upload source; Checkov has no network. A trusted-event image scan may contact the referenced registry. SBOMs can expose internal package names and versions.
+The initializer makes no network calls. Managed or workflow tool installation downloads pinned official releases. Trivy may fetch or update its official vulnerability database; Gitleaks and actionlint operate locally. Standard OSV online mode may send package names, versions, ecosystems, and file hashes to OSV.dev or deps.dev. Offline OSV requires a caller-provisioned validated database, but it does not by itself provision an offline Trivy database. Opengrep, Syft, and Checkov do not upload source; Checkov has no network. A trusted-event image scan may contact the referenced registry. SBOMs can expose internal package names and versions.
 
 ## Remove VibeSec Guardian
 

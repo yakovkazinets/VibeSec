@@ -4,7 +4,7 @@ The optional DAST Baseline is a separate execution boundary. A trusted runner pu
 
 ## Goals
 
-VibeSec Guardian provides a maintainable, open-source starting point for developers without dedicated security staff: a repository-aware coding-agent skill and copyable Minimal and Standard GitHub Actions profiles. It prioritizes explicit evidence, safe defaults, small changes, and useful local artifacts.
+VibeSec Guardian provides a maintainable, open-source starting point for developers without dedicated security staff: an executable repository-aware coding-agent skill, managed local Minimal and Standard scans, and copyable GitHub Actions profiles. It prioritizes explicit evidence, safe defaults, small changes, and useful local artifacts.
 
 VibeSec Guardian does not replace threat modeling, code review, penetration testing, incident response, or professional judgment. It does not guarantee that an application is secure.
 
@@ -28,7 +28,13 @@ Trivy provides broad filesystem dependency, secret, and configuration coverage. 
 
 Each scanner receives an explicit trusted config or ignore path so target-controlled `.gitleaks.toml`, `.semgrepignore`, actionlint, Syft, Trivy, Checkov, and OSV configuration cannot reduce coverage. Opengrep scans supported first-party source with only the trusted `rules/opengrep/` pack. OSV-Scanner v2 scans source manifests without fix mode, call analysis, transitive resolution, builds, or project installation. Offline mode requires a fresh, structurally validated caller-provisioned database directory and passes that path explicitly. Syft scans `dir:.` with a relative base path and creates CycloneDX JSON and SPDX JSON with enrichment, remote metadata, and update checks disabled; VibeSec Guardian removes the absolute checkout prefix before requiring both artifacts to be structurally valid and nonempty. Checkov runs only after IaC detection, in an immutable official container with a read-only repository mount, no network, no capabilities, no target config, and no external modules. Trivy covers filesystem secrets and configuration, while an optional separate image scan accepts only a prebuilt digest reference and is disabled on pull requests and unknown GitHub event types.
 
-Raw outputs stay runner-local under `results/raw/`. Bounded normalizers retain identifiers, locations, severity, and short descriptions but discard snippets and secret values. Malformed scanner output exits `3`; scanner execution failure exits `2`; findings remain distinct and are evaluated against `policy/standard-baseline.json`. Minimal behavior and `policy/baseline.json` remain unchanged.
+Raw outputs and scanner homes stay in private temporary directories and are deleted on success and failure. Bounded normalizers retain identifiers, locations, severity, and short descriptions but discard snippets and secret values. Malformed scanner output exits `3`; scanner execution failure exits `2`; findings remain distinct and are evaluated against `policy/standard-baseline.json`. Minimal behavior and `policy/baseline.json` remain unchanged.
+
+## Managed local runtime
+
+The installed skill owns only a small bootstrap and immutable `runtime.json`. After disclosure and user acknowledgment, it downloads the exact v1.1.0 consumer bundle, verifies the pinned SHA-256 before extraction, enforces the bundle manifest and safe ZIP rules, publishes the runtime atomically to the user cache, and rehashes every cached runtime file before reuse. Skill metadata is excluded from the consumer bundle, preventing the runtime bundle from containing the digest that pins itself.
+
+The consumer runtime invokes the same `vibesec scan` entry point as a source checkout. `scripts/vibesec/toolchain.py` selects exact platform assets from trusted metadata, verifies Python `hashlib` digests, safely extracts one expected executable, verifies Opengrep's Sigstore identity, and publishes a complete profile atomically. The target repository supplies no download URL, executable path, rule, config, policy, or result directory. GitHub Actions adoption remains independent.
 
 ## Trigger behavior
 

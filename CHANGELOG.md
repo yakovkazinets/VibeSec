@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Prepare `1.1.0-dev` for the v1.1.0 release with skill-driven real Minimal and Standard scans, a verified versioned consumer runtime bootstrap, persistent user-level tool/result caches, and explicit separation between assessment, local scanning, and CI adoption.
+- Add exact platform-aware native scanner assets for Linux x86_64, macOS arm64, and macOS x86_64; portable Python SHA-256 verification; safe staged extraction; atomic publication; complete cache revalidation; and Opengrep Sigstore identity verification.
+- Add managed `vibesec scan --install-tools` routing, outside-repository results, private temporary raw scanner output, complete exit-category preservation, offline tests, and draft v1.1.0 release/upgrade documentation.
 - Prepare `1.0.0-dev` with a strict public-interface inventory, v1 stability and support policy, complete human/machine documentation map, documentation drift enforcement, representative migration records, parser and security review, and exact-commit release readiness.
 - Add a canonical vendor-neutral agent guidance contract, deterministic Codex, Claude Code, Gemini CLI, and Kimi Code CLI adapters, capability-aware task packs, dry-run-first lifecycle management, digest inventory, offline doctor and verification, threat-model fixtures, and mandatory CI accountability.
 - Add a portable local `vibesec` CLI, deterministic native/container/auto selection, an explicit Linux/macOS support matrix, and fail-closed reporting for unavailable complete profile modes.

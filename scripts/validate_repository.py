@@ -440,7 +440,7 @@ def validate_v1_release_contract() -> None:
     validate_migrations(ROOT)
     load_readiness(
         ROOT / "machine/release-readiness.json",
-        source_commit="f19d5dcf29dc13b6b716d39bf11da1e31ca94234",
+        source_commit="990305e7c940bd714e0de7aaebd1df4722da3f2a",
     )
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     for job in (

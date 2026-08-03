@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "release_version": "1.1.0",
+  "development_version": "1.1.0-dev",
+  "bundle_name": "vibesec-consumer-bundle.zip",
+  "bundle_url": "https://github.com/yakovkazinets/VibeSec/releases/download/v1.1.0/vibesec-consumer-bundle.zip",
+  "bundle_sha256": "321c5d5b5093031ac8254ccdeb1e6997e47658e2b793b4850a3e3e5131694e02"
+}

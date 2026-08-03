@@ -46,6 +46,7 @@ This is the curated documentation index for VibeSec Guardian v1 preparation. Exa
 - [v1 migrations](v1-migrations.md)
 - [v1 security review](v1-security-review.md)
 - [v1 release readiness](v1-release-readiness.md)
+- [v1.1.0 draft release notes](v1.1.0-release-notes.md)
 - [Tested examples](examples.md)
 - [Generated v1 interface reference](v1-interface-reference.md)
 

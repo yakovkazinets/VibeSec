@@ -16,7 +16,7 @@ Exit `0` means required files/configuration passed preflight; `2` means missing 
 - **Missing VibeSec Guardian file:** preflight identifies the path. Run the initializer dry run from the matching VibeSec Guardian version and compare the installation manifest. Do not copy one missing file from a different release.
 - **Standard workflow absent:** support bootstrap is incomplete. Merge support files to the default branch, then run the documented `--stage workflow` dry run and write in a second change.
 - **Filename conflict or partial install:** initializer exit `2` lists every conflict and creates nothing. Preserve existing files; compare ownership and resolve manually. There is no force option.
-- **Unsupported architecture:** installers require Linux x86_64. Use the supported GitHub runner; do not substitute unverified binaries.
+- **Unsupported architecture:** native installers support Linux x86_64 and macOS x86_64/arm64. Use an explicitly supported host; do not substitute unverified binaries.
 
 ## Tool installation
 
@@ -30,6 +30,17 @@ Exit `0` means required files/configuration passed preflight; `2` means missing 
 - `1`: a finding violated policy.
 - `2`: scanner/tool/infrastructure failure; coverage is unavailable.
 - `3`: malformed configuration, policy, or scanner input; never reinterpret as clean.
+
+The managed CLI reserves `4` for its own bootstrap/infrastructure failure. Scanner/runtime download, checksum, signature, extraction, cache, or execution failures remain non-clean and do not fall back to PATH.
+
+## Managed local installation
+
+- **Unsupported platform:** use Linux x86_64 or macOS arm64/x86_64. Linux arm64 and Windows are not complete native profiles in v1.1.
+- **Partial or mismatched cache:** do not edit the cache manifest or substitute a host binary. Remove only the exact reported version/platform/profile cache after review, then rerun with `--install-tools`.
+- **Checksum/signature failure:** stop. Do not accept the observed digest. Compare `config/tools.json` with the official release and report a possible supply-chain issue.
+- **Checkov/Docker unavailable:** when IaC is applicable this is `tool_error`, not a clean or skipped result. Install a trusted Docker runtime or document that Standard cannot complete.
+- **Skill runtime failure:** confirm `runtime.json` is from the installed skill version. The bootstrap refuses stale, partial, linked, traversal, malformed, version-drifted, or checksum-mismatched runtimes.
+- **No prior results or CLI:** this is not a blocker. A real-scan request should invoke the skill bootstrap after disclosure and approval.
 
 `ran` means the named component completed; `not_applicable` means supported evidence was not detected; `not_configured` means optional coverage was absent or prohibited; `tool_error` means the component failed. Unsupported/empty repositories must show outside-coverage limitations even when the overall observe-mode command exits `0`.
 

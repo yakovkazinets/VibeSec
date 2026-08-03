@@ -32,14 +32,14 @@ class V1ReleaseReadinessTests(unittest.TestCase):
     def test_committed_readiness_is_complete_and_non_publishing(self):
         value = json.loads((ROOT / "machine/release-readiness.json").read_text())
         validate_readiness(
-            value, source_commit="990305e7c940bd714e0de7aaebd1df4722da3f2a",
+            value, source_commit="1203e5a700b7485287e34028d204cb0711f8ea9f",
         )
         self.assertEqual(value["status"], "ready_with_known_limitations")
         self.assertEqual(value["release_blockers"], [])
-        self.assertEqual(value["test_totals"]["automated_tests"], 474)
+        self.assertEqual(value["test_totals"]["automated_tests"], 476)
         self.assertEqual(
             value["test_totals"]["evidence"],
-            "exact-sha-validate:990305e7c940bd714e0de7aaebd1df4722da3f2a",
+            "exact-sha-validate:1203e5a700b7485287e34028d204cb0711f8ea9f",
         )
         self.assertNotEqual(value["test_totals"]["evidence"], "required-validate")
 

@@ -83,13 +83,24 @@ def _items(value: Any, *, field: str, allow_missing: bool = True) -> list[Any]:
     return value
 
 
-def _path(value: Any, *, field: str) -> str:
+def _path(value: Any, *, field: str, repository_root: Path | None = None) -> str:
     result = _text(value, field=field).replace("\\", "/")
     if result == "/workspace":
         return ""
     if result.startswith("/workspace/"):
         result = result[len("/workspace/"):]
-    result = result.lstrip("/")
+    elif repository_root is not None:
+        trusted_root = repository_root.resolve().as_posix().rstrip("/")
+        if result == trusted_root:
+            result = ""
+        elif result.startswith(trusted_root + "/"):
+            result = result[len(trusted_root) + 1:]
+        elif result.startswith("/"):
+            raise ValueError(
+                f"malformed scanner output: {field} contains an absolute path outside the repository"
+            )
+    else:
+        result = result.lstrip("/")
     while result.startswith("./"):
         result = result[2:]
     if ".." in result.split("/"):
@@ -97,7 +108,7 @@ def _path(value: Any, *, field: str) -> str:
     return result
 
 
-def normalize_trivy(path: Path) -> list[Finding]:
+def normalize_trivy(path: Path, repository_root: Path | None = None) -> list[Finding]:
     payload = load_scanner_json(path)
     if not isinstance(payload, dict):
         raise ValueError("malformed Trivy output: expected object with Results array")
@@ -110,7 +121,9 @@ def normalize_trivy(path: Path) -> list[Finding]:
     for result in _items(results, field="Results", allow_missing=False):
         if not isinstance(result, dict):
             raise ValueError("malformed Trivy output: Results entries must be objects")
-        target = _path(result.get("Target", ""), field="Target")
+        target = _path(
+            result.get("Target", ""), field="Target", repository_root=repository_root,
+        )
         result_class = _text(result.get("Class", result.get("Type", "filesystem")), field="Class")
         for vulnerability in _items(result.get("Vulnerabilities"), field="Vulnerabilities"):
             if not isinstance(vulnerability, dict):
@@ -130,7 +143,10 @@ def normalize_trivy(path: Path) -> list[Finding]:
                 raise ValueError("malformed Trivy output: misconfigurations must be objects")
             findings.append(Finding.create(
                 tool="trivy", category="configuration", rule_id=_text(item.get("ID"), field="ID", required=True),
-                severity=_text(item.get("Severity", "unknown"), field="Severity"), file=_path(item.get("CauseMetadata", {}).get("Resource", target), field="Resource"),
+                severity=_text(item.get("Severity", "unknown"), field="Severity"), file=_path(
+                    item.get("CauseMetadata", {}).get("Resource", target),
+                    field="Resource", repository_root=repository_root,
+                ),
                 line=_line(item.get("CauseMetadata", {}).get("StartLine")), description=_text(item.get("Title") or item.get("Description") or result_class, field="description"),
                 confidence="possible",
             ))
@@ -145,7 +161,7 @@ def normalize_trivy(path: Path) -> list[Finding]:
     return findings
 
 
-def normalize_gitleaks(path: Path) -> list[Finding]:
+def normalize_gitleaks(path: Path, repository_root: Path | None = None) -> list[Finding]:
     payload = load_scanner_json(path)
     if not isinstance(payload, list):
         raise ValueError("malformed Gitleaks output: expected an array")
@@ -155,13 +171,21 @@ def normalize_gitleaks(path: Path) -> list[Finding]:
             raise ValueError("malformed Gitleaks output: entries must be objects")
         findings.append(Finding.create(
             tool="gitleaks", category="secret", rule_id=_text(item.get("RuleID", "secret"), field="RuleID"), severity="high",
-            file=_path(item.get("File", ""), field="file"), line=_line(item.get("StartLine")),
+            file=_path(
+                item.get("File", ""), field="file", repository_root=repository_root,
+            ), line=_line(item.get("StartLine")),
             description=_text(item.get("Description") or "Potential secret detected; value omitted", field="description"), confidence="possible",
         ))
     return findings
 
 
-def normalize_opengrep(path: Path) -> list[Finding]:
+def _opengrep_rule_id(value: Any) -> str:
+    rule_id = _text(value, field="check_id", required=True)
+    match = re.search(r"(?:^|\.)vibesec\.", rule_id)
+    return rule_id[match.start() + (1 if rule_id[match.start()] == "." else 0):] if match else rule_id
+
+
+def normalize_opengrep(path: Path, repository_root: Path | None = None) -> list[Finding]:
     payload = load_scanner_json(path)
     if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
         raise ValueError("malformed Opengrep output: expected object with results array")
@@ -177,9 +201,11 @@ def normalize_opengrep(path: Path) -> list[Finding]:
         if not isinstance(start, dict):
             raise ValueError("malformed Opengrep output: start must be an object")
         findings.append(Finding.create(
-            tool="opengrep", category="sast", rule_id=_text(item.get("check_id"), field="check_id", required=True),
+            tool="opengrep", category="sast", rule_id=_opengrep_rule_id(item.get("check_id")),
             severity=_text(extra.get("severity", "warning"), field="severity"),
-            file=_path(item.get("path", ""), field="path"), line=_line(start.get("line")),
+            file=_path(
+                item.get("path", ""), field="path", repository_root=repository_root,
+            ), line=_line(start.get("line")),
             end_line=_line((item.get("end") or {}).get("line")) if isinstance(item.get("end") or {}, dict) else None,
             description=_text(extra.get("message") or "Static analysis finding", field="message"),
             confidence={"high": "confirmed", "medium": "possible", "low": "unknown"}.get(
@@ -203,7 +229,7 @@ def _osv_severity(vulnerability: dict[str, Any]) -> str:
     return _text(candidate or "medium", field="severity")
 
 
-def normalize_osv(path: Path) -> list[Finding]:
+def normalize_osv(path: Path, repository_root: Path | None = None) -> list[Finding]:
     payload = load_scanner_json(path)
     if not isinstance(payload, dict) or "results" not in payload:
         raise ValueError("malformed OSV-Scanner output: expected object with results array")
@@ -217,7 +243,10 @@ def normalize_osv(path: Path) -> list[Finding]:
         source = result.get("source") or {}
         if source and not isinstance(source, dict):
             raise ValueError("malformed OSV-Scanner output: source must be an object")
-        source_path = _path(source.get("path", "") if isinstance(source, dict) else "", field="source.path")
+        source_path = _path(
+            source.get("path", "") if isinstance(source, dict) else "",
+            field="source.path", repository_root=repository_root,
+        )
         for package_result in _items(result.get("packages"), field="packages"):
             if not isinstance(package_result, dict) or not isinstance(package_result.get("vulnerabilities", []), list):
                 raise ValueError("malformed OSV-Scanner output: package entries require vulnerabilities arrays")
@@ -283,7 +312,7 @@ def normalize_trivy_image(path: Path) -> list[Finding]:
 ACTIONLINT_PATTERN = re.compile(r"^(?P<file>.*?):(?P<line>\d+):(?P<col>\d+): (?P<message>.*?)(?: \[(?P<rule>[^]]+)\])?$")
 
 
-def normalize_actionlint(path: Path) -> list[Finding]:
+def normalize_actionlint(path: Path, repository_root: Path | None = None) -> list[Finding]:
     try:
         data = _read_scanner_output(path)
         text = data.decode("utf-8")
@@ -298,7 +327,9 @@ def normalize_actionlint(path: Path) -> list[Finding]:
         for item in payload:
             if not isinstance(item, dict):
                 raise ValueError("malformed actionlint JSON output: entries must be objects")
-            filepath = _path(item.get("filepath"), field="filepath")
+            filepath = _path(
+                item.get("filepath"), field="filepath", repository_root=repository_root,
+            )
             if not filepath:
                 raise ValueError("malformed actionlint JSON output: filepath is required")
             findings.append(Finding.create(
@@ -321,7 +352,9 @@ def normalize_actionlint(path: Path) -> list[Finding]:
             raise ValueError(f"malformed actionlint output line: {line!r}")
         findings.append(Finding.create(
             tool="actionlint", category="ci", rule_id=_text(match.group("rule") or "workflow-lint", field="rule"),
-            severity="medium", file=_path(match.group("file"), field="file"), line=_line(match.group("line")),
+            severity="medium", file=_path(
+                match.group("file"), field="file", repository_root=repository_root,
+            ), line=_line(match.group("line")),
             description=_text(match.group("message"), field="message", required=True), confidence="confirmed",
         ))
     return findings
@@ -334,9 +367,15 @@ NORMALIZERS = {
 }
 
 
-def normalize_file(tool: str, path: Path) -> list[Finding]:
+def normalize_file(
+    tool: str, path: Path, *, repository_root: Path | None = None,
+) -> list[Finding]:
     try:
         normalizer = NORMALIZERS[tool]
     except KeyError as exc:
         raise ValueError(f"unsupported tool: {tool}") from exc
+    if repository_root is not None and tool in {
+        "trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner",
+    }:
+        return normalizer(path, repository_root=repository_root)
     return normalizer(path)

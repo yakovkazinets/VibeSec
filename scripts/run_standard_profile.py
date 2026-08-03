@@ -460,7 +460,9 @@ def main() -> int:
             return
         try:
             if normalizer:
-                normalized.extend(item.to_dict() for item in normalize_file(normalizer, output))
+                normalized.extend(item.to_dict() for item in normalize_file(
+                    normalizer, output, repository_root=root,
+                ))
         except ValueError:
             input_failure = True
             message = f"{tool} output failed structural validation"

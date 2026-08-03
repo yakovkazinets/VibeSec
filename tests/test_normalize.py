@@ -45,6 +45,17 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(result["category"], "sast")
         self.assertNotIn("TOP_SECRET_VALUE", json.dumps(result))
 
+    def test_real_opengrep_rule_prefix_is_removed_without_changing_rule_identity(self):
+        path = self.write_json({"results": [{
+            "check_id": "private.tmp.runtime.rules.opengrep.vibesec.javascript.dangerous-eval",
+            "path": "security-fixtures/sast/vulnerable-examples.js",
+            "start": {"line": 12},
+            "extra": {"severity": "ERROR", "message": "Unsafe API"},
+        }]})
+        result = normalize_opengrep(path)[0]
+        self.assertEqual(result.rule_id, "vibesec.javascript.dangerous-eval")
+        self.assertNotIn("private.tmp", json.dumps(result.to_dict()))
+
     def test_opengrep_retains_reviewed_correlation_metadata_without_snippets(self):
         path = self.write_json({"results": [{
             "check_id": "vibesec.python.test", "path": "app.py", "start": {"line": 7}, "end": {"line": 8},
@@ -61,6 +72,26 @@ class NormalizeTests(unittest.TestCase):
         path = self.write_json({"results": [{"source": {"path": "go.mod"}, "packages": [{"package": {"name": "example"}, "vulnerabilities": [{"id": "OSV-TEST", "summary": "Fixture advisory", "database_specific": {"severity": "HIGH"}}]}]}]})
         result = normalize_osv(path)[0]
         self.assertEqual((result.tool, result.severity, result.file), ("osv-scanner", "high", "go.mod"))
+
+    def test_real_absolute_scanner_paths_are_rebased_or_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            osv = self.write_json({"results": [{
+                "source": {"path": str(root / "security-fixtures/dependencies/package-lock.json")},
+                "packages": [{"package": {"name": "fixture"}, "vulnerabilities": [{
+                    "id": "OSV-TEST", "database_specific": {"severity": "HIGH"},
+                }]}],
+            }]})
+            result = normalize_osv(osv, repository_root=root)[0]
+            self.assertEqual(
+                result.file, "security-fixtures/dependencies/package-lock.json",
+            )
+            outside = self.write_json({"results": [{
+                "source": {"path": "/private/outside/package-lock.json"},
+                "packages": [{"package": {"name": "fixture"}, "vulnerabilities": []}],
+            }]})
+            with self.assertRaisesRegex(ValueError, "outside the repository"):
+                normalize_osv(outside, repository_root=root)
 
     def test_dependency_correlation_metadata_is_retained_only_when_explicit(self):
         osv = self.write_json({"results": [{"source": {"path": "requirements.txt"}, "packages": [{

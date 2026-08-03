@@ -94,6 +94,7 @@ write_coverage() {
 }
 
 python3 "${vibesec_root}/scripts/normalize_results.py" \
+  --repository-root "$repo_root" \
   --input trivy "$trivy_raw" \
   --input gitleaks "$gitleaks_raw" \
   --input actionlint "$actionlint_raw" \

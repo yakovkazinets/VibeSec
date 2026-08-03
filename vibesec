@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from typing import Sequence
@@ -15,6 +16,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, VERIFICATION_FAILED  # noqa: E402
 from vibesec.output import emit, envelope  # noqa: E402
 from vibesec.portable import PortableExecutionError, load_support, platform_id, select_execution_mode  # noqa: E402
+from vibesec.toolchain import (  # noqa: E402
+    ToolchainError, default_cache_home, install_profile_tools,
+    prepare_managed_results_dir, validate_profile_tools,
+)
 from vibesec.version import VersionError, read_version  # noqa: E402
 
 MAX_DIAGNOSTIC_BYTES = 64 * 1024
@@ -56,27 +61,97 @@ def _scan(args: argparse.Namespace, version: str) -> int:
         target = args.target.resolve(strict=True)
         if args.target.is_symlink() or not target.is_dir():
             raise PortableExecutionError("scan target must be a regular directory")
-        results = args.results.resolve()
-        tool_dir = (args.tool_dir or ROOT / ".tools/bin").resolve()
+        managed = args.install_tools or args.cache_dir is not None
+        if args.install_tools and args.tool_dir is not None:
+            raise PortableExecutionError("--install-tools cannot be combined with --tool-dir")
+        selected_platform = platform_id()
+        cache_home = (args.cache_dir or default_cache_home()).expanduser().resolve()
+        if managed:
+            try:
+                cache_home.relative_to(target)
+            except ValueError:
+                pass
+            else:
+                raise PortableExecutionError("managed cache must be outside the application repository")
+            if args.install_tools:
+                tool_dir, cache_reused = install_profile_tools(
+                    metadata_path=ROOT / "config/tools.json", cache_home=cache_home,
+                    version=version, platform_name=selected_platform, profile=args.profile,
+                )
+            else:
+                tool_dir = validate_profile_tools(
+                    metadata_path=ROOT / "config/tools.json", cache_home=cache_home,
+                    version=version, platform_name=selected_platform, profile=args.profile,
+                )
+                cache_reused = True
+            results = (
+                args.results.expanduser().resolve()
+                if args.results is not None
+                else prepare_managed_results_dir(cache_home, target)
+            )
+            try:
+                results.relative_to(target)
+            except ValueError:
+                pass
+            else:
+                raise PortableExecutionError("managed results must be outside the application repository")
+        else:
+            cache_reused = False
+            results = (args.results or Path("results")).resolve()
+            tool_dir = (args.tool_dir or ROOT / ".tools/bin").resolve()
         decision = select_execution_mode(
-            requested=args.execution_mode, profile=args.profile, current_platform=platform_id(),
+            requested=args.execution_mode, profile=args.profile, current_platform=selected_platform,
             tool_dir=tool_dir, support=load_support(ROOT / "config/portable-execution.json"),
         )
         if decision.selected_mode != "native":
             raise PortableExecutionError("container profile runner is not available in this release")
-        environment = dict(os.environ)
+        blocked_scanner_environment = (
+            "ACTIONLINT_", "CHECKOV_", "GITLEAKS_", "OPENGREP_", "OSV_SCANNER_",
+            "SEMGREP_", "SYFT_", "TRIVY_",
+        )
+        environment = (
+            {
+                key: value for key, value in os.environ.items()
+                if not key.startswith(blocked_scanner_environment)
+            }
+            if managed else dict(os.environ)
+        )
         environment["VIBESEC_TOOL_DIR"] = str(tool_dir)
-        command = (["bash", str(ROOT / "scripts/run_minimal_profile.sh"), str(target), str(results), str(ROOT)]
+        environment["VIBESEC_NETWORK_MODE"] = args.network_mode
+        if managed:
+            safe_path = [str(tool_dir), str(Path(sys.executable).resolve().parent), "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+            environment["PATH"] = os.pathsep.join(dict.fromkeys(safe_path))
+            docker = shutil.which("docker", path=os.environ.get("PATH", ""))
+            if docker:
+                resolved_docker = Path(docker).resolve()
+                try:
+                    resolved_docker.relative_to(target)
+                except ValueError:
+                    if resolved_docker.is_file() and os.access(resolved_docker, os.X_OK):
+                        environment["VIBESEC_DOCKER_BIN"] = str(resolved_docker)
+            environment["VIBESEC_MANAGED_MODE"] = "1"
+        command = (["/bin/bash", str(ROOT / "scripts/run_minimal_profile.sh"), str(target), str(results), str(ROOT)]
                    if args.profile == "minimal" else
                    [sys.executable, str(ROOT / "scripts/run_standard_profile.py"), str(target), str(results),
-                    "--vibesec-root", str(ROOT), "--tool-dir", str(tool_dir)])
+                    "--vibesec-root", str(ROOT), "--tool-dir", str(tool_dir),
+                    "--network-mode", args.network_mode])
         code, _stdout, _stderr = _run(command, environment=environment, working_directory=target)
         status = "success" if code == 0 else "policy_violation" if code == 1 else "tool_error" if code == 2 else "invalid_input"
         emit(envelope(
-            "scan", version, status, result={**decision.result(), "target": str(target), "results": str(results), "exit_code": code},
+            "scan", version, status, result={
+                **decision.result(), "target_name": target.name, "results": str(results),
+                "exit_code": code, "managed_tools": managed, "cache_reused": cache_reused,
+                "network_mode": args.network_mode,
+            },
             errors=([f"scanner orchestration returned exit code {code}; inspect only the sanitized result artifacts"] if code else []),
+            information=([
+                "Standard online mode may send package identifiers, versions, ecosystems, and file hashes to OSV.dev or deps.dev."
+            ] if args.profile == "standard" and args.network_mode == "online" else []),
         ), as_json=args.json)
         return code
+    except ToolchainError as exc:
+        emit(envelope("scan", version, "tool_error", errors=[str(exc)]), as_json=args.json)
+        return VERIFICATION_FAILED
     except (OSError, PortableExecutionError) as exc:
         emit(envelope("scan", version, "invalid", errors=[str(exc)]), as_json=args.json)
         return INVALID_INPUT
@@ -90,10 +165,13 @@ def build_parser() -> argparse.ArgumentParser:
     subcommands = parser.add_subparsers(dest="command", required=True)
     scan = subcommands.add_parser("scan")
     scan.add_argument("--target", type=Path, default=Path("."))
-    scan.add_argument("--results", type=Path, default=Path("results"))
+    scan.add_argument("--results", type=Path)
     scan.add_argument("--profile", choices=("minimal", "standard"), default="minimal")
     scan.add_argument("--execution-mode", choices=("native", "container", "auto"), default="auto")
     scan.add_argument("--tool-dir", type=Path)
+    scan.add_argument("--install-tools", action="store_true")
+    scan.add_argument("--cache-dir", type=Path)
+    scan.add_argument("--network-mode", choices=("online", "offline"), default="online")
     scan.add_argument("--json", action="store_true")
     for name in ("doctor", "verify"):
         command = subcommands.add_parser(name)

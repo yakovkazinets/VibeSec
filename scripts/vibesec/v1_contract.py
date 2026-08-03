@@ -445,7 +445,7 @@ def build_readiness(root: Path, *, main_commit: str,
         },
         "known_limitations": [
             "Scanner coverage is incomplete and a clean result is not proof of security.",
-            "Complete native Minimal and Standard scanning is currently validated only on Linux x86_64.",
+            "Complete native Minimal and Standard scanning is supported on Linux x86_64 and macOS x86_64/arm64; Linux arm64 and Windows remain unsupported.",
             "Live Docker targets and GitHub OIDC signing require separately controlled environments.",
             "Installed extension code and external agent behavior remain maintainer trust decisions.",
         ],

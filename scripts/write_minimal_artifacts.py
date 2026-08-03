@@ -31,18 +31,25 @@ def atomic_json(path: Path, payload: Any) -> None:
 
 
 def coverage(args: argparse.Namespace) -> None:
-    tools = json.loads((args.vibesec_root / "config/tools.json").read_text(encoding="utf-8"))
+    tools = json.loads((args.vibesec_root / "config/tools.json").read_text(encoding="utf-8"))["tools"]
     entries = []
-    output_names = {"trivy": "trivy.json", "gitleaks": "gitleaks.json", "actionlint": "actionlint.txt"}
     for tool, state in (("trivy", args.trivy_state), ("gitleaks", args.gitleaks_state), ("actionlint", args.actionlint_state)):
         if args.normalization_failed and state == "ran":
             state = "tool_error"
-        reason = "scanner completed and output normalized" if state == "ran" else "scanner execution or output validation failed"
+        reason = (
+            "scanner completed and output normalized" if state == "ran"
+            else "no GitHub Actions workflow files detected" if state == "not_applicable"
+            else "scanner execution or output validation failed"
+        )
         entries.append({
             "tool": tool, "version": tools[tool]["version"], "scope": "Minimal repository scan",
-            "state": state, "reason": reason, "relevant_artifacts": ["."],
-            "output_files": [] if state == "tool_error" else [output_names[tool]],
-            "network_access": "none", "application_code_executed": False,
+            "state": state, "reason": reason,
+            "relevant_artifacts": [] if state == "not_applicable" else ["."],
+            "output_files": ["normalized.json"] if state == "ran" else [],
+            "network_access": (
+                "scanner_managed" if tool == "trivy" and args.network_mode == "online" else "none"
+            ),
+            "application_code_executed": False,
         })
     payload = validate_coverage({
         "schema_version": 1, "profile": "minimal", "tools": entries,
@@ -105,7 +112,11 @@ def main() -> int:
     coverage_parser.add_argument("--vibesec-root", required=True, type=Path)
     coverage_parser.add_argument("--output", required=True, type=Path)
     for tool in ("trivy", "gitleaks", "actionlint"):
-        coverage_parser.add_argument(f"--{tool}-state", required=True, choices=("ran", "tool_error"))
+        coverage_parser.add_argument(
+            f"--{tool}-state", required=True,
+            choices=("ran", "not_applicable", "tool_error"),
+        )
+    coverage_parser.add_argument("--network-mode", choices=("online", "offline"), default="online")
     coverage_parser.add_argument("--normalization-failed", action="store_true")
     policy_parser = subparsers.add_parser("policy")
     policy_parser.add_argument("--profile", required=True, choices=("minimal", "standard"))

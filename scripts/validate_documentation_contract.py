@@ -91,7 +91,7 @@ def _parity(catalogs: dict[str, dict]) -> None:
     expected_capabilities = {item["id"] for item in capabilities["capabilities"]}
     if set(catalogs["capabilities"]["members"]) != expected_capabilities | {"vibesec.capabilities.registry"}:
         raise V1ContractError("capability documentation differs from the capability matrix")
-    tools = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))
+    tools = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))["tools"]
     if set(catalogs["scanners"]["members"]) != set(tools) | {"vibesec.scanners.registry"}:
         raise V1ContractError("scanner documentation differs from the tool inventory")
     templates = {str(path.relative_to(ROOT)) for path in (ROOT / "templates/github-actions").glob("*.yml")}

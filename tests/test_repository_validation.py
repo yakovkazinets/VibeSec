@@ -11,18 +11,23 @@ from scripts.validate_repository import (
 
 class RepositoryValidationTests(unittest.TestCase):
     def test_tool_release_metadata_is_complete(self):
-        tools = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))
+        metadata = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))
+        self.assertEqual(metadata["schema_version"], 2)
+        tools = metadata["tools"]
         self.assertEqual(set(tools), EXPECTED_TOOLS)
         for name, config in tools.items():
             self.assertTrue(config["official_repository"].startswith("https://github.com/"))
-            expected_date = "2026-07-22" if name in {"cosign", "schemathesis"} else "2026-07-21"
-            self.assertEqual(config["verification_date"], expected_date)
+            self.assertEqual(config["verification_date"], "2026-08-03")
             if config.get("kind") == "container":
                 self.assertRegex(config["digest"].removeprefix("sha256:"), SHA256)
             else:
-                self.assertRegex(config["sha256"], SHA256)
-                self.assertTrue(config["url"].startswith("https://github.com/"))
-                self.assertIn("/releases/download/", config["url"])
+                self.assertEqual(set(config["platforms"]), {
+                    "linux-amd64", "macos-amd64", "macos-arm64",
+                })
+                for asset in config["platforms"].values():
+                    self.assertRegex(asset["sha256"], SHA256)
+                    self.assertTrue(asset["url"].startswith("https://github.com/"))
+                    self.assertIn("/releases/download/", asset["url"])
 
     def test_static_repository_validation(self):
         validate_tools()

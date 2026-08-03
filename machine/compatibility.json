@@ -11,8 +11,8 @@
     "github-hosted.ubuntu": "stable",
     "linux-amd64": "stable",
     "linux-arm64": "conditionally_enforced",
-    "macos-amd64": "conditionally_enforced",
-    "macos-arm64": "conditionally_enforced",
+    "macos-amd64": "stable",
+    "macos-arm64": "stable",
     "self-hosted.runner-2.327.1": "stable",
     "vibesec.compatibility.platforms": "stable",
     "windows.native": "internal"

@@ -423,12 +423,7 @@ if failed: raise SystemExit(1)
         self.assertNotIn("/workspace/", json.dumps(findings))
         self.assertNotIn(str(Path.home()), json.dumps(findings))
         self.assertNotIn(tempfile.gettempdir(), json.dumps(findings))
-        raw = self.load_json("raw/checkov.json")
-        self.assertEqual(len(raw["results"]["failed_checks"]), 2)
-        self.assertEqual(
-            [item["file_path"] for item in raw["results"]["failed_checks"]],
-            [".github/workflows/test.yml", "main.tf"],
-        )
+        self.assertFalse((self.results / "raw").exists())
 
     def test_checkov_rejects_wrong_scanner_path_as_invalid_input(self):
         completed = self.run_profile(FAKE_CHECKOV_MODE="wrong-path")

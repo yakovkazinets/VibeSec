@@ -59,7 +59,7 @@ def main() -> int:
         return 0 if args.allow_unavailable else 2
 
     config = load_config(ROOT)
-    tools = loads_strict((ROOT / "config/tools.json").read_bytes())
+    tools = loads_strict((ROOT / "config/tools.json").read_bytes())["tools"]
     scanner_image = f"{tools['schemathesis']['image']}@{tools['schemathesis']['digest']}"
     fixture_image = f"{tools['dast-fixture-python']['image']}@{tools['dast-fixture-python']['digest']}"
     for image in (scanner_image, fixture_image):

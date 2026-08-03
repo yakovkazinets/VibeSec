@@ -29,6 +29,7 @@ from vibesec.api_fuzzing import ApiFuzzingError, load_config as load_fuzzing_con
 from vibesec.installation import InstallationError, verify_installation  # noqa: E402
 from vibesec.github_actions import KNOWN_NODE20_PINS, MAX_AUDIT_FILE_BYTES  # noqa: E402
 from vibesec.output import emit, envelope, safe_text  # noqa: E402
+from vibesec.portable import PortableExecutionError, load_support, platform_id  # noqa: E402
 from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
 from vibesec.supply_chain import PROVENANCE_NAME, SupplyChainError, validate_verification_record  # noqa: E402
 from vibesec.version import VersionError, read_version  # noqa: E402
@@ -189,7 +190,7 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
                 if (record["version"] != state.version or record["source_commit"] not in source_commits
                         or record["bundle_manifest_sha256"] not in manifest_hashes):
                     raise SupplyChainError("release verification record does not match the installed bundle")
-                tools = loads_strict((state.target / "config/tools.json").read_bytes())
+                tools = loads_strict((state.target / "config/tools.json").read_bytes())["tools"]
                 expected_tool = f"cosign/{tools['cosign']['version']}"
                 if record["signature_verified"] and record["verification_tool"] != expected_tool:
                     diagnostics.append(diagnostic(
@@ -241,14 +242,21 @@ def run_doctor(target: Path, requested_profile: str | None) -> tuple[str, list[d
                                       "Use Python 3.11 or newer.", "docs/compatibility.md"))
     if shutil.which("bash") is None:
         diagnostics.append(diagnostic("runtime", "BASH_MISSING", "error", "The required Bash shell is unavailable.",
-                                      "Use a supported Linux x86_64 GitHub runner.", "docs/doctor.md"))
+                                      "Use a supported Linux x86_64 or macOS x86_64/arm64 host.", "docs/doctor.md"))
     else:
         diagnostics.append(diagnostic("runtime", "BASH_AVAILABLE", "informational", "Bash is available.",
                                       "No action required.", "docs/doctor.md"))
-    if platform.system() != "Linux" or platform.machine() != "x86_64":
+    try:
+        current_platform = platform_id(platform.system(), platform.machine())
+        supported_profiles = load_support(state.target / "config/portable-execution.json")["platforms"][current_platform]["native_profiles"]
+        local_supported = (requested_profile in supported_profiles if requested_profile else bool(supported_profiles))
+    except PortableExecutionError:
+        current_platform = f"{platform.system()}-{platform.machine()}"
+        local_supported = False
+    if not local_supported:
         diagnostics.append(diagnostic("runtime", "SCANNER_PLATFORM_LOCAL_UNSUPPORTED", "warning",
-                                      f"Local platform {platform.system()} {platform.machine()} is not supported by scanner installers.",
-                                      "Run scanners on Linux x86_64; offline diagnostics remain safe locally.", "docs/troubleshooting.md"))
+                                      f"Local platform {current_platform} is not supported for the requested scanner profile.",
+                                      "Use Linux x86_64 or macOS x86_64/arm64; offline diagnostics remain safe locally.", "docs/troubleshooting.md"))
     profiles = state.profiles
     base_profiles = [item for item in profiles if item in {"minimal", "standard"}]
     profile = requested_profile or (base_profiles[0] if len(base_profiles) == 1 else None)

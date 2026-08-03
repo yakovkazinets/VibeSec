@@ -32,7 +32,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         version = read_version(ROOT)
-        tools = loads_strict((ROOT / "config/tools.json").read_bytes())
+        tools = loads_strict((ROOT / "config/tools.json").read_bytes())["tools"]
         if not isinstance(tools, dict):
             raise SupplyChainError("tool inventory must be an object")
         tool_versions = {

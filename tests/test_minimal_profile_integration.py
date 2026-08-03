@@ -50,11 +50,11 @@ exit 0
         path.write_text(textwrap.dedent(source), encoding="utf-8")
         path.chmod(0o755)
 
-    def run_profile(self, **overrides: str) -> subprocess.CompletedProcess[str]:
+    def run_profile(self, target: Path = ROOT, **overrides: str) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment.update({"VIBESEC_TOOL_DIR": str(self.tool_dir), **overrides})
         return subprocess.run(
-            ["bash", "scripts/run_minimal_profile.sh", str(ROOT), str(self.results_dir)],
+            ["bash", "scripts/run_minimal_profile.sh", str(target), str(self.results_dir), str(ROOT)],
             cwd=ROOT,
             env=environment,
             text=True,
@@ -143,6 +143,46 @@ exit 0
         self.assertEqual(completed.returncode, 2, completed.stderr)
         self.assertNotIn("stale-sensitive-content", "".join(path.read_text(encoding="utf-8") for path in self.results_dir.iterdir()))
         self.assert_artifacts("tool_error", {"trivy": "ran", "gitleaks": "tool_error", "actionlint": "ran"})
+
+    def test_target_scanner_configuration_is_not_authoritative(self):
+        target = Path(self.temporary.name) / "target"
+        workflows = target / ".github/workflows"
+        workflows.mkdir(parents=True)
+        (workflows / "ci.yml").write_text("name: fixture\non: push\njobs: {}\n", encoding="utf-8")
+        (target / ".gitleaks.toml").write_text("[[rules]]\nid='disable'\n", encoding="utf-8")
+        (target / "trivy.yaml").write_text("scanners: []\n", encoding="utf-8")
+        (target / ".github/actionlint.yaml").write_text("self-hosted-runner:\n  labels: [untrusted]\n", encoding="utf-8")
+        invocations = Path(self.temporary.name) / "invocations"
+        invocations.mkdir()
+        self.write_tool("trivy", r'''#!/usr/bin/env bash
+printf '%s\0' "$@" > "$INVOCATIONS/trivy"
+output=""
+while [[ $# -gt 0 ]]; do if [[ "$1" == "--output" ]]; then output="$2"; shift 2; else shift; fi; done
+printf '{"Results":[]}\n' > "$output"
+''')
+        self.write_tool("gitleaks", r'''#!/usr/bin/env bash
+printf '%s\0' "$@" > "$INVOCATIONS/gitleaks"
+output=""
+while [[ $# -gt 0 ]]; do if [[ "$1" == "--report-path" ]]; then output="$2"; shift 2; else shift; fi; done
+printf '[]\n' > "$output"
+''')
+        self.write_tool("actionlint", r'''#!/usr/bin/env bash
+printf '%s\0' "$@" > "$INVOCATIONS/actionlint"
+exit 0
+''')
+        completed = self.run_profile(target=target, INVOCATIONS=str(invocations))
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        calls = {
+            name: (invocations / name).read_bytes().split(b"\0")
+            for name in ("trivy", "gitleaks", "actionlint")
+        }
+        self.assertIn(str(ROOT / "config/trivy-standard.yaml").encode(), calls["trivy"])
+        self.assertIn(str(ROOT / "config/gitleaks-standard.toml").encode(), calls["gitleaks"])
+        self.assertIn(str(ROOT / "config/gitleaks-standard-ignore.txt").encode(), calls["gitleaks"])
+        self.assertIn(str(ROOT / "config/actionlint-standard.yaml").encode(), calls["actionlint"])
+        self.assertNotIn(str(target / ".gitleaks.toml").encode(), calls["gitleaks"])
+        self.assertNotIn(str(target / "trivy.yaml").encode(), calls["trivy"])
+        self.assertNotIn(str(target / ".github/actionlint.yaml").encode(), calls["actionlint"])
 
 
 if __name__ == "__main__":

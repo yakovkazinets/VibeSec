@@ -38,7 +38,7 @@ def main() -> int:
             certificate_oidc_issuer=args.certificate_oidc_issuer,
         )
         if args.record is not None:
-            tools = loads_strict((ROOT / "config/tools.json").read_bytes())
+            tools = loads_strict((ROOT / "config/tools.json").read_bytes())["tools"]
             cosign_version = tools["cosign"]["version"] if result.signature_verified else None
             record = verification_record(
                 result, release_reference=args.release_reference,

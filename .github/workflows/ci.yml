@@ -62,9 +62,7 @@ jobs:
           esac
           printf 'trivy_image_state=%s\n' "${assignment#TRIVY_IMAGE_STATE=}" >> "$GITHUB_OUTPUT"
       - name: Install checksum and signature-verified scanners
-        run: |
-          scripts/install_tools.sh . .tools/bin
-          scripts/install_standard_tools.sh . .tools/bin
+        run: scripts/install_standard_tools.sh . .tools/bin
       - name: Exercise pinned Checkov container fixtures
         run: python3 scripts/test_checkov_container.py
       - name: Run Standard against VibeSec Guardian
@@ -375,8 +373,6 @@ jobs:
         run: >-
           find . -type f \( -name '*.yml' -o -name '*.yaml' \) -print0 |
           xargs -0 ruby -e 'require "yaml"; ARGV.each { |path| YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false, filename: path) }' --
-      - name: Install checksum-verified scanners
-        run: scripts/install_tools.sh . .tools/bin
       - name: Install signature and checksum-verified Standard scanners
         run: scripts/install_standard_tools.sh . .tools/bin
       - name: Exercise local Opengrep rules

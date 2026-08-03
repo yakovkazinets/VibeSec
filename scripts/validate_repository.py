@@ -20,6 +20,7 @@ from vibesec.github_actions import (  # noqa: E402
 )
 from vibesec.extensions import collect_source  # noqa: E402
 from vibesec.portable import load_support  # noqa: E402
+from vibesec.toolchain import load_tool_metadata  # noqa: E402
 from vibesec.strict_json import loads_strict  # noqa: E402
 from vibesec.schemathesis_runtime import trusted_active_schemathesis_command, trusted_schemathesis_command  # noqa: E402
 from vibesec.version import read_version  # noqa: E402
@@ -33,7 +34,7 @@ from validate_security_capabilities import validate_matrix  # noqa: E402
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_TOOLS = {"trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft", "cosign", "checkov", "zap-baseline", "dast-fixture-python", "schemathesis"}
 EXPECTED_VIBESEC_VARIABLES = {
-    "VIBESEC_ENFORCEMENT", "VIBESEC_MIN_SEVERITY", "VIBESEC_TOOL_DIR", "VIBESEC_NETWORK_MODE",
+    "VIBESEC_ENFORCEMENT", "VIBESEC_MIN_SEVERITY", "VIBESEC_TOOL_DIR", "VIBESEC_CACHE_HOME", "VIBESEC_NETWORK_MODE",
     "VIBESEC_OSV_DATABASE_DIR", "VIBESEC_OSV_DATABASE_DATE", "VIBESEC_OSV_MAX_DATABASE_AGE_DAYS",
     "VIBESEC_IMAGE_REFERENCE", "VIBESEC_DAST_IMAGE_REFERENCE", "VIBESEC_DAST_CONTAINER_PORT",
     "VIBESEC_DAST_BASE_PATH", "VIBESEC_DAST_ENFORCEMENT", "VIBESEC_DAST_MIN_SEVERITY",
@@ -55,7 +56,8 @@ def load_object(path: Path) -> dict:
 
 
 def validate_tools() -> None:
-    tools = load_object(ROOT / "config/tools.json")
+    metadata = load_tool_metadata(ROOT / "config/tools.json")
+    tools = metadata["tools"]
     if set(tools) != EXPECTED_TOOLS:
         raise ValueError(f"config/tools.json must define exactly {sorted(EXPECTED_TOOLS)}")
     for name, config in tools.items():
@@ -63,8 +65,7 @@ def validate_tools() -> None:
             raise ValueError(f"tool {name} configuration must be an object")
         if not all(isinstance(config.get(field), str) and config[field] for field in ("version", "license", "official_repository", "verification_date")):
             raise ValueError(f"tool {name} is missing version, license, official_repository, or verification_date")
-        expected_date = "2026-07-22" if name in {"cosign", "schemathesis"} else "2026-07-21"
-        if config["verification_date"] != expected_date:
+        if config["verification_date"] != "2026-08-03":
             raise ValueError(f"tool {name} pin must record the current review date")
         official = urlparse(config["official_repository"])
         if official.scheme != "https" or official.hostname != "github.com":
@@ -73,19 +74,22 @@ def validate_tools() -> None:
             if not isinstance(config.get("image"), str) or not config["image"] or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(config.get("digest", ""))):
                 raise ValueError(f"container tool {name} must use an immutable SHA-256 digest")
             continue
-        if not all(isinstance(config.get(field), str) and config[field] for field in ("archive", "sha256", "url")):
-            raise ValueError(f"tool {name} is missing archive, sha256, url, or version")
-        if not SHA256.fullmatch(config["sha256"]):
-            raise ValueError(f"tool {name} has an invalid SHA-256 checksum")
-        parsed = urlparse(config["url"])
-        if parsed.scheme != "https" or parsed.hostname != "github.com" or "/releases/download/" not in parsed.path:
-            raise ValueError(f"tool {name} must use an official versioned GitHub release URL")
-        if config["archive"] not in parsed.path or config["version"] not in parsed.path:
-            raise ValueError(f"tool {name} URL, archive, and version are inconsistent")
+        platforms = config.get("platforms")
+        if not isinstance(platforms, dict) or set(platforms) != {"linux-amd64", "macos-amd64", "macos-arm64"}:
+            raise ValueError(f"native tool {name} must pin all supported release platforms")
+        for platform_name, asset in platforms.items():
+            if not SHA256.fullmatch(asset["sha256"]):
+                raise ValueError(f"tool {name} has an invalid SHA-256 checksum on {platform_name}")
+            parsed = urlparse(asset["url"])
+            if parsed.scheme != "https" or parsed.hostname != "github.com" or "/releases/download/" not in parsed.path:
+                raise ValueError(f"tool {name} must use an official versioned GitHub release URL")
+            if asset["asset_name"] not in parsed.path or config["version"] not in parsed.path:
+                raise ValueError(f"tool {name} URL, asset, and version are inconsistent")
         if name == "opengrep":
-            for field in ("signature_url", "certificate_url", "certificate_identity", "certificate_oidc_issuer"):
-                if not isinstance(config.get(field), str) or not config[field]:
-                    raise ValueError(f"Opengrep is missing Sigstore field {field}")
+            for platform_name, asset in platforms.items():
+                for field in ("signature_url", "certificate_url", "certificate_identity", "certificate_oidc_issuer"):
+                    if not isinstance(asset.get(field), str) or not asset[field]:
+                        raise ValueError(f"Opengrep is missing Sigstore field {field} on {platform_name}")
 
 
 def validate_policy() -> None:
@@ -265,8 +269,8 @@ def validate_api_command_contract() -> None:
 
 def validate_adoption_metadata() -> None:
     version = read_version(ROOT)
-    if version != "1.0.0-dev":
-        raise ValueError("VERSION must declare the reviewed unreleased 1.0.0-dev development version")
+    if version != "1.1.0-dev":
+        raise ValueError("VERSION must declare the reviewed unreleased 1.1.0-dev development version")
     adoption = validate_catalog(loads_strict((ROOT / "config/adoption-files.json").read_bytes()))
     common = adoption.get("common")
     profiles = adoption.get("profiles")

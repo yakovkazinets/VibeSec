@@ -464,7 +464,7 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
     category = {0: "pass", 1: "policy_violation", 2: "tool_error", 3: "invalid_input"}.get(exit_code)
     if category is None:
         raise ApiSecurityError("API exit code is outside the reviewed contract")
-    scanner = loads_strict((root / "config/tools.json").read_bytes())["schemathesis"]
+    scanner = loads_strict((root / "config/tools.json").read_bytes())["tools"]["schemathesis"]
     config = load_config(root)
     normalized = {"schema_version": 1, "profile": "api-security-baseline", "results": findings}
     try:

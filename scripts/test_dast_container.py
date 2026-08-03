@@ -111,7 +111,7 @@ def main() -> int:
         print("SKIP: Docker daemon is unavailable; live DAST container evidence was not produced.")
         return 0 if args.allow_unavailable else 2
     config = load_config(ROOT)
-    tools = loads_strict((ROOT / "config/tools.json").read_bytes())
+    tools = loads_strict((ROOT / "config/tools.json").read_bytes())["tools"]
     zap = f"{tools['zap-baseline']['image']}@{tools['zap-baseline']['digest']}"
     fixture = f"{tools['dast-fixture-python']['image']}@{tools['dast-fixture-python']['digest']}"
     for image in (zap, fixture):

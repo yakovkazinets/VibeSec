@@ -24,15 +24,16 @@ class StandardProfileSyftTests(unittest.TestCase):
         return harness
 
     def test_pinned_linux_syft_is_installed_executable(self):
-        inventory = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))
+        inventory = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))["tools"]
         syft = inventory["syft"]
         self.assertEqual(syft["version"], "1.49.0")
-        self.assertEqual(syft["archive"], "syft_1.49.0_linux_amd64.tar.gz")
-        self.assertRegex(syft["sha256"], r"^[0-9a-f]{64}$")
-        self.assertIn("/v1.49.0/syft_1.49.0_linux_amd64.tar.gz", syft["url"])
+        linux = syft["platforms"]["linux-amd64"]
+        self.assertEqual(linux["asset_name"], "syft_1.49.0_linux_amd64.tar.gz")
+        self.assertRegex(linux["sha256"], r"^[0-9a-f]{64}$")
+        self.assertIn("/v1.49.0/syft_1.49.0_linux_amd64.tar.gz", linux["url"])
         installer = (ROOT / "scripts/install_standard_tools.sh").read_text(encoding="utf-8")
-        self.assertIn("for tool in cosign opengrep osv-scanner syft", installer)
-        self.assertIn('install -m 0755 "${staging}/${tool}"', installer)
+        self.assertIn("--profile standard", installer)
+        self.assertIn("install_profile_tools.py", installer)
 
     def test_syft_149_command_uses_repository_source_and_private_outputs(self):
         with tempfile.TemporaryDirectory() as temporary:

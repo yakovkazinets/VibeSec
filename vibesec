@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 from typing import Sequence
@@ -54,6 +53,29 @@ def _passthrough(script: str, arguments: list[str]) -> int:
     if stderr:
         sys.stderr.write(stderr + ("" if stderr.endswith("\n") else "\n"))
     return code
+
+
+def _trusted_docker_binary(
+    target: Path, candidates: Sequence[Path] | None = None,
+) -> Path | None:
+    """Resolve Docker only from reviewed host locations, never ambient PATH."""
+    trusted_target = target.resolve(strict=True)
+    reviewed = candidates or (
+        Path("/usr/bin/docker"),
+        Path("/usr/local/bin/docker"),
+        Path("/opt/homebrew/bin/docker"),
+        Path("/Applications/Docker.app/Contents/Resources/bin/docker"),
+    )
+    for candidate in reviewed:
+        try:
+            resolved = candidate.resolve(strict=True)
+            resolved.relative_to(trusted_target)
+        except ValueError:
+            if resolved.is_file() and os.access(resolved, os.X_OK):
+                return resolved
+        except OSError:
+            continue
+    return None
 
 
 def _scan(args: argparse.Namespace, version: str) -> int:
@@ -119,16 +141,12 @@ def _scan(args: argparse.Namespace, version: str) -> int:
         environment["VIBESEC_TOOL_DIR"] = str(tool_dir)
         environment["VIBESEC_NETWORK_MODE"] = args.network_mode
         if managed:
+            environment.pop("VIBESEC_DOCKER_BIN", None)
             safe_path = [str(tool_dir), str(Path(sys.executable).resolve().parent), "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
             environment["PATH"] = os.pathsep.join(dict.fromkeys(safe_path))
-            docker = shutil.which("docker", path=os.environ.get("PATH", ""))
+            docker = _trusted_docker_binary(target)
             if docker:
-                resolved_docker = Path(docker).resolve()
-                try:
-                    resolved_docker.relative_to(target)
-                except ValueError:
-                    if resolved_docker.is_file() and os.access(resolved_docker, os.X_OK):
-                        environment["VIBESEC_DOCKER_BIN"] = str(resolved_docker)
+                environment["VIBESEC_DOCKER_BIN"] = str(docker)
             environment["VIBESEC_MANAGED_MODE"] = "1"
         command = (["/bin/bash", str(ROOT / "scripts/run_minimal_profile.sh"), str(target), str(results), str(ROOT)]
                    if args.profile == "minimal" else

@@ -215,6 +215,22 @@ class PortableCliTests(unittest.TestCase):
         self.assertIn("outside", json.loads(stdout.getvalue())["errors"][0])
         self.assertFalse((target / ".cache").exists())
 
+    def test_managed_docker_discovery_ignores_path_and_rejects_target_binary(self):
+        namespace = runpy.run_path(str(ROOT / "vibesec"))
+        target = Path(self.temporary.name) / "docker-target"
+        target.mkdir()
+        target_docker = target / "docker"
+        target_docker.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        target_docker.chmod(0o755)
+        trusted = Path(self.temporary.name) / "trusted-docker"
+        trusted.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        trusted.chmod(0o755)
+        discover = namespace["_trusted_docker_binary"]
+        self.assertIsNone(discover(target, (target_docker,)))
+        self.assertEqual(discover(target, (trusted,)), trusted.resolve())
+        with patch.dict(os.environ, {"PATH": str(target)}, clear=False):
+            self.assertIsNone(discover(target, (Path("/definitely/missing/docker"),)))
+
     def test_portability_metadata_records_all_required_platforms(self):
         self.assertEqual(set(self.support["platforms"]), {"linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64"})
         self.assertTrue(self.support["platforms"]["linux-arm64"]["unsupported_reason"])

@@ -12,12 +12,13 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from vibesec.bundle import build_bundle_bytes, verify_bundle  # noqa: E402
-from vibesec.strict_json import canonical_json  # noqa: E402
+from vibesec.strict_json import StrictJSONError, canonical_json, loads_strict  # noqa: E402
 from vibesec.sbom import validate_cyclonedx, validate_spdx  # noqa: E402
 from vibesec.supply_chain import (  # noqa: E402
     BUNDLE_NAME, CHECKSUMS_NAME, CYCLONEDX_NAME, MANIFEST_NAME,
-    OIDC_ISSUER, PROVENANCE_NAME, READINESS_NAME, SIGNATURE_NAME, SPDX_NAME,
-    WORKFLOW_IDENTITY, SupplyChainError, checksum_bytes, prepare_release,
+    MAX_SIGNATURE_BYTES, MAX_SIGNATURE_STRING, OIDC_ISSUER, PROVENANCE_NAME,
+    READINESS_NAME, SIGNATURE_NAME, SPDX_NAME, WORKFLOW_IDENTITY,
+    SupplyChainError, checksum_bytes, parse_signature_bundle, prepare_release,
     validate_verification_record, verification_record, verify_release,
 )
 
@@ -173,6 +174,67 @@ class SupplyChainAssuranceTests(unittest.TestCase):
         self.assertIn(OIDC_ISSUER, command)
         with self.assertRaises(SupplyChainError):
             verify_release(signed, require_signature=True, cosign=fake, certificate_identity="attacker")
+
+    def test_signature_bundle_specific_parser_is_bounded_and_shared(self):
+        long_evidence = "A" * 25_000
+        self.assertTrue(all(ord(character) >= 0x20 for character in long_evidence))
+        bundle = {
+            "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+            "verificationMaterial": {"tlogEntries": [{"canonicalizedBody": long_evidence}]},
+        }
+        data = (json.dumps(bundle, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+        with self.assertRaisesRegex(StrictJSONError, "oversized or contains controls"):
+            loads_strict(data)
+        self.assertEqual(parse_signature_bundle(data), bundle)
+
+        signed = self.prepare("long-signature")
+        (signed / SIGNATURE_NAME).write_bytes(data)
+        self.assertFalse(verify_release(signed).signature_verified)
+
+        invalid_cases = {
+            "duplicate": b'{"mediaType":"first","mediaType":"second"}\n',
+            "control": b'{"evidence":"safe\\u0001unsafe"}\n',
+            "oversized-string": (
+                b'{"evidence":"' + b"A" * (MAX_SIGNATURE_STRING + 1) + b'"}\n'
+            ),
+            "oversized-file": (
+                b'{"evidence":"' + b"A" * MAX_SIGNATURE_BYTES + b'"}\n'
+            ),
+            "malformed": b'{"evidence":\n',
+        }
+        self.assertLess(len(invalid_cases["oversized-string"]), MAX_SIGNATURE_BYTES)
+        self.assertGreater(len(invalid_cases["oversized-file"]), MAX_SIGNATURE_BYTES)
+        for case, invalid in invalid_cases.items():
+            with self.subTest(case=case), self.assertRaises(SupplyChainError):
+                parse_signature_bundle(invalid)
+
+    def test_signer_does_not_publish_a_structurally_invalid_bundle(self):
+        release = self.prepare("invalid-signing", "trusted-github-workflow")
+        fake = self.root / "cosign-invalid-bundle"
+        fake.write_text(
+            "#!/bin/sh\n"
+            "output=''\n"
+            "while [ \"$#\" -gt 0 ]; do\n"
+            "  if [ \"$1\" = '--bundle' ]; then shift; output=$1; fi\n"
+            "  shift\n"
+            "done\n"
+            "[ -z \"$output\" ] || printf '{\"evidence\":\"safe\\\\u0001unsafe\"}\\n' > \"$output\"\n",
+            encoding="utf-8",
+        )
+        fake.chmod(0o755)
+        environment = os.environ.copy()
+        environment.update({
+            "GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "workflow_dispatch",
+            "GITHUB_REPOSITORY": "yakovkazinets/VibeSec", "GITHUB_REF": "refs/heads/main",
+            "GITHUB_SHA": self.commit,
+        })
+        completed = subprocess.run(
+            ["python3", "scripts/sign_release_artifacts.py", str(release), "--cosign", str(fake)],
+            cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(completed.returncode, 3, completed.stderr)
+        self.assertIn("contains controls", completed.stderr)
+        self.assertFalse((release / SIGNATURE_NAME).exists())
 
     def test_signer_preserves_tool_failure_and_rejects_untrusted_context(self):
         release = self.prepare("trusted-signing", "trusted-github-workflow")

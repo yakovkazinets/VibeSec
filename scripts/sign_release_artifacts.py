@@ -12,9 +12,9 @@ import sys
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from vibesec.strict_json import StrictJSONError, loads_strict  # noqa: E402
 from vibesec.supply_chain import (  # noqa: E402
-    CHECKSUMS_NAME, SIGNATURE_NAME, SupplyChainError, verify_release,
+    CHECKSUMS_NAME, SIGNATURE_NAME, SupplyChainError, load_signature_bundle,
+    verify_release,
 )
 
 
@@ -56,14 +56,10 @@ def main() -> int:
         if completed.returncode != 0:
             print("release signing tool failed", file=sys.stderr)
             return 2
-        if temporary.is_symlink() or not temporary.is_file() or temporary.stat().st_size > 2 * 1024 * 1024:
-            raise SupplyChainError("Cosign produced a missing, unsafe, or oversized signature bundle")
-        value = loads_strict(temporary.read_bytes(), maximum_bytes=2 * 1024 * 1024)
-        if not isinstance(value, dict):
-            raise SupplyChainError("Cosign signature bundle must contain a JSON object")
+        load_signature_bundle(temporary)
         os.link(temporary, destination, follow_symlinks=False)
         return 0
-    except (OSError, StrictJSONError, SupplyChainError, subprocess.TimeoutExpired) as exc:
+    except (OSError, SupplyChainError, subprocess.TimeoutExpired) as exc:
         print(str(exc), file=sys.stderr)
         return 3
     finally:

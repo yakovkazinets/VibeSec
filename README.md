@@ -51,7 +51,7 @@ Review the code and configuration before using it, validate it against your own 
 - [GitHub Actions Node 24 runtime and immutable pin policy](docs/github-actions-runtime.md)
 - [OpenAPI API Security Baseline](docs/api-security-baseline.md)
 - [Bounded API fuzzing and injection-oriented testing](docs/api-fuzzing.md)
-- [v1.1.0 release notes](docs/v1.1.0-release-notes.md)
+- [v1.1.1 release notes](docs/v1.1.1-release-notes.md)
 
 Supplied workflows target GitHub.com and require Actions Runner 2.327.1 or newer on self-hosted runners. Their reviewed JavaScript actions embed Node 24 and use full commit SHAs; Node 20 is end-of-life and unsupported, and no fallback is provided. VibeSec Guardian itself requires no npm or Node application runtime. Node 26 remains a future compatibility target rather than a requirement. See the runtime policy for the separate GHES limitation.
 
@@ -71,7 +71,7 @@ Installing only the AppSec Guardian skill is enough for an immediate managed loc
 $appsec-guardian Run the Standard profile against this repository using real scanners. Install the verified tools if missing. Do not remediate anything yet.
 ```
 
-The skill explains the exact downloads, network behavior, user cache, scanners, and result files before asking for approval. It then verifies the pinned v1.1.0 consumer runtime, installs or reuses the exact toolchain outside the application repository, runs real scanners, and reports only validated scanner evidence. Assessment-only requests install and execute nothing. Installing a profile into GitHub Actions remains a separate action for continuous CI scanning.
+The skill explains the exact downloads, network behavior, user cache, scanners, and result files before asking for approval. It then verifies the consumer runtime pinned by trusted skill metadata, installs or reuses the exact toolchain outside the application repository, runs real scanners, and reports only validated scanner evidence. Assessment-only requests install and execute nothing. Installing a profile into GitHub Actions remains a separate action for continuous CI scanning.
 
 The bundled `./vibesec` CLI routes scan, init, doctor, verification, upgrade planning, and extension commands through the existing reviewed implementations. Managed Minimal and Standard scanning supports Linux x86_64, macOS arm64, and macOS x86_64. Linux arm64, Windows, and complete-profile containers fail explicitly; `auto` never silently selects partial or unverified coverage.
 

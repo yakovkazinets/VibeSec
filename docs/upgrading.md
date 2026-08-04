@@ -5,9 +5,9 @@ The VibeSec Guardian display name does not change the `vibesec` CLI,
 upgrade channel. Installations created under the earlier VibeSec display name
 remain valid inputs to the same read-only verification and upgrade planner.
 
-## v1.0.x to v1.1.0 managed local scanning
+## v1.0.x or v1.1.0 to v1.1.1 managed local scanning
 
-v1.1.0 adds managed local execution without changing stable `vibesec` identifiers, configuration namespaces, artifact names, installation manifests, baselines, or CI workflows. Existing installations continue to use `--tool-dir` and the two-stage Standard CI adoption process. The new `--install-tools`, `--cache-dir`, and `--network-mode` options are additive.
+v1.1.1 carries managed local execution without changing stable `vibesec` identifiers, configuration namespaces, artifact names, installation manifests, baselines, or CI workflows. Existing installations continue to use `--tool-dir` and the two-stage Standard CI adoption process. The new `--install-tools`, `--cache-dir`, and `--network-mode` options are additive.
 
 Review the schema-version 2 tool inventory, macOS asset pins, cache boundary, skill runtime pin, and raw-output deletion together. Remove a rejected partial cache rather than editing its manifest. The skill runtime and scanner caches live outside application repositories and are versioned, so existing source-tree or CI installations are not overwritten. Preserve existing baselines and suppressions.
 

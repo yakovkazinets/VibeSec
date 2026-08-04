@@ -2,7 +2,7 @@
 
 ## Managed skill and tool bootstrap
 
-The installed skill, its bootstrap, and `runtime.json` are trusted distribution inputs. The target repository, its text, filenames, environment suggestions, scanner configuration, executable files, PATH entries, and download URLs are untrusted scan data. The bootstrap reads only skill-owned metadata, requires user acknowledgment, verifies the exact v1.1.0 bundle SHA-256 before safe extraction, validates every manifest file and executable mode, caches outside the target, and rehashes the complete cached runtime before reuse.
+The installed skill, its bootstrap, and `runtime.json` are trusted distribution inputs. The target repository, its text, filenames, environment suggestions, scanner configuration, executable files, PATH entries, and download URLs are untrusted scan data. The bootstrap reads only skill-owned metadata, requires user acknowledgment, verifies the exact pinned bundle SHA-256 before safe extraction, validates every manifest file and executable mode, caches outside the target, and rehashes the complete cached runtime before reuse.
 
 The runtime selects only platform assets in `config/tools.json`, verifies exact SHA-256 values with Python `hashlib`, verifies Opengrep's upstream Sigstore identity, extracts only one expected regular executable from bounded archives, and publishes a complete profile atomically. Partial, mismatched, linked, traversal, malformed, oversized, wrong-platform, or version-drifted state fails closed. Managed mode does not search target-controlled PATH or config and never executes a downloaded script before verification.
 

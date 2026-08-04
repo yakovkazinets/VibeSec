@@ -32,7 +32,7 @@ Raw outputs and scanner homes stay in private temporary directories and are dele
 
 ## Managed local runtime
 
-The installed skill owns only a small bootstrap and immutable `runtime.json`. After disclosure and user acknowledgment, it downloads the exact v1.1.0 consumer bundle, verifies the pinned SHA-256 before extraction, enforces the bundle manifest and safe ZIP rules, publishes the runtime atomically to the user cache, and rehashes every cached runtime file before reuse. Skill metadata is excluded from the consumer bundle, preventing the runtime bundle from containing the digest that pins itself.
+The installed skill owns only a small bootstrap and immutable `runtime.json`. After disclosure and user acknowledgment, it downloads the exact consumer bundle identified by that trusted metadata, verifies the pinned SHA-256 before extraction, enforces the bundle manifest and safe ZIP rules, publishes the runtime atomically to the user cache, and rehashes every cached runtime file before reuse. Skill metadata is excluded from the consumer bundle, preventing the runtime bundle from containing the digest that pins itself.
 
 The consumer runtime invokes the same `vibesec scan` entry point as a source checkout. `scripts/vibesec/toolchain.py` selects exact platform assets from trusted metadata, verifies Python `hashlib` digests, safely extracts one expected executable, verifies Opengrep's Sigstore identity, and publishes a complete profile atomically. The target repository supplies no download URL, executable path, rule, config, policy, or result directory. GitHub Actions adoption remains independent.
 

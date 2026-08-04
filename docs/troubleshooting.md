@@ -36,6 +36,8 @@ The managed CLI reserves `4` for its own bootstrap/infrastructure failure. Scann
 ## Managed local installation
 
 - **Unsupported platform:** use Linux x86_64 or macOS arm64/x86_64. Linux arm64 and Windows are not complete native profiles in v1.1.
+- **Unexpected disk use:** the skill is small, but Minimal may use 100–400 MB plus scanner databases and Standard may use 500 MB–1 GB plus scanner databases and any separately stored Checkov image. Standard can exceed 600 MB. Inspect the documented cache with `du -sh "$HOME/Library/Caches/vibesec"` on macOS or `du -sh "${XDG_CACHE_HOME:-$HOME/.cache}/vibesec"` on Linux.
+- **Clear the managed cache:** never remove it while a scan or installation is active. When idle, use `rm -rf "$HOME/Library/Caches/vibesec"` on macOS or `rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/vibesec"` on Linux. The next managed scan downloads and verifies required tools again; Docker images remain in Docker's separate storage.
 - **Partial or mismatched cache:** do not edit the cache manifest or substitute a host binary. Remove only the exact reported version/platform/profile cache after review, then rerun with `--install-tools`.
 - **Checksum/signature failure:** stop. Do not accept the observed digest. Compare `config/tools.json` with the official release and report a possible supply-chain issue.
 - **Checkov/Docker unavailable:** when IaC is applicable this is `tool_error`, not a clean or skipped result. Install a trusted Docker runtime or document that Standard cannot complete.

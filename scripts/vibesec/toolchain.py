@@ -28,10 +28,83 @@ MANIFEST_NAME = "toolchain.json"
 MANIFEST_SCHEMA = 1
 TOOL_METADATA_SCHEMA = 2
 OFFICIAL_DOWNLOAD_HOST = "github.com"
+PROFILE_STORAGE_ESTIMATES = {
+    "minimal": "100-400 MB, plus scanner databases",
+    "standard": "500 MB-1 GB, plus scanner databases and any Checkov image; may exceed 600 MB",
+}
+ProgressCallback = Callable[[str], None]
 
 
 class ToolchainError(ValueError):
     """A managed toolchain could not be installed or verified."""
+
+
+def _report(progress: ProgressCallback | None, message: str) -> None:
+    if progress is not None:
+        progress(message)
+
+
+def _display_cache_directory(cache_home: Path) -> str:
+    value = str(cache_home)
+    if len(value) > 2048 or any(ord(character) < 0x20 or ord(character) == 0x7f for character in value):
+        return "<configured cache directory omitted>"
+    return value
+
+
+def managed_toolchain_disclosure(
+    *,
+    profile: str,
+    platform_name: str,
+    cache_home: Path,
+    cache_reused: bool,
+    network_mode: str,
+) -> tuple[str, ...]:
+    """Return bounded, human-readable disclosure lines for a managed install."""
+    if profile not in PROFILE_TOOLS or platform_name not in SUPPORTED_PLATFORMS:
+        raise ToolchainError("managed platform or profile is unsupported")
+    if network_mode not in {"online", "offline"}:
+        raise ToolchainError("managed network mode is unsupported")
+    tools = ", ".join(PROFILE_TOOLS[profile])
+    cache_state = (
+        "yes; the complete cache was verified and will be reused"
+        if cache_reused
+        else "no; the complete verified toolchain will be downloaded"
+    )
+    checkov = (
+        "not part of Minimal"
+        if profile == "minimal"
+        else "applicable IaC scanning additionally requires trusted Docker and a separately downloaded Checkov image"
+    )
+    privacy = (
+        "Trivy may download its official vulnerability database; scanners otherwise operate locally."
+        if profile == "minimal"
+        else (
+            "Trivy may download its official vulnerability database; Standard online OSV may send "
+            "package names, versions, ecosystems, and file hashes to OSV.dev or deps.dev; SBOMs "
+            "may disclose internal package names and versions."
+            if network_mode == "online"
+            else (
+                "Trivy may require a separately provisioned database; Standard offline OSV uses "
+                "only the explicitly supplied validated local database; SBOMs may disclose internal "
+                "package names and versions."
+            )
+        )
+    )
+    return (
+        "Managed toolchain disclosure:",
+        f"  Profile: {profile}",
+        f"  Platform: {platform_name}",
+        f"  Tools: {tools}",
+        f"  Cache directory: {_display_cache_directory(cache_home)}",
+        f"  Existing verified cache reused: {cache_state}",
+        f"  Estimated download/cache storage: {PROFILE_STORAGE_ESTIMATES[profile]}",
+        f"  Docker/Checkov: {checkov}",
+        (
+            "  Download hosts: reviewed GitHub release asset hosts; scanner-managed databases "
+            "and services only as disclosed below."
+        ),
+        f"  Network/privacy: {privacy}",
+    )
 
 
 def sha256_file(path: Path) -> str:
@@ -316,6 +389,25 @@ def validate_tool_cache(
     return bin_dir
 
 
+def inspect_profile_cache(
+    *,
+    metadata_path: Path,
+    cache_home: Path,
+    version: str,
+    platform_name: str,
+    profile: str,
+) -> bool:
+    """Return whether the exact complete cache exists and validates."""
+    if platform_name not in SUPPORTED_PLATFORMS or profile not in PROFILE_TOOLS:
+        raise ToolchainError("managed platform or profile is unsupported")
+    metadata = load_tool_metadata(metadata_path)
+    destination = tool_cache_dir(cache_home, version, platform_name, profile)
+    if not destination.exists() and not destination.is_symlink():
+        return False
+    validate_tool_cache(destination, metadata, version, platform_name, profile)
+    return True
+
+
 def install_profile_tools(
     *,
     metadata_path: Path,
@@ -324,13 +416,18 @@ def install_profile_tools(
     platform_name: str,
     profile: str,
     download: Callable[[str, Path], None] = _download_https,
+    progress: ProgressCallback | None = None,
 ) -> tuple[Path, bool]:
     if platform_name not in SUPPORTED_PLATFORMS or profile not in PROFILE_TOOLS:
         raise ToolchainError("managed platform or profile is unsupported")
     metadata = load_tool_metadata(metadata_path)
     destination = tool_cache_dir(cache_home, version, platform_name, profile)
     if destination.exists() or destination.is_symlink():
-        return validate_tool_cache(destination, metadata, version, platform_name, profile), True
+        _report(progress, f"Revalidating cached {profile} toolchain")
+        cached = validate_tool_cache(destination, metadata, version, platform_name, profile)
+        _report(progress, f"Reusing verified {profile} toolchain cache")
+        _report(progress, f"Completed {profile} toolchain verification")
+        return cached, True
     for name in PROFILE_TOOLS[profile]:
         tool = metadata["tools"].get(name)
         if not isinstance(tool, dict) or platform_name not in tool.get("platforms", {}):
@@ -344,24 +441,30 @@ def install_profile_tools(
         bin_dir.mkdir(mode=0o700)
         downloads.mkdir(mode=0o700)
         records: list[dict[str, Any]] = []
-        for name in PROFILE_TOOLS[profile]:
+        total = len(PROFILE_TOOLS[profile])
+        for index, name in enumerate(PROFILE_TOOLS[profile], start=1):
             tool = metadata["tools"][name]
             asset = tool["platforms"][platform_name]
             artifact = downloads / asset["asset_name"]
+            _report(progress, f"[{index}/{total}] Downloading {name}")
             download(asset["url"], artifact)
+            _report(progress, f"[{index}/{total}] Verifying {name} checksum")
             actual = sha256_file(artifact)
             if actual != asset["sha256"]:
                 raise ToolchainError(f"release checksum mismatch for {name}")
             executable = bin_dir / name
+            _report(progress, f"[{index}/{total}] Installing {name}")
             _extract(artifact, asset, executable)
             if "signature_url" in asset:
                 signature = downloads / f"{name}.sig"
                 certificate = downloads / f"{name}.cert"
+                _report(progress, f"[{index}/{total}] Downloading {name} signature evidence")
                 download(asset["signature_url"], signature)
                 download(asset["certificate_url"], certificate)
                 cosign = bin_dir / "cosign"
                 if not cosign.is_file():
                     raise ToolchainError("signature verification dependency is unavailable")
+                _report(progress, f"[{index}/{total}] Verifying {name} signature")
                 _verify_signature(cosign, artifact, signature, certificate, asset)
             records.append({
                 "name": name,
@@ -370,13 +473,17 @@ def install_profile_tools(
                 "artifact_sha256": asset["sha256"],
                 "executable_sha256": sha256_file(executable),
             })
+            _report(progress, f"[{index}/{total}] Installed {name}")
         _atomic_json(
             staging_root / MANIFEST_NAME,
             _manifest_payload(version, platform_name, profile, records),
         )
         shutil.rmtree(downloads)
         os.replace(staging_root, destination)
-        return validate_tool_cache(destination, metadata, version, platform_name, profile), False
+        _report(progress, f"Verifying complete {profile} toolchain")
+        installed = validate_tool_cache(destination, metadata, version, platform_name, profile)
+        _report(progress, f"Completed {profile} toolchain installation")
+        return installed, False
     except BaseException:
         shutil.rmtree(staging_root, ignore_errors=True)
         raise

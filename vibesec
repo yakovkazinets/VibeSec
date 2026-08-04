@@ -16,8 +16,8 @@ from vibesec.exit_codes import INFRASTRUCTURE_FAILURE, INVALID_INPUT, SUCCESS, V
 from vibesec.output import emit, envelope  # noqa: E402
 from vibesec.portable import PortableExecutionError, load_support, platform_id, select_execution_mode  # noqa: E402
 from vibesec.toolchain import (  # noqa: E402
-    ToolchainError, default_cache_home, install_profile_tools,
-    prepare_managed_results_dir, validate_profile_tools,
+    ToolchainError, default_cache_home, inspect_profile_cache, install_profile_tools,
+    managed_toolchain_disclosure, prepare_managed_results_dir, validate_profile_tools,
 )
 from vibesec.version import VersionError, read_version  # noqa: E402
 
@@ -27,6 +27,11 @@ MAX_DIAGNOSTIC_BYTES = 64 * 1024
 def _bounded(value: str) -> str:
     encoded = value.encode("utf-8", errors="replace")[:MAX_DIAGNOSTIC_BYTES]
     return encoded.decode("utf-8", errors="replace")
+
+
+def _progress(message: str) -> None:
+    sys.stderr.write(message + "\n")
+    sys.stderr.flush()
 
 
 def _run(command: Sequence[str], *, environment: dict[str, str] | None = None,
@@ -96,9 +101,20 @@ def _scan(args: argparse.Namespace, version: str) -> int:
             else:
                 raise PortableExecutionError("managed cache must be outside the application repository")
             if args.install_tools:
+                planned_reuse = inspect_profile_cache(
+                    metadata_path=ROOT / "config/tools.json", cache_home=cache_home,
+                    version=version, platform_name=selected_platform, profile=args.profile,
+                )
+                for line in managed_toolchain_disclosure(
+                    profile=args.profile, platform_name=selected_platform,
+                    cache_home=cache_home, cache_reused=planned_reuse,
+                    network_mode=args.network_mode,
+                ):
+                    _progress(line)
                 tool_dir, cache_reused = install_profile_tools(
                     metadata_path=ROOT / "config/tools.json", cache_home=cache_home,
                     version=version, platform_name=selected_platform, profile=args.profile,
+                    progress=_progress,
                 )
             else:
                 tool_dir = validate_profile_tools(
@@ -106,6 +122,7 @@ def _scan(args: argparse.Namespace, version: str) -> int:
                     version=version, platform_name=selected_platform, profile=args.profile,
                 )
                 cache_reused = True
+                _progress(f"Reusing verified {args.profile} toolchain cache")
             results = (
                 args.results.expanduser().resolve()
                 if args.results is not None

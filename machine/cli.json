@@ -2,7 +2,7 @@
   "schema_version": 1,
   "stable_id": "vibesec.catalog.cli",
   "status": "stable",
-  "summary": "Root CLI commands, subcommand families, result envelopes, exit codes, and execution selection.",
+  "summary": "Root CLI commands, subcommand families, result envelopes, exit codes, execution selection, and bounded stderr-only managed-install progress.",
   "source": "vibesec",
   "human_documentation": ["docs/local-execution.md", "docs/v1-interface-reference.md"],
   "members": ["vibesec.cli.agents", "vibesec.cli.doctor", "vibesec.cli.extensions", "vibesec.cli.init", "vibesec.cli.scan", "vibesec.cli.upgrade-plan", "vibesec.cli.verify", "vibesec.execution.modes", "vibesec.results.lifecycle", "vibesec.runtime.exit-codes"],

@@ -15,13 +15,24 @@ When Standard results include `finding-groups.json` and `prioritized-findings.js
 - “Run a Minimal scan” or “Run a Standard scan” is an executable local-scan request. Do not stop because VibeSec Guardian, its runtime, scanner binaries, workflows, or earlier results are absent. Use the trusted skill bootstrap at `scripts/bootstrap_scan.py`; never substitute source inspection for scanner evidence.
 - “Install Minimal into CI” or “Install Standard into CI” uses the reviewed GitHub Actions adoption flow. Local scanning does not modify or install CI.
 
-Before an executable scan, report the selected profile, supported platform, exact runtime and tool versions, user cache and result locations, expected files, network behavior, and privileges. The v1.1.0 runtime pins Trivy 0.72.0, Gitleaks 8.30.1, actionlint 1.7.12, Opengrep 1.25.0, OSV-Scanner 2.4.0, Syft 1.49.0, cosign 3.1.2, and the Checkov 3.3.8 immutable container. Installation downloads exact official release assets. Trivy may fetch or update its official vulnerability database. Standard online mode may send package identifiers, versions, ecosystems, and file hashes to OSV.dev or deps.dev; SBOMs can reveal internal package names and versions. Obtain explicit acknowledgment before passing `--acknowledge-downloads`.
+**Managed scan download and storage warning:** The AppSec Guardian skill itself is small. A managed scan installs a separate verified scanner toolchain outside the target repository and downloads and caches several hundred megabytes. Standard installations may exceed 600 MB depending on the platform and tool versions. Checkov may additionally require Docker and a separately downloaded container image. Cached tools are reused and revalidated on future scans.
+
+Before requesting approval, report all of the following in one bounded disclosure:
+
+- Selected profile and supported platform.
+- Exact tools: Minimal uses Trivy, Gitleaks, and actionlint. Standard uses Trivy, Gitleaks, actionlint, cosign, Opengrep, OSV-Scanner, and Syft; Checkov is a conditional separate container.
+- Documented cache directory and whether read-only validation found a complete verified cache that will be reused.
+- Conservative storage estimate: Minimal 100–400 MB plus scanner databases; Standard 500 MB–1 GB plus scanner databases and any Checkov image, and may exceed 600 MB.
+- Docker/Checkov implications. Downloads and caches remain outside the target repository; verified cached tools are reused and revalidated.
+- Download hosts and privacy behavior: exact official release assets use reviewed GitHub asset hosts; Trivy may fetch or update its official vulnerability database; Standard online OSV may send package identifiers, versions, ecosystems, and file hashes to OSV.dev or deps.dev; SBOMs can reveal internal package names and versions. Offline OSV requires an explicitly supplied validated database.
+
+Do not start the bootstrap or any download while approval is pending. Obtain explicit acknowledgment only after presenting this disclosure, then pass `--acknowledge-downloads`. The v1.1.0 runtime pins Trivy 0.72.0, Gitleaks 8.30.1, actionlint 1.7.12, Opengrep 1.25.0, OSV-Scanner 2.4.0, Syft 1.49.0, cosign 3.1.2, and the Checkov 3.3.8 immutable container.
 
 After acknowledgment, run:
 
 `python3 <skill-root>/scripts/bootstrap_scan.py --profile <minimal|standard> --target <repository> --acknowledge-downloads`
 
-The bootstrap verifies the pinned v1.1.0 consumer runtime, caches it outside the target, installs or reuses the exact platform toolchain, and invokes managed scanning. Do not use a sibling source checkout, PATH scanner, Homebrew, global package installer, target URL, target scanner config, or implicit local bundle fallback. A development-only local bundle override requires both `--trusted-local-bundle` and its independently trusted `--trusted-local-sha256`.
+The bootstrap verifies the pinned v1.1.0 consumer runtime, caches it outside the target, installs or reuses the exact platform toolchain, and invokes managed scanning. Runtime and tool progress is concise, deterministic, and stderr-only; JSON stdout remains the final machine-readable scan object. Do not use a sibling source checkout, PATH scanner, Homebrew, global package installer, target URL, target scanner config, or implicit local bundle fallback. A development-only local bundle override requires both `--trusted-local-bundle` and its independently trusted `--trusted-local-sha256`.
 
 Validate `normalized.json`, `coverage.json`, `policy-result.json`, and `report.md` before reporting. Standard additionally requires `inventory.json`, `finding-groups.json`, `prioritized-findings.json`, and both SBOMs when Syft is applicable. Report actual coverage states, tool versions, result types, severity/category totals, priorities, exit category, network behavior, and limitations. Never call `tool_error`, `not_applicable`, or `not_configured` clean; never quote discovered secret values or raw scanner output.
 

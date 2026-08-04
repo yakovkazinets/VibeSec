@@ -169,10 +169,12 @@ class PortableCliTests(unittest.TestCase):
                 network_mode="online", json=True,
             )
             stdout = io.StringIO()
+            stderr = io.StringIO()
             with patch.dict(
                 globals_,
                 {
                     "install_profile_tools": fake_install,
+                    "inspect_profile_cache": lambda **_kwargs: False,
                     "platform_id": lambda: "macos-arm64",
                     "_run": fake_run,
                     "_trusted_docker_binary": fake_trusted_docker_binary,
@@ -186,10 +188,18 @@ class PortableCliTests(unittest.TestCase):
                     "VIBESEC_DOCKER_BIN": str(target_bin / "docker"),
                 },
                 clear=False,
-            ), redirect_stdout(stdout):
+            ), redirect_stdout(stdout), redirect_stderr(stderr):
                 code = namespace["_scan"](args, "1.1.0")
             self.assertEqual(code, expected_code)
             payload = json.loads(stdout.getvalue())
+            self.assertNotIn("Managed toolchain disclosure", stdout.getvalue())
+            disclosure = stderr.getvalue()
+            self.assertIn("Managed toolchain disclosure", disclosure)
+            self.assertIn(f"Profile: {profile}", disclosure)
+            self.assertIn("Platform: macos-arm64", disclosure)
+            self.assertNotIn("\x1b", disclosure)
+            for secret in ("Authorization:", "Bearer ", "token=", "sigstore"):
+                self.assertNotIn(secret, disclosure)
             self.assertEqual(payload["result"]["managed_tools"], True)
             self.assertEqual(payload["result"]["platform"], "macos-arm64")
             results = Path(payload["result"]["results"])

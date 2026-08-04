@@ -15,7 +15,8 @@ SCRIPT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_ROOT))
 from vibesec.portable import platform_id  # noqa: E402
 from vibesec.toolchain import (  # noqa: E402
-    ToolchainError, default_cache_home, install_profile_tools,
+    ToolchainError, default_cache_home, inspect_profile_cache, install_profile_tools,
+    managed_toolchain_disclosure,
 )
 from vibesec.version import VersionError, read_version  # noqa: E402
 
@@ -33,6 +34,10 @@ def publish_compatibility_directory(source: Path, destination: Path) -> None:
             raise
 
 
+def progress(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("minimal", "standard"), required=True)
@@ -47,12 +52,22 @@ def main() -> int:
         cache = (args.cache_dir or default_cache_home()).expanduser().resolve()
         version = read_version(root)
         selected_platform = args.platform or platform_id()
+        reusable = inspect_profile_cache(
+            metadata_path=root / "config/tools.json", cache_home=cache,
+            version=version, platform_name=selected_platform, profile=args.profile,
+        )
+        for line in managed_toolchain_disclosure(
+            profile=args.profile, platform_name=selected_platform, cache_home=cache,
+            cache_reused=reusable, network_mode="online",
+        ):
+            progress(line)
         tool_dir, reused = install_profile_tools(
             metadata_path=root / "config/tools.json",
             cache_home=cache,
             version=version,
             platform_name=selected_platform,
             profile=args.profile,
+            progress=progress,
         )
         if args.destination:
             publish_compatibility_directory(tool_dir, args.destination.resolve())

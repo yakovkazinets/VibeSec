@@ -139,11 +139,20 @@ class PortableCliTests(unittest.TestCase):
         (target_bin / "docker").chmod(0o755)
         target_config = target / "scanner-config"
         target_config.write_text("untrusted\n", encoding="utf-8")
+        trusted_docker = Path(self.temporary.name) / "trusted-host-bin" / "docker"
+        trusted_docker.parent.mkdir()
+        trusted_docker.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        trusted_docker.chmod(0o755)
         self.add_tools("standard")
         observed: list[tuple[list[str], dict[str, str]]] = []
+        docker_discovery_targets: list[Path] = []
 
         def fake_install(**_kwargs):
             return self.tools, False
+
+        def fake_trusted_docker_binary(observed_target):
+            docker_discovery_targets.append(observed_target.resolve())
+            return trusted_docker.resolve()
 
         def fake_run(command, *, environment=None, **_kwargs):
             observed.append((list(command), dict(environment or {})))
@@ -166,6 +175,7 @@ class PortableCliTests(unittest.TestCase):
                     "install_profile_tools": fake_install,
                     "platform_id": lambda: "macos-arm64",
                     "_run": fake_run,
+                    "_trusted_docker_binary": fake_trusted_docker_binary,
                 },
             ), patch.dict(
                 os.environ,
@@ -173,6 +183,7 @@ class PortableCliTests(unittest.TestCase):
                     "PATH": str(target_bin),
                     "GITLEAKS_CONFIG": str(target_config),
                     "TRIVY_CONFIG": str(target_config),
+                    "VIBESEC_DOCKER_BIN": str(target_bin / "docker"),
                 },
                 clear=False,
             ), redirect_stdout(stdout):
@@ -189,9 +200,16 @@ class PortableCliTests(unittest.TestCase):
             self.assertNotIn("GITLEAKS_CONFIG", environment)
             self.assertNotIn("TRIVY_CONFIG", environment)
             self.assertNotIn(str(target_bin), environment["PATH"])
-            self.assertNotIn("VIBESEC_DOCKER_BIN", environment)
             if profile == "standard":
+                self.assertEqual(
+                    environment["VIBESEC_DOCKER_BIN"],
+                    str(trusted_docker.resolve()),
+                )
+                self.assertEqual(docker_discovery_targets, [target.resolve()])
                 self.assertEqual(payload["status"], "tool_error")
+            else:
+                self.assertNotIn("VIBESEC_DOCKER_BIN", environment)
+                self.assertEqual(docker_discovery_targets, [])
 
     def test_managed_cache_inside_target_is_rejected_before_install(self):
         namespace = runpy.run_path(str(ROOT / "vibesec"))

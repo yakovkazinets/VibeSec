@@ -144,9 +144,10 @@ def _scan(args: argparse.Namespace, version: str) -> int:
             environment.pop("VIBESEC_DOCKER_BIN", None)
             safe_path = [str(tool_dir), str(Path(sys.executable).resolve().parent), "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
             environment["PATH"] = os.pathsep.join(dict.fromkeys(safe_path))
-            docker = _trusted_docker_binary(target)
-            if docker:
-                environment["VIBESEC_DOCKER_BIN"] = str(docker)
+            if args.profile == "standard":
+                docker = _trusted_docker_binary(target)
+                if docker:
+                    environment["VIBESEC_DOCKER_BIN"] = str(docker)
             environment["VIBESEC_MANAGED_MODE"] = "1"
         command = (["/bin/bash", str(ROOT / "scripts/run_minimal_profile.sh"), str(target), str(results), str(ROOT)]
                    if args.profile == "minimal" else

@@ -20,6 +20,7 @@ from vibesec.supply_chain import (  # noqa: E402
     READINESS_NAME, SIGNATURE_NAME, SPDX_NAME, WORKFLOW_IDENTITY,
     SupplyChainError, checksum_bytes, parse_signature_bundle, prepare_release,
     validate_verification_record, verification_record, verify_release,
+    _validate_signature_bundle_strings,
 )
 
 
@@ -191,25 +192,69 @@ class SupplyChainAssuranceTests(unittest.TestCase):
         (signed / SIGNATURE_NAME).write_bytes(data)
         self.assertFalse(verify_release(signed).signature_verified)
 
+        v3_bundle = {
+            "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+            "verificationMaterial": {
+                "certificate": {
+                    "rawBytes": "-----BEGIN CERTIFICATE-----\nfixture\r\n\t-----END CERTIFICATE-----"
+                }
+            },
+            "messageSignature": {"signature": "c2lnbmF0dXJl"},
+        }
+        v3_data = (
+            json.dumps(v3_bundle, sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode("utf-8")
+        self.assertIn(b"\\n", v3_data)
+        self.assertIn(b"\\r", v3_data)
+        self.assertIn(b"\\t", v3_data)
+        self.assertEqual(parse_signature_bundle(v3_data), v3_bundle)
+
+        near_limit_evidence = "A" * 2_050_000
+        near_limit_bundle = {"evidence": near_limit_evidence}
+        near_limit_data = (
+            json.dumps(near_limit_bundle, separators=(",", ":")) + "\n"
+        ).encode("utf-8")
+        self.assertGreater(len(near_limit_evidence), 2_000_000)
+        self.assertLessEqual(len(near_limit_data), MAX_SIGNATURE_BYTES)
+        self.assertEqual(parse_signature_bundle(near_limit_data), near_limit_bundle)
+        with self.assertRaisesRegex(SupplyChainError, "JSON string exceeds"):
+            _validate_signature_bundle_strings(
+                {"evidence": "A" * (MAX_SIGNATURE_STRING + 1)}
+            )
+
         invalid_cases = {
             "duplicate": b'{"mediaType":"first","mediaType":"second"}\n',
-            "control": b'{"evidence":"safe\\u0001unsafe"}\n',
-            "oversized-string": (
-                b'{"evidence":"' + b"A" * (MAX_SIGNATURE_STRING + 1) + b'"}\n'
-            ),
+            "bom": b'\xef\xbb\xbf{"evidence":"safe"}\n',
+            "invalid-utf8": b'{"evidence":"\xff"}\n',
+            "non-finite": b'{"evidence":NaN}\n',
+            "nul": b'{"evidence":"safe\\u0000unsafe"}\n',
+            "backspace": b'{"evidence":"safe\\bunsafe"}\n',
+            "form-feed": b'{"evidence":"safe\\funsafe"}\n',
+            "escape": b'{"evidence":"safe\\u001bunsafe"}\n',
+            "c1-control": b'{"evidence":"safe\\u0085unsafe"}\n',
+            "unicode-format-control": b'{"evidence":"safe\\u200eunsafe"}\n',
+            "surrogate": b'{"evidence":"safe\\ud800unsafe"}\n',
             "oversized-file": (
                 b'{"evidence":"' + b"A" * MAX_SIGNATURE_BYTES + b'"}\n'
             ),
             "malformed": b'{"evidence":\n',
         }
-        self.assertLess(len(invalid_cases["oversized-string"]), MAX_SIGNATURE_BYTES)
         self.assertGreater(len(invalid_cases["oversized-file"]), MAX_SIGNATURE_BYTES)
         for case, invalid in invalid_cases.items():
-            with self.subTest(case=case), self.assertRaises(SupplyChainError):
+            expected = (
+                "file exceeds" if case == "oversized-file"
+                else "malformed JSON" if case in {
+                    "duplicate", "bom", "invalid-utf8", "non-finite", "malformed",
+                }
+                else "prohibited decoded control character"
+            )
+            with self.subTest(case=case), self.assertRaisesRegex(
+                    SupplyChainError, expected):
                 parse_signature_bundle(invalid)
 
-    def test_signer_does_not_publish_a_structurally_invalid_bundle(self):
-        release = self.prepare("invalid-signing", "trusted-github-workflow")
+    def _run_signer_with_fixture(self, release: Path, fixture: bytes) -> subprocess.CompletedProcess:
+        fixture_path = self.root / f"{release.name}-signature-fixture.json"
+        fixture_path.write_bytes(fixture)
         fake = self.root / "cosign-invalid-bundle"
         fake.write_text(
             "#!/bin/sh\n"
@@ -218,7 +263,7 @@ class SupplyChainAssuranceTests(unittest.TestCase):
             "  if [ \"$1\" = '--bundle' ]; then shift; output=$1; fi\n"
             "  shift\n"
             "done\n"
-            "[ -z \"$output\" ] || printf '{\"evidence\":\"safe\\\\u0001unsafe\"}\\n' > \"$output\"\n",
+            "[ -z \"$output\" ] || cp \"$FAKE_SIGNATURE_FIXTURE\" \"$output\"\n",
             encoding="utf-8",
         )
         fake.chmod(0o755)
@@ -226,15 +271,58 @@ class SupplyChainAssuranceTests(unittest.TestCase):
         environment.update({
             "GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "workflow_dispatch",
             "GITHUB_REPOSITORY": "yakovkazinets/VibeSec", "GITHUB_REF": "refs/heads/main",
-            "GITHUB_SHA": self.commit,
+            "GITHUB_SHA": self.commit, "FAKE_SIGNATURE_FIXTURE": str(fixture_path),
         })
-        completed = subprocess.run(
+        return subprocess.run(
             ["python3", "scripts/sign_release_artifacts.py", str(release), "--cosign", str(fake)],
             cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
         )
-        self.assertEqual(completed.returncode, 3, completed.stderr)
-        self.assertIn("contains controls", completed.stderr)
-        self.assertFalse((release / SIGNATURE_NAME).exists())
+
+    def test_signer_does_not_publish_any_invalid_signature_bundle(self):
+        invalid_cases = {
+            "duplicate": b'{"secret-fixture":"value","secret-fixture":"other"}\n',
+            "prohibited-control": b'{"secret-fixture":"value\\u0000other"}\n',
+            "malformed": b'{"secret-fixture":"do-not-print"\n',
+            "oversized": b'{"evidence":"' + b"A" * MAX_SIGNATURE_BYTES + b'"}\n',
+        }
+        for case, fixture in invalid_cases.items():
+            release = self.prepare(f"invalid-signing-{case}", "trusted-github-workflow")
+            completed = self._run_signer_with_fixture(release, fixture)
+            with self.subTest(case=case):
+                self.assertEqual(completed.returncode, 3, completed.stderr)
+                self.assertFalse((release / SIGNATURE_NAME).exists())
+                self.assertNotIn("secret-fixture", completed.stderr)
+                self.assertNotIn("do-not-print", completed.stderr)
+
+    def test_signer_and_verifier_use_the_same_cosign_v3_parser(self):
+        bundle = {
+            "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+            "verificationMaterial": {
+                "certificate": {"rawBytes": "certificate\nline\r\n\tcontinuation"}
+            },
+            "messageSignature": {"signature": "c2lnbmF0dXJl"},
+        }
+        fixture = (json.dumps(bundle, separators=(",", ":")) + "\n").encode("utf-8")
+        release = self.prepare("valid-v3-signing", "trusted-github-workflow")
+        completed = self._run_signer_with_fixture(release, fixture)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual((release / SIGNATURE_NAME).read_bytes(), fixture)
+        self.assertFalse(verify_release(release).signature_verified)
+
+        prohibited = b'{"evidence":"safe\\u0000unsafe"}\n'
+        rejected_release = self.prepare("rejected-v3-verification")
+        (rejected_release / SIGNATURE_NAME).write_bytes(prohibited)
+        with self.assertRaisesRegex(
+                SupplyChainError, "prohibited decoded control character"):
+            verify_release(rejected_release)
+
+        signing_release = self.prepare(
+            "rejected-v3-signing", "trusted-github-workflow"
+        )
+        rejected = self._run_signer_with_fixture(signing_release, prohibited)
+        self.assertEqual(rejected.returncode, 3, rejected.stderr)
+        self.assertIn("prohibited decoded control character", rejected.stderr)
+        self.assertFalse((signing_release / SIGNATURE_NAME).exists())
 
     def test_signer_preserves_tool_failure_and_rejects_untrusted_context(self):
         release = self.prepare("trusted-signing", "trusted-github-workflow")

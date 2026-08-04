@@ -53,8 +53,9 @@ class DistributionBundleTests(unittest.TestCase):
 
     def test_version_parser_accepts_one_newline_and_rejects_ambiguous_values(self):
         self.assertEqual(parse_version_bytes(b"0.3.0-dev\n"), "0.3.0-dev")
+        self.assertEqual(parse_version_bytes(b"1.1.1\n"), "1.1.1")
         invalid = [b"", b" 0.3.0-dev\n", b"0.3.0-dev \n", b"\xef\xbb\xbf0.3.0-dev\n",
-                   b"0.3.0-dev\x00\n", b"0.3.0-dev\n\n", b"x" * 66]
+                   b"0.3.0-dev\x00\n", b"0.3.0-dev\n\n", b"1.1.1-rc.1\n", b"x" * 66]
         for value in invalid:
             with self.subTest(value=value), self.assertRaises(VersionError):
                 parse_version_bytes(value)

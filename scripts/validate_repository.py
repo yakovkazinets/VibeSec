@@ -269,8 +269,8 @@ def validate_api_command_contract() -> None:
 
 def validate_adoption_metadata() -> None:
     version = read_version(ROOT)
-    if version != "1.1.0-dev":
-        raise ValueError("VERSION must declare the reviewed unreleased 1.1.0-dev development version")
+    if version != "1.1.1":
+        raise ValueError("VERSION must declare the reviewed v1.1.1 release-preparation version")
     adoption = validate_catalog(loads_strict((ROOT / "config/adoption-files.json").read_bytes()))
     common = adoption.get("common")
     profiles = adoption.get("profiles")

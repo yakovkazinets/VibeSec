@@ -8,7 +8,7 @@ Installing the AppSec Guardian skill makes managed local scanning immediately av
 $appsec-guardian Run the Standard profile against this repository using real scanners. Install the verified tools if missing. Do not remediate anything yet.
 ```
 
-The skill first inventories the repository and explains the exact v1.1.0 runtime/tool downloads, supported platform, user cache, scanners, network behavior, and sanitized result files. After explicit approval it verifies and caches the runtime and scanner set, executes the real profile, validates artifacts, and summarizes only scanner evidence. Ask “Assess this repository” for a read-only recommendation with no install or scan. Ask “Install Standard into CI” for the separate two-stage GitHub Actions adoption workflow.
+The skill first inventories the repository and explains the exact runtime/tool downloads pinned by trusted skill metadata, supported platform, user cache, scanners, network behavior, and sanitized result files. After explicit approval it verifies and caches the runtime and scanner set, executes the real profile, validates artifacts, and summarizes only scanner evidence. Ask “Assess this repository” for a read-only recommendation with no install or scan. Ask “Install Standard into CI” for the separate two-stage GitHub Actions adoption workflow.
 
 After installing and reviewing the API Security Baseline, eligible projects may separately preview `--addon api-fuzzing`. It defaults to contract-only safe methods. `--fuzzing-enabled` and `--injection-testing-enabled` are explicit, independent opt-ins; do not enable them against production or public targets.
 

@@ -22,7 +22,9 @@ from .bundle import verify_bundle
 from .sbom import (
     CYCLONEDX_SPEC_VERSION, SPDX_SPEC_VERSION, validate_cyclonedx, validate_spdx,
 )
-from .strict_json import StrictJSONError, canonical_json, loads_strict
+from .strict_json import (
+    MAX_DEPTH, MAX_ITEMS, StrictJSONError, canonical_json, loads_strict,
+)
 from .v1_contract import V1ContractError, validate_readiness
 from .version import validate_version
 
@@ -31,6 +33,7 @@ PROVENANCE_SCHEMA = 1
 RECORD_SCHEMA = 1
 MAX_RELEASE_FILE_BYTES = 50 * 1024 * 1024
 MAX_SIGNATURE_BYTES = 2 * 1024 * 1024
+MAX_SIGNATURE_STRING = 2_000_000
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 REPOSITORY = "https://github.com/yakovkazinets/VibeSec"
@@ -154,6 +157,29 @@ def _regular_file(path: Path, maximum: int = MAX_RELEASE_FILE_BYTES) -> bytes:
     if len(data) > maximum:
         raise SupplyChainError(f"release artifact grew beyond its limit: {path.name}")
     return data
+
+
+def parse_signature_bundle(data: bytes) -> dict[str, Any]:
+    """Parse a Cosign bundle with strict JSON rules and bundle-specific bounds."""
+    try:
+        value = loads_strict(
+            data,
+            maximum_bytes=MAX_SIGNATURE_BYTES,
+            maximum_depth=MAX_DEPTH,
+            maximum_items=MAX_ITEMS,
+            maximum_string=MAX_SIGNATURE_STRING,
+            reject_controls=True,
+        )
+    except StrictJSONError as exc:
+        raise SupplyChainError(f"{SIGNATURE_NAME} is invalid: {exc}") from exc
+    if not isinstance(value, dict):
+        raise SupplyChainError(f"{SIGNATURE_NAME} must contain a JSON object")
+    return value
+
+
+def load_signature_bundle(path: Path) -> dict[str, Any]:
+    """Load a regular bounded Cosign bundle using the shared parser contract."""
+    return parse_signature_bundle(_regular_file(path, MAX_SIGNATURE_BYTES))
 
 
 def _digest(data: bytes) -> str:
@@ -488,7 +514,7 @@ def verify_release(directory: Path, *, require_signature: bool = False,
         raise SupplyChainError(f"release readiness is invalid: {exc}") from exc
     signature_verified = False
     if SIGNATURE_NAME in names:
-        _load_strict_json(resolved / SIGNATURE_NAME, MAX_SIGNATURE_BYTES)
+        load_signature_bundle(resolved / SIGNATURE_NAME)
     if require_signature:
         if cosign is None or cosign.is_symlink() or not cosign.is_file():
             raise SupplyChainError("a trusted external Cosign executable is required")

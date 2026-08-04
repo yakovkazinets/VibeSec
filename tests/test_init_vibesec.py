@@ -62,7 +62,7 @@ class InitVibeSecTests(unittest.TestCase):
         manifest = json.loads((self.target / ".vibesec/install-minimal-all.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["profile"], "minimal")
         self.assertEqual(manifest["initializer_network_behavior"], "none")
-        self.assertEqual(manifest["development_version"], "1.1.0-dev")
+        self.assertEqual(manifest["development_version"], "1.1.1")
         self.assertTrue(all(set(item) == {"path", "sha256", "mode"} for item in manifest["installed_files"]))
 
     def test_standard_support_then_workflow_write(self):

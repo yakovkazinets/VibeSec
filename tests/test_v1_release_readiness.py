@@ -35,6 +35,7 @@ class V1ReleaseReadinessTests(unittest.TestCase):
             value, source_commit="1203e5a700b7485287e34028d204cb0711f8ea9f",
         )
         self.assertEqual(value["status"], "ready_with_known_limitations")
+        self.assertEqual(value["version"], "1.1.1")
         self.assertEqual(value["release_blockers"], [])
         self.assertEqual(value["test_totals"]["automated_tests"], 476)
         self.assertEqual(

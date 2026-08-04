@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import stat
 import tempfile
 import unittest
@@ -22,6 +23,22 @@ def load_bootstrap():
 
 
 class SkillRuntimeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.runtime_source_temporary = tempfile.TemporaryDirectory()
+        runtime_source = Path(cls.runtime_source_temporary.name) / "v1.1.0-runtime"
+        shutil.copytree(
+            ROOT,
+            runtime_source,
+            ignore=shutil.ignore_patterns(".git", ".tools", "__pycache__", "results"),
+        )
+        (runtime_source / "VERSION").write_text("1.1.0-dev\n", encoding="utf-8")
+        cls.v1_1_0_bundle = build_bundle_bytes(runtime_source)[0]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.runtime_source_temporary.cleanup()
+
     def setUp(self):
         self.bootstrap = load_bootstrap()
         self.temporary = tempfile.TemporaryDirectory()
@@ -29,7 +46,7 @@ class SkillRuntimeTests(unittest.TestCase):
         self.base = Path(self.temporary.name)
         self.cache = self.base / "cache"
         self.bundle = self.base / "consumer.zip"
-        self.bundle.write_bytes(build_bundle_bytes(ROOT)[0])
+        self.bundle.write_bytes(self.v1_1_0_bundle)
         self.digest = hashlib.sha256(self.bundle.read_bytes()).hexdigest()
         self.metadata = {
             "schema_version": 1,

@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import unicodedata
 from typing import Any
 
 from .branding import PRODUCT_DISPLAY_NAME, PRODUCT_ID, POSITIONING_LINE
@@ -33,7 +34,9 @@ PROVENANCE_SCHEMA = 1
 RECORD_SCHEMA = 1
 MAX_RELEASE_FILE_BYTES = 50 * 1024 * 1024
 MAX_SIGNATURE_BYTES = 2 * 1024 * 1024
-MAX_SIGNATURE_STRING = 2_000_000
+MAX_SIGNATURE_STRING = MAX_SIGNATURE_BYTES
+SIGNATURE_JSON_WHITESPACE = frozenset({"\t", "\n", "\r"})
+SIGNATURE_PROHIBITED_UNICODE_CATEGORIES = frozenset({"Cc", "Cf", "Cs"})
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 REPOSITORY = "https://github.com/yakovkazinets/VibeSec"
@@ -159,8 +162,53 @@ def _regular_file(path: Path, maximum: int = MAX_RELEASE_FILE_BYTES) -> bytes:
     return data
 
 
+def _validate_signature_bundle_strings(value: Any) -> None:
+    """Apply the decoded-string policy specific to bounded Cosign bundles."""
+    if isinstance(value, str):
+        if len(value) > MAX_SIGNATURE_STRING:
+            raise SupplyChainError(
+                f"{SIGNATURE_NAME} is invalid: JSON string exceeds the signature-bundle limit"
+            )
+        for character in value:
+            if character in SIGNATURE_JSON_WHITESPACE:
+                continue
+            if unicodedata.category(character) in SIGNATURE_PROHIBITED_UNICODE_CATEGORIES:
+                raise SupplyChainError(
+                    f"{SIGNATURE_NAME} is invalid: prohibited decoded control character"
+                )
+    elif isinstance(value, list):
+        for item in value:
+            _validate_signature_bundle_strings(item)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            _validate_signature_bundle_strings(key)
+            _validate_signature_bundle_strings(item)
+
+
+def _signature_parser_diagnostic(error: StrictJSONError) -> str:
+    """Map strict parser failures to bounded diagnostics without bundle values."""
+    message = str(error)
+    if message == "JSON input exceeds size limit":
+        return "file exceeds the signature-bundle size limit"
+    if message == "JSON string is oversized or contains controls":
+        # The file and decoded-string limits are identical, so a pre-bounded
+        # input cannot exceed the decoded-string limit. This strict_json error
+        # therefore represents a rejected surrogate character.
+        return "prohibited decoded control character"
+    if any(bound in message for bound in (
+        "nesting exceeds limit", "array exceeds limit", "object exceeds limit",
+        "parser bounds must be positive",
+    )):
+        return "JSON structure exceeds the signature-bundle limit"
+    return "malformed JSON"
+
+
 def parse_signature_bundle(data: bytes) -> dict[str, Any]:
-    """Parse a Cosign bundle with strict JSON rules and bundle-specific bounds."""
+    """Parse a Cosign v3 bundle with strict JSON and decoded-string policies."""
+    if len(data) > MAX_SIGNATURE_BYTES:
+        raise SupplyChainError(
+            f"{SIGNATURE_NAME} is invalid: file exceeds the signature-bundle size limit"
+        )
     try:
         value = loads_strict(
             data,
@@ -168,17 +216,31 @@ def parse_signature_bundle(data: bytes) -> dict[str, Any]:
             maximum_depth=MAX_DEPTH,
             maximum_items=MAX_ITEMS,
             maximum_string=MAX_SIGNATURE_STRING,
-            reject_controls=True,
+            # Cosign v3 bundles legitimately contain escaped JSON whitespace
+            # in decoded PEM and transparency material. Surrogates remain
+            # rejected here; the signature-specific pass below permits only
+            # tab, line feed, and carriage return among control characters.
+            reject_controls=False,
         )
     except StrictJSONError as exc:
-        raise SupplyChainError(f"{SIGNATURE_NAME} is invalid: {exc}") from exc
+        diagnostic = _signature_parser_diagnostic(exc)
+        raise SupplyChainError(f"{SIGNATURE_NAME} is invalid: {diagnostic}") from exc
     if not isinstance(value, dict):
         raise SupplyChainError(f"{SIGNATURE_NAME} must contain a JSON object")
+    _validate_signature_bundle_strings(value)
     return value
 
 
 def load_signature_bundle(path: Path) -> dict[str, Any]:
     """Load a regular bounded Cosign bundle using the shared parser contract."""
+    try:
+        details = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise SupplyChainError(f"release artifact is unavailable: {path.name}") from exc
+    if details.st_size > MAX_SIGNATURE_BYTES:
+        raise SupplyChainError(
+            f"{SIGNATURE_NAME} is invalid: file exceeds the signature-bundle size limit"
+        )
     return parse_signature_bundle(_regular_file(path, MAX_SIGNATURE_BYTES))
 
 

@@ -9,11 +9,13 @@ import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
+import urllib.error
 
 from scripts.vibesec.portable import PROFILE_TOOLS, platform_id
 from scripts.vibesec.toolchain import (
-    ToolchainError, install_profile_tools, managed_results_dir, tool_cache_dir,
-    validate_profile_tools,
+    MAX_DOWNLOAD_BYTES, PROFILE_STORAGE_ESTIMATES, ToolchainError, _download_https,
+    inspect_profile_cache, install_profile_tools, managed_results_dir,
+    managed_toolchain_disclosure, tool_cache_dir, validate_profile_tools,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -101,6 +103,111 @@ class ManagedToolchainTests(unittest.TestCase):
                 metadata_path=metadata, cache_home=self.cache, version="1.1.0-dev",
                 platform_name="macos-arm64", profile="minimal",
             )
+
+    def test_disclosure_lists_exact_tools_storage_and_verified_cache_state(self):
+        metadata = self.fixture_metadata("standard")
+        self.assertFalse(inspect_profile_cache(
+            metadata_path=metadata, cache_home=self.cache, version="1.1.0-dev",
+            platform_name="macos-arm64", profile="standard",
+        ))
+        first = "\n".join(managed_toolchain_disclosure(
+            profile="standard", platform_name="macos-arm64", cache_home=self.cache,
+            cache_reused=False, network_mode="online",
+        ))
+        self.assertIn("Tools: " + ", ".join(PROFILE_TOOLS["standard"]), first)
+        self.assertIn("may exceed 600 MB", first)
+        self.assertIn(PROFILE_STORAGE_ESTIMATES["standard"], first)
+        self.assertIn("separately downloaded Checkov image", first)
+        self.assertIn("OSV.dev or deps.dev", first)
+        self.assertIn("Existing verified cache reused: no", first)
+
+        minimal = "\n".join(managed_toolchain_disclosure(
+            profile="minimal", platform_name="macos-arm64", cache_home=self.cache,
+            cache_reused=False, network_mode="online",
+        ))
+        self.assertIn("Tools: " + ", ".join(PROFILE_TOOLS["minimal"]), minimal)
+        self.assertNotIn("osv-scanner", minimal)
+        self.assertIn("Docker/Checkov: not part of Minimal", minimal)
+
+        install_profile_tools(
+            metadata_path=metadata, cache_home=self.cache, version="1.1.0-dev",
+            platform_name="macos-arm64", profile="standard", download=self.downloader,
+        )
+        self.assertTrue(inspect_profile_cache(
+            metadata_path=metadata, cache_home=self.cache, version="1.1.0-dev",
+            platform_name="macos-arm64", profile="standard",
+        ))
+        reused = "\n".join(managed_toolchain_disclosure(
+            profile="standard", platform_name="macos-arm64", cache_home=self.cache,
+            cache_reused=True, network_mode="online",
+        ))
+        self.assertIn("Existing verified cache reused: yes", reused)
+
+    def test_progress_is_deterministic_stderr_safe_and_reports_reuse(self):
+        metadata = self.fixture_metadata("standard")
+        progress: list[str] = []
+        install_profile_tools(
+            metadata_path=metadata, cache_home=self.cache, version="1.1.0-dev",
+            platform_name="macos-arm64", profile="standard", download=self.downloader,
+            progress=progress.append,
+        )
+        expected: list[str] = []
+        total = len(PROFILE_TOOLS["standard"])
+        for index, name in enumerate(PROFILE_TOOLS["standard"], start=1):
+            expected.extend([
+                f"[{index}/{total}] Downloading {name}",
+                f"[{index}/{total}] Verifying {name} checksum",
+                f"[{index}/{total}] Installing {name}",
+            ])
+            if name == "opengrep":
+                expected.extend([
+                    f"[{index}/{total}] Downloading {name} signature evidence",
+                    f"[{index}/{total}] Verifying {name} signature",
+                ])
+            expected.append(f"[{index}/{total}] Installed {name}")
+        expected.extend([
+            "Verifying complete standard toolchain",
+            "Completed standard toolchain installation",
+        ])
+        self.assertEqual(progress, expected)
+        self.assertFalse(any("\x1b" in line for line in progress))
+        self.assertFalse(any(str(self.base) in line for line in progress))
+
+        reuse_progress: list[str] = []
+        _, reused = install_profile_tools(
+            metadata_path=metadata, cache_home=self.cache, version="1.1.0-dev",
+            platform_name="macos-arm64", profile="standard", download=self.downloader,
+            progress=reuse_progress.append,
+        )
+        self.assertTrue(reused)
+        self.assertEqual(reuse_progress, [
+            "Revalidating cached standard toolchain",
+            "Reusing verified standard toolchain cache",
+            "Completed standard toolchain verification",
+        ])
+
+    def test_download_error_does_not_expose_url_credentials_or_destination(self):
+        destination = self.base / "private-staging-download"
+        secret_url = (
+            "https://github.com/owner/repository/releases/download/v1/tool"
+            "?token=do-not-print"
+        )
+        failure = urllib.error.URLError(
+            "redirect https://user:credential@example.invalid/private?secret=value"
+        )
+        with patch(
+            "scripts.vibesec.toolchain.urllib.request.urlopen", side_effect=failure,
+        ), self.assertRaises(ToolchainError) as captured:
+            _download_https(secret_url, destination)
+        message = str(captured.exception)
+        self.assertIn("official release download failed", message)
+        for prohibited in (
+            secret_url, "do-not-print", "credential", "secret=value",
+            str(destination), str(self.base),
+        ):
+            self.assertNotIn(prohibited, message)
+        self.assertFalse(destination.exists())
+        self.assertEqual(MAX_DOWNLOAD_BYTES, 600 * 1024 * 1024)
 
     def test_checksum_mismatch_never_publishes_partial_cache(self):
         metadata = self.fixture_metadata()

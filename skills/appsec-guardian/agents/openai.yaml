@@ -1,4 +1,4 @@
 interface:
   display_name: "AppSec Guardian"
   short_description: "Assess repositories or run verified local security scans"
-  default_prompt: "Use $appsec-guardian to distinguish assessment, managed local scanning, and CI adoption; when I request a real scan, bootstrap the verified runtime and scanners, then report only validated scanner evidence."
+  default_prompt: "Use $appsec-guardian to distinguish assessment, managed local scanning, and CI adoption; disclose scanner storage, cache, Docker, network, and privacy implications before requesting approval for a real scan."

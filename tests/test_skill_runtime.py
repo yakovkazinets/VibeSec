@@ -1,11 +1,15 @@
+from contextlib import redirect_stderr, redirect_stdout
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import shutil
 import stat
+import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 from scripts.vibesec.bundle import build_bundle_bytes
@@ -147,6 +151,64 @@ class SkillRuntimeTests(unittest.TestCase):
         self.assertIn("scripts/bootstrap_scan.py", skill)
         self.assertIn("--acknowledge-downloads", skill)
         self.assertIn("Validate `normalized.json`, `coverage.json`", skill)
+        warning = skill.index("Managed scan download and storage warning")
+        approval = skill.index("Obtain explicit acknowledgment")
+        bootstrap = skill.index("bootstrap_scan.py --profile")
+        self.assertLess(warning, approval)
+        self.assertLess(approval, bootstrap)
+        for required in (
+            "skill itself is small", "may exceed 600 MB", "cache directory",
+            "Trivy, Gitleaks, and actionlint",
+            "cosign, Opengrep, OSV-Scanner, and Syft",
+            "separately downloaded container image", "OSV.dev or deps.dev",
+            "Do not start the bootstrap or any download while approval is pending",
+        ):
+            self.assertIn(required, skill)
+
+    def test_bootstrap_requires_approval_before_download_or_progress(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        arguments = [
+            str(BOOTSTRAP), "--profile", "standard", "--target", str(ROOT),
+        ]
+        with patch.object(sys, "argv", arguments), patch.object(
+            self.bootstrap, "_download",
+            side_effect=AssertionError("download must not start"),
+        ), redirect_stdout(stdout), redirect_stderr(stderr):
+            code = self.bootstrap.main()
+        self.assertEqual(code, 2)
+        self.assertEqual(
+            json.loads(stdout.getvalue())["status"], "bootstrap_error",
+        )
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertFalse(self.cache.exists())
+
+    def test_runtime_progress_is_stderr_safe_and_cache_reuse_is_accurate(self):
+        progress: list[str] = []
+        executable, reused = self.bootstrap._install_runtime(
+            metadata=self.metadata, cache=self.cache, local_bundle=self.bundle,
+            local_sha256=self.digest, progress=progress.append,
+        )
+        self.assertFalse(reused)
+        self.assertEqual(progress, [
+            "Loading trusted local VibeSec Guardian runtime bundle",
+            "Verifying VibeSec Guardian runtime checksum",
+            "Installing verified VibeSec Guardian runtime",
+            "Installed verified VibeSec Guardian runtime",
+        ])
+        self.assertFalse(any(str(self.base) in line or "\x1b" in line for line in progress))
+
+        repeated_progress: list[str] = []
+        repeated, reused = self.bootstrap._install_runtime(
+            metadata=self.metadata, cache=self.cache, local_bundle=self.bundle,
+            local_sha256=self.digest, progress=repeated_progress.append,
+        )
+        self.assertEqual(repeated, executable)
+        self.assertTrue(reused)
+        self.assertEqual(repeated_progress, [
+            "Revalidating cached VibeSec Guardian runtime",
+            "Reusing verified VibeSec Guardian runtime cache",
+        ])
 
     def test_cached_runtime_directory_symlink_is_rejected(self):
         executable, _ = self.bootstrap._install_runtime(

@@ -13,7 +13,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-from typing import Any
+from typing import Any, Callable
 import urllib.error
 import urllib.request
 import zipfile
@@ -30,6 +30,10 @@ MAX_COMPRESSION_RATIO = 200
 
 class BootstrapError(ValueError):
     """The skill runtime could not be verified or executed safely."""
+
+
+def _progress(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -259,7 +263,7 @@ def _validate_cached_runtime(
 
 def _install_runtime(
     *, metadata: dict[str, Any], cache: Path, local_bundle: Path | None,
-    local_sha256: str | None,
+    local_sha256: str | None, progress: Callable[[str], None] | None = None,
 ) -> tuple[Path, bool]:
     expected_digest = metadata["bundle_sha256"]
     if local_bundle is not None:
@@ -268,17 +272,26 @@ def _install_runtime(
         expected_digest = str(local_sha256)
     destination = cache / "runtime" / metadata["release_version"]
     if destination.exists() or destination.is_symlink():
-        return _validate_cached_runtime(
+        if progress is not None:
+            progress("Revalidating cached VibeSec Guardian runtime")
+        executable = _validate_cached_runtime(
             destination, expected_digest, metadata["development_version"],
-        ), True
+        )
+        if progress is not None:
+            progress("Reusing verified VibeSec Guardian runtime cache")
+        return executable, True
     _ensure_cache_directory(cache)
     _ensure_cache_directory(cache / "runtime")
     staging = Path(tempfile.mkdtemp(prefix=".runtime-", dir=destination.parent))
     try:
         bundle = staging / metadata["bundle_name"]
         if local_bundle is None:
+            if progress is not None:
+                progress("Downloading verified VibeSec Guardian runtime")
             _download(metadata["bundle_url"], bundle)
         else:
+            if progress is not None:
+                progress("Loading trusted local VibeSec Guardian runtime bundle")
             requested_source = local_bundle.expanduser()
             if requested_source.is_symlink():
                 raise BootstrapError("trusted local bundle override must be a regular file")
@@ -286,10 +299,14 @@ def _install_runtime(
             if not source.is_file():
                 raise BootstrapError("trusted local bundle override must be a regular file")
             shutil.copyfile(source, bundle, follow_symlinks=False)
+        if progress is not None:
+            progress("Verifying VibeSec Guardian runtime checksum")
         if _sha256_file(bundle) != expected_digest:
             raise BootstrapError("runtime bundle checksum mismatch")
         entries, modes = _verified_entries(bundle, metadata["development_version"])
         bundle.unlink()
+        if progress is not None:
+            progress("Installing verified VibeSec Guardian runtime")
         for name, data in entries.items():
             path = staging / name
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -304,9 +321,12 @@ def _install_runtime(
             json.dumps(marker, sort_keys=True) + "\n", encoding="utf-8", newline="\n",
         )
         os.replace(staging, destination)
-        return _validate_cached_runtime(
+        executable = _validate_cached_runtime(
             destination, expected_digest, metadata["development_version"],
-        ), False
+        )
+        if progress is not None:
+            progress("Installed verified VibeSec Guardian runtime")
+        return executable, False
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
@@ -343,7 +363,9 @@ def main() -> int:
             metadata=metadata, cache=cache,
             local_bundle=args.trusted_local_bundle,
             local_sha256=args.trusted_local_sha256,
+            progress=_progress,
         )
+        _progress(f"Starting managed {args.profile} scan")
         command = [
             str(runtime), "scan", "--profile", args.profile, "--target",
             str(target), "--install-tools", "--cache-dir",

@@ -14,6 +14,7 @@
     "policy/suppressions.yml",
     "scripts/generate_finding_intelligence.py",
     "scripts/extract_tool_archive.py",
+    "scripts/install_profile_tools.py",
     "scripts/install_tools.sh",
     "scripts/manage_extensions.py",
     "scripts/manage_agents.py",
@@ -42,6 +43,7 @@
     "scripts/vibesec/portable.py",
     "scripts/vibesec/strict_json.py",
     "scripts/vibesec/supply_chain.py",
+    "scripts/vibesec/toolchain.py",
     "scripts/vibesec/v1_contract.py",
     "scripts/vibesec/version.py",
     "scripts/vibesec_doctor.py",
@@ -142,6 +144,7 @@
     "docs/v1-interface-reference.md",
     "docs/v1-migrations.md",
     "docs/v1-release-readiness.md",
+    "docs/v1.1.0-release-notes.md",
     "docs/v1-security-review.md",
     "docs/v1-stability-policy.md",
     "docs/v1-support-policy.md",
@@ -162,6 +165,7 @@
     "scripts/manage_agents.py",
     "scripts/manage_extensions.py",
     "scripts/install_standard_tools.sh",
+    "scripts/install_profile_tools.py",
     "scripts/install_tools.sh",
     "scripts/normalize_results.py",
     "scripts/plan_vibesec_upgrade.py",
@@ -186,6 +190,10 @@
   "profiles": {
     "minimal": {
       "support": [
+        "config/actionlint-standard.yaml",
+        "config/gitleaks-standard-ignore.txt",
+        "config/gitleaks-standard.toml",
+        "config/trivy-standard.yaml",
         "policy/baseline.json",
         "scripts/append_tool_errors.py",
         "scripts/normalize_results.py",

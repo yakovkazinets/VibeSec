@@ -26,7 +26,7 @@ def fail(reason: str) -> int:
 
 
 def scan_files(target: Path, files: list[str]) -> tuple[bool, list[dict[str, object]]] | None:
-    manifest = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))["checkov"]
+    manifest = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))["tools"]["checkov"]
     image = f'{manifest["image"]}@{manifest["digest"]}'
     config = ROOT / "config/checkov-standard.yaml"
     with tempfile.TemporaryDirectory() as temporary:

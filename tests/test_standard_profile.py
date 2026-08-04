@@ -5,6 +5,7 @@ import tempfile
 import unittest
 
 import tests.test_standard_profile_integration as standard_integration
+from scripts.run_standard_profile import prepare_opengrep_runtime_cache
 from scripts.vibesec.sbom import (
     CYCLONEDX_SPEC_VERSION, SPDX_SPEC_VERSION, build_syft_command,
     validate_cyclonedx, validate_spdx,
@@ -24,15 +25,27 @@ class StandardProfileSyftTests(unittest.TestCase):
         return harness
 
     def test_pinned_linux_syft_is_installed_executable(self):
-        inventory = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))
+        inventory = json.loads((ROOT / "config/tools.json").read_text(encoding="utf-8"))["tools"]
         syft = inventory["syft"]
         self.assertEqual(syft["version"], "1.49.0")
-        self.assertEqual(syft["archive"], "syft_1.49.0_linux_amd64.tar.gz")
-        self.assertRegex(syft["sha256"], r"^[0-9a-f]{64}$")
-        self.assertIn("/v1.49.0/syft_1.49.0_linux_amd64.tar.gz", syft["url"])
+        linux = syft["platforms"]["linux-amd64"]
+        self.assertEqual(linux["asset_name"], "syft_1.49.0_linux_amd64.tar.gz")
+        self.assertRegex(linux["sha256"], r"^[0-9a-f]{64}$")
+        self.assertIn("/v1.49.0/syft_1.49.0_linux_amd64.tar.gz", linux["url"])
         installer = (ROOT / "scripts/install_standard_tools.sh").read_text(encoding="utf-8")
-        self.assertIn("for tool in cosign opengrep osv-scanner syft", installer)
-        self.assertIn('install -m 0755 "${staging}/${tool}"', installer)
+        self.assertIn("--profile standard", installer)
+        self.assertIn("install_profile_tools.py", installer)
+
+    def test_opengrep_one_file_runtime_cache_is_private_and_versioned(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            raw = Path(temporary)
+            cache = prepare_opengrep_runtime_cache(raw, "1.25.0")
+            runtime = cache / "opengrep" / "1.25.0"
+            self.assertTrue(runtime.is_dir())
+            self.assertEqual(cache.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(runtime.stat().st_mode & 0o777, 0o700)
+            with self.assertRaisesRegex(ValueError, "semantic-version"):
+                prepare_opengrep_runtime_cache(raw, "../../untrusted")
 
     def test_syft_149_command_uses_repository_source_and_private_outputs(self):
         with tempfile.TemporaryDirectory() as temporary:

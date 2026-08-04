@@ -14,11 +14,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", action="append", nargs=2, metavar=("TOOL", "PATH"), required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--repository-root", type=Path)
     args = parser.parse_args()
     findings = []
     try:
         for tool, path in args.input:
-            findings.extend(item.to_dict() for item in normalize_file(tool, Path(path)))
+            findings.extend(item.to_dict() for item in normalize_file(
+                tool, Path(path), repository_root=args.repository_root,
+            ))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps({"schema_version": 1, "results": findings}, indent=2) + "\n", encoding="utf-8")
     except ValueError as exc:

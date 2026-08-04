@@ -10,6 +10,10 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from vibesec.portable import PortableExecutionError, load_support, platform_id  # noqa: E402
 
 IMAGE_DIGEST = re.compile(r"^[A-Za-z0-9._/-]+@sha256:[0-9a-f]{64}$")
 
@@ -53,8 +57,15 @@ def main() -> int:
         report["warning"].append("Standard support stage is present but workflow stage is not; merge support, then initialize --stage workflow")
     elif workflow.is_symlink() or not workflow.is_file():
         report["error"].append(f"workflow path is unsafe: {config['workflow_destination']}")
-    if platform.system() != "Linux" or platform.machine() != "x86_64":
-        report["warning"].append("scanner installers support Linux x86_64 runners; local installation is unavailable on this platform")
+    try:
+        current_platform = platform_id(platform.system(), platform.machine())
+        supported_profiles = load_support(root / "config/portable-execution.json")["platforms"][current_platform]["native_profiles"]
+        if args.profile not in supported_profiles:
+            report["warning"].append(
+                f"{args.profile} scanner installation is unavailable on {current_platform}"
+            )
+    except PortableExecutionError as exc:
+        report["warning"].append(f"local scanner installation is unavailable: {exc}")
     for relative in ("config/tools.json", "policy/severity-thresholds.yml", "policy/suppressions.yml"):
         try:
             payload = json.loads((root / relative).read_text(encoding="utf-8"))

@@ -1,108 +1,279 @@
 {
-  "actionlint": {
-    "archive": "actionlint_1.7.12_linux_amd64.tar.gz",
-    "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
-    "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
-    "version": "1.7.12",
-    "license": "MIT",
-    "verification_date": "2026-07-21",
-    "official_repository": "https://github.com/rhysd/actionlint"
-  },
-  "gitleaks": {
-    "archive": "gitleaks_8.30.1_linux_x64.tar.gz",
-    "sha256": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
-    "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz",
-    "version": "8.30.1",
-    "license": "MIT",
-    "verification_date": "2026-07-21",
-    "official_repository": "https://github.com/gitleaks/gitleaks"
-  },
-  "trivy": {
-    "archive": "trivy_0.72.0_Linux-64bit.tar.gz",
-    "sha256": "bbb64b9695866ce4a7a8f5c9592002c5961cab378577fa3f8a040df362b9b2ea",
-    "url": "https://github.com/aquasecurity/trivy/releases/download/v0.72.0/trivy_0.72.0_Linux-64bit.tar.gz",
-    "version": "0.72.0",
-    "license": "Apache-2.0",
-    "verification_date": "2026-07-21",
-    "official_repository": "https://github.com/aquasecurity/trivy"
-  },
-  "opengrep": {
-    "archive": "opengrep_manylinux_x86",
-    "sha256": "9ac4aebb47ba3f7b0d8fc641ac8749cb6c2f253f616131a67d9631e00d4bea33",
-    "url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86",
-    "version": "1.25.0",
-    "license": "LGPL-2.1",
-    "verification_date": "2026-07-21",
-    "official_repository": "https://github.com/opengrep/opengrep",
-    "signature_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86.sig",
-    "certificate_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86.cert",
-    "certificate_identity": "https://github.com/opengrep/opengrep/.github/workflows/rolling-release.yml@refs/heads/main",
-    "certificate_oidc_issuer": "https://token.actions.githubusercontent.com"
-  },
-  "osv-scanner": {
-    "archive": "osv-scanner_linux_amd64",
-    "sha256": "15314940c10d26af9c6649f150b8a47c1262e8fc7e17b1d1029b0e479e8ed8a0",
-    "url": "https://github.com/google/osv-scanner/releases/download/v2.4.0/osv-scanner_linux_amd64",
-    "version": "2.4.0",
-    "license": "Apache-2.0",
-    "verification_date": "2026-07-21",
-    "official_repository": "https://github.com/google/osv-scanner"
-  },
-  "syft": {
-    "archive": "syft_1.49.0_linux_amd64.tar.gz",
-    "sha256": "7aa2f03ee92739cf643279ba3990548b9925d4e22cae13f46831ee62821147fe",
-    "url": "https://github.com/anchore/syft/releases/download/v1.49.0/syft_1.49.0_linux_amd64.tar.gz",
-    "version": "1.49.0",
-    "license": "Apache-2.0",
-    "verification_date": "2026-07-21",
-    "official_repository": "https://github.com/anchore/syft"
-  },
-  "cosign": {
-    "archive": "cosign-linux-amd64",
-    "sha256": "f7622ed3cf22e55e1ae6377c080979ff77a22da9981c11df222a2e444991e7cf",
-    "url": "https://github.com/sigstore/cosign/releases/download/v3.1.2/cosign-linux-amd64",
-    "version": "3.1.2",
-    "license": "Apache-2.0",
-    "verification_date": "2026-07-22",
-    "official_repository": "https://github.com/sigstore/cosign"
-  },
-  "checkov": {
-    "kind": "container",
-    "image": "bridgecrew/checkov",
-    "digest": "sha256:c64ffb6d6fc8087c896341a2c697770a04a1cf558db04fa7b8129d8ca6bce336",
-    "version": "3.3.8",
-    "license": "Apache-2.0",
-    "verification_date": "2026-07-21",
-    "official_repository": "https://github.com/bridgecrewio/checkov"
-  },
-  "dast-fixture-python": {
-    "kind": "container",
-    "image": "docker.io/library/python",
-    "digest": "sha256:6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df",
-    "version": "3.12.13-alpine stable image resolved 2026-07-21",
-    "license": "Python-2.0",
-    "verification_date": "2026-07-21",
-    "official_repository": "https://github.com/docker-library/python"
-  },
-  "schemathesis": {
-    "kind": "container",
-    "image": "ghcr.io/schemathesis/schemathesis",
-    "digest": "sha256:1f9f038554cc8b60ee28da38f508b9682c59affa31c1fc00c4a750b302100996",
-    "version": "4.24.2",
-    "license": "MIT",
-    "verification_date": "2026-07-22",
-    "official_repository": "https://github.com/schemathesis/schemathesis",
-    "runtime_classification": "local containerized active contract testing",
-    "network_classification": "internal isolated target only; external egress disabled"
-  },
-  "zap-baseline": {
-    "kind": "container",
-    "image": "ghcr.io/zaproxy/zaproxy",
-    "digest": "sha256:8d387b1a63e3425beef4846e39719f5af2a787753af2d8b6558c6257d7a577a2",
-    "version": "2.17.0 stable image resolved 2026-07-21",
-    "license": "Apache-2.0",
-    "verification_date": "2026-07-21",
-    "official_repository": "https://github.com/zaproxy/zaproxy",
-    "publication_note": "The stable image can be regenerated monthly without a ZAP core version change; re-resolve and review the digest on every pin update."
+  "schema_version": 2,
+  "supported_platforms": [
+    "linux-amd64",
+    "linux-arm64",
+    "macos-amd64",
+    "macos-arm64"
+  ],
+  "tools": {
+    "actionlint": {
+      "kind": "native",
+      "version": "1.7.12",
+      "license": "MIT",
+      "official_repository": "https://github.com/rhysd/actionlint",
+      "verification_date": "2026-08-03",
+      "executable": "actionlint",
+      "platforms": {
+        "linux-amd64": {
+          "asset_name": "actionlint_1.7.12_linux_amd64.tar.gz",
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+          "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+          "archive_type": "tar.gz",
+          "executable_name": "actionlint"
+        },
+        "macos-amd64": {
+          "asset_name": "actionlint_1.7.12_darwin_amd64.tar.gz",
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_darwin_amd64.tar.gz",
+          "sha256": "5b44c3bc2255115c9b69e30efc0fecdf498fdb63c5d58e17084fd5f16324c644",
+          "archive_type": "tar.gz",
+          "executable_name": "actionlint"
+        },
+        "macos-arm64": {
+          "asset_name": "actionlint_1.7.12_darwin_arm64.tar.gz",
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_darwin_arm64.tar.gz",
+          "sha256": "aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f",
+          "archive_type": "tar.gz",
+          "executable_name": "actionlint"
+        }
+      }
+    },
+    "gitleaks": {
+      "kind": "native",
+      "version": "8.30.1",
+      "license": "MIT",
+      "official_repository": "https://github.com/gitleaks/gitleaks",
+      "verification_date": "2026-08-03",
+      "executable": "gitleaks",
+      "platforms": {
+        "linux-amd64": {
+          "asset_name": "gitleaks_8.30.1_linux_x64.tar.gz",
+          "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz",
+          "sha256": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
+          "archive_type": "tar.gz",
+          "executable_name": "gitleaks"
+        },
+        "macos-amd64": {
+          "asset_name": "gitleaks_8.30.1_darwin_x64.tar.gz",
+          "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_x64.tar.gz",
+          "sha256": "dfe101a4db2255fc85120ac7f3d25e4342c3c20cf749f2c20a18081af1952709",
+          "archive_type": "tar.gz",
+          "executable_name": "gitleaks"
+        },
+        "macos-arm64": {
+          "asset_name": "gitleaks_8.30.1_darwin_arm64.tar.gz",
+          "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_arm64.tar.gz",
+          "sha256": "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5",
+          "archive_type": "tar.gz",
+          "executable_name": "gitleaks"
+        }
+      }
+    },
+    "trivy": {
+      "kind": "native",
+      "version": "0.72.0",
+      "license": "Apache-2.0",
+      "official_repository": "https://github.com/aquasecurity/trivy",
+      "verification_date": "2026-08-03",
+      "executable": "trivy",
+      "platforms": {
+        "linux-amd64": {
+          "asset_name": "trivy_0.72.0_Linux-64bit.tar.gz",
+          "url": "https://github.com/aquasecurity/trivy/releases/download/v0.72.0/trivy_0.72.0_Linux-64bit.tar.gz",
+          "sha256": "bbb64b9695866ce4a7a8f5c9592002c5961cab378577fa3f8a040df362b9b2ea",
+          "archive_type": "tar.gz",
+          "executable_name": "trivy"
+        },
+        "macos-amd64": {
+          "asset_name": "trivy_0.72.0_macOS-64bit.tar.gz",
+          "url": "https://github.com/aquasecurity/trivy/releases/download/v0.72.0/trivy_0.72.0_macOS-64bit.tar.gz",
+          "sha256": "ee5e60df8a98e5b89fd74a6d86f9e5c7e9a266a35002cb1e43291698b3bfee08",
+          "archive_type": "tar.gz",
+          "executable_name": "trivy"
+        },
+        "macos-arm64": {
+          "asset_name": "trivy_0.72.0_macOS-ARM64.tar.gz",
+          "url": "https://github.com/aquasecurity/trivy/releases/download/v0.72.0/trivy_0.72.0_macOS-ARM64.tar.gz",
+          "sha256": "88f208680dc05da2b459e19b4f5aa2b4dc7c2117892ba4aab2ae63baba330016",
+          "archive_type": "tar.gz",
+          "executable_name": "trivy"
+        }
+      }
+    },
+    "cosign": {
+      "kind": "native",
+      "version": "3.1.2",
+      "license": "Apache-2.0",
+      "official_repository": "https://github.com/sigstore/cosign",
+      "verification_date": "2026-08-03",
+      "executable": "cosign",
+      "platforms": {
+        "linux-amd64": {
+          "asset_name": "cosign-linux-amd64",
+          "url": "https://github.com/sigstore/cosign/releases/download/v3.1.2/cosign-linux-amd64",
+          "sha256": "f7622ed3cf22e55e1ae6377c080979ff77a22da9981c11df222a2e444991e7cf",
+          "archive_type": "binary",
+          "executable_name": "cosign"
+        },
+        "macos-amd64": {
+          "asset_name": "cosign-darwin-amd64",
+          "url": "https://github.com/sigstore/cosign/releases/download/v3.1.2/cosign-darwin-amd64",
+          "sha256": "acd180f8b015be25240ca33abee8a1e564eb65cdf1a3cee4725456d2dceb7da6",
+          "archive_type": "binary",
+          "executable_name": "cosign"
+        },
+        "macos-arm64": {
+          "asset_name": "cosign-darwin-arm64",
+          "url": "https://github.com/sigstore/cosign/releases/download/v3.1.2/cosign-darwin-arm64",
+          "sha256": "dec1c3f802320b19c2fbcf2dc7bcfb3f258e1c181a046c23a1a074bdf932f10a",
+          "archive_type": "binary",
+          "executable_name": "cosign"
+        }
+      }
+    },
+    "opengrep": {
+      "kind": "native",
+      "version": "1.25.0",
+      "license": "LGPL-2.1",
+      "official_repository": "https://github.com/opengrep/opengrep",
+      "verification_date": "2026-08-03",
+      "executable": "opengrep",
+      "platforms": {
+        "linux-amd64": {
+          "asset_name": "opengrep_manylinux_x86",
+          "url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86",
+          "sha256": "9ac4aebb47ba3f7b0d8fc641ac8749cb6c2f253f616131a67d9631e00d4bea33",
+          "archive_type": "binary",
+          "executable_name": "opengrep",
+          "signature_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86.sig",
+          "certificate_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_manylinux_x86.cert",
+          "certificate_identity": "https://github.com/opengrep/opengrep/.github/workflows/rolling-release.yml@refs/heads/main",
+          "certificate_oidc_issuer": "https://token.actions.githubusercontent.com"
+        },
+        "macos-amd64": {
+          "asset_name": "opengrep_osx_x86",
+          "url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_osx_x86",
+          "sha256": "fa2487b75527be1cc9ae4f9b0cb09a340454e7973c76785568285cbbcd977cb4",
+          "archive_type": "binary",
+          "executable_name": "opengrep",
+          "signature_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_osx_x86.sig",
+          "certificate_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_osx_x86.cert",
+          "certificate_identity": "https://github.com/opengrep/opengrep/.github/workflows/rolling-release.yml@refs/heads/main",
+          "certificate_oidc_issuer": "https://token.actions.githubusercontent.com"
+        },
+        "macos-arm64": {
+          "asset_name": "opengrep_osx_arm64",
+          "url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_osx_arm64",
+          "sha256": "3543fcabae9db2ae5bc974a3b75426353f0a3e369181b2157ef27f46867996c8",
+          "archive_type": "binary",
+          "executable_name": "opengrep",
+          "signature_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_osx_arm64.sig",
+          "certificate_url": "https://github.com/opengrep/opengrep/releases/download/v1.25.0/opengrep_osx_arm64.cert",
+          "certificate_identity": "https://github.com/opengrep/opengrep/.github/workflows/rolling-release.yml@refs/heads/main",
+          "certificate_oidc_issuer": "https://token.actions.githubusercontent.com"
+        }
+      }
+    },
+    "osv-scanner": {
+      "kind": "native",
+      "version": "2.4.0",
+      "license": "Apache-2.0",
+      "official_repository": "https://github.com/google/osv-scanner",
+      "verification_date": "2026-08-03",
+      "executable": "osv-scanner",
+      "platforms": {
+        "linux-amd64": {
+          "asset_name": "osv-scanner_linux_amd64",
+          "url": "https://github.com/google/osv-scanner/releases/download/v2.4.0/osv-scanner_linux_amd64",
+          "sha256": "15314940c10d26af9c6649f150b8a47c1262e8fc7e17b1d1029b0e479e8ed8a0",
+          "archive_type": "binary",
+          "executable_name": "osv-scanner"
+        },
+        "macos-amd64": {
+          "asset_name": "osv-scanner_darwin_amd64",
+          "url": "https://github.com/google/osv-scanner/releases/download/v2.4.0/osv-scanner_darwin_amd64",
+          "sha256": "088119325156321c34c456ac3703d6013538fd71cbac82b891ab34db491e4d66",
+          "archive_type": "binary",
+          "executable_name": "osv-scanner"
+        },
+        "macos-arm64": {
+          "asset_name": "osv-scanner_darwin_arm64",
+          "url": "https://github.com/google/osv-scanner/releases/download/v2.4.0/osv-scanner_darwin_arm64",
+          "sha256": "9ca3185ad63e9ab54f7cb90f46a7362be02d80e37f0123d095a54355ea202f5d",
+          "archive_type": "binary",
+          "executable_name": "osv-scanner"
+        }
+      }
+    },
+    "syft": {
+      "kind": "native",
+      "version": "1.49.0",
+      "license": "Apache-2.0",
+      "official_repository": "https://github.com/anchore/syft",
+      "verification_date": "2026-08-03",
+      "executable": "syft",
+      "platforms": {
+        "linux-amd64": {
+          "asset_name": "syft_1.49.0_linux_amd64.tar.gz",
+          "url": "https://github.com/anchore/syft/releases/download/v1.49.0/syft_1.49.0_linux_amd64.tar.gz",
+          "sha256": "7aa2f03ee92739cf643279ba3990548b9925d4e22cae13f46831ee62821147fe",
+          "archive_type": "tar.gz",
+          "executable_name": "syft"
+        },
+        "macos-amd64": {
+          "asset_name": "syft_1.49.0_darwin_amd64.tar.gz",
+          "url": "https://github.com/anchore/syft/releases/download/v1.49.0/syft_1.49.0_darwin_amd64.tar.gz",
+          "sha256": "a18ba5c48a4e75d0d87cae7b36b93bdfc04ddd5ea69b87bec9f7cd9431a8cdb9",
+          "archive_type": "tar.gz",
+          "executable_name": "syft"
+        },
+        "macos-arm64": {
+          "asset_name": "syft_1.49.0_darwin_arm64.tar.gz",
+          "url": "https://github.com/anchore/syft/releases/download/v1.49.0/syft_1.49.0_darwin_arm64.tar.gz",
+          "sha256": "4d137302fb3e049cb1b124b1cbd840a77280dc9f50a45a5a4389250a2228b3cb",
+          "archive_type": "tar.gz",
+          "executable_name": "syft"
+        }
+      }
+    },
+    "checkov": {
+      "kind": "container",
+      "image": "bridgecrew/checkov",
+      "digest": "sha256:c64ffb6d6fc8087c896341a2c697770a04a1cf558db04fa7b8129d8ca6bce336",
+      "version": "3.3.8",
+      "license": "Apache-2.0",
+      "verification_date": "2026-08-03",
+      "official_repository": "https://github.com/bridgecrewio/checkov"
+    },
+    "dast-fixture-python": {
+      "kind": "container",
+      "image": "docker.io/library/python",
+      "digest": "sha256:6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df",
+      "version": "3.12.13-alpine stable image resolved 2026-07-21",
+      "license": "Python-2.0",
+      "verification_date": "2026-08-03",
+      "official_repository": "https://github.com/docker-library/python"
+    },
+    "schemathesis": {
+      "kind": "container",
+      "image": "ghcr.io/schemathesis/schemathesis",
+      "digest": "sha256:1f9f038554cc8b60ee28da38f508b9682c59affa31c1fc00c4a750b302100996",
+      "version": "4.24.2",
+      "license": "MIT",
+      "verification_date": "2026-08-03",
+      "official_repository": "https://github.com/schemathesis/schemathesis",
+      "runtime_classification": "local containerized active contract testing",
+      "network_classification": "internal isolated target only; external egress disabled"
+    },
+    "zap-baseline": {
+      "kind": "container",
+      "image": "ghcr.io/zaproxy/zaproxy",
+      "digest": "sha256:8d387b1a63e3425beef4846e39719f5af2a787753af2d8b6558c6257d7a577a2",
+      "version": "2.17.0 stable image resolved 2026-07-21",
+      "license": "Apache-2.0",
+      "verification_date": "2026-08-03",
+      "official_repository": "https://github.com/zaproxy/zaproxy",
+      "publication_note": "The stable image can be regenerated monthly without a ZAP core version change; re-resolve and review the digest on every pin update."
+    }
   }
 }

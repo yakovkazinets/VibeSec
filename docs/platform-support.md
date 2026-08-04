@@ -1,16 +1,18 @@
 # Platform support
 
-`config/portable-execution.json` is the machine-readable support matrix. Platform IDs are `linux-amd64`, `linux-arm64`, `macos-amd64`, and `macos-arm64`.
+`config/portable-execution.json` is the machine-readable support matrix. The installer, CLI, verification, doctor, documentation, and tests share the deterministic IDs `linux-amd64`, `linux-arm64`, `macos-amd64`, and `macos-arm64`.
 
-| Platform | Native Minimal/Standard | Immutable complete-profile container | Current limitation |
+| Platform | Native Minimal/Standard | Complete-profile container | Current limitation |
 |---|---|---|---|
-| Linux x86_64 | Supported with the complete checksum-verified local tool set | Not distributed | Optional scanner containers remain capability-specific |
-| Linux arm64 | Not yet supported | Not distributed | Native upstream artifacts are not pinned in this release |
-| macOS x86_64 | Not yet supported | Not distributed | Current native scanner pins are Linux artifacts |
-| macOS arm64 | Not yet supported | Not distributed | Current native scanner pins are Linux artifacts |
+| Linux x86_64 | Supported with exact verified native assets | Not distributed | Optional capability containers remain separate |
+| macOS arm64 | Supported; primary v1.1 local acceptance platform | Not distributed | Checkov needs Docker only when supported IaC is applicable |
+| macOS x86_64 | Supported with official verified native assets | Not distributed | Real-tool acceptance is secondary to macOS arm64 |
+| Linux arm64 | Not supported in v1.1 | Not distributed | The complete release set is not yet reviewed as a supported profile |
 
-Checkov, Schemathesis, and ZAP use immutable capability-specific images and may run through their existing isolated workflows on Docker platforms. That does not make a complete profile container available. Support is never inferred from Docker merely being installed.
+The native set is Trivy 0.72.0, Gitleaks 8.30.1, actionlint 1.7.12, Opengrep 1.25.0, OSV-Scanner 2.4.0, Syft 1.49.0, and Cosign 3.1.2. `config/tools.json` pins every supported asset name, exact GitHub release URL, SHA-256, archive type, and executable. Opengrep also requires its upstream Sigstore certificate and signature with the exact reviewed workflow identity.
 
-Windows-native execution is deferred. Docker Desktop on Windows may run independently supported immutable capability workflows, but the complete local CLI profile has not been tested or claimed. Path, permission, and executable semantics remain a limitation.
+Managed installation uses Python `hashlib`, safe archive extraction, private staging, and atomic profile publication. It never uses Homebrew, a global npm/pip install, `curl | sh`, a floating tag, a target URL, or PATH fallback. A cache is accepted only when its manifest, versions, asset hashes, executable hashes, modes, platform, and profile all match.
 
-Portable Python handles platform detection, strict JSON, hashing, and extension lifecycle operations. Existing Bash scanner orchestration is used only where the platform matrix declares it. No BSD/macOS compatibility is claimed for Linux-only installers. GitHub Actions continues to use Node 24 actions and does not change these local platform claims.
+Checkov remains an immutable digest-pinned container. When IaC is applicable and Docker is unavailable, coverage is `tool_error` and the scan is non-clean. Checkov, Schemathesis, and ZAP container support does not imply a complete profile container.
+
+Windows-native execution is deferred. WSL is a separate Linux environment and must meet a supported Linux profile. GitHub Actions continues to use full-SHA Node 24 actions; this local scanner runtime does not require Node.js.

@@ -197,7 +197,7 @@ def main() -> int:
         digest = image_digest(reference)
         schema_path, schema_payload, operations = validate_openapi_schema(repository, args.schema, config=config, port=port, base_path=base_path)
         schema_operations = operation_index(schema_payload)
-        tools = loads_strict((root / "config/tools.json").read_bytes())
+        tools = loads_strict((root / "config/tools.json").read_bytes())["tools"]
         scanner = f"{tools['schemathesis']['image']}@{tools['schemathesis']['digest']}"
         validate_image_reference(scanner)
     except (ApiSecurityError, AuthenticatedSecurityError, CapabilityError, OSError, KeyError, TypeError, ValueError) as exc:

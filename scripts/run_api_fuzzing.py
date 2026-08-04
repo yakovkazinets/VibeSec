@@ -140,7 +140,7 @@ def main() -> int:
         operation_map = operation_index(schema_payload)
         registry = load_payload_registry(ROOT)
         plan = build_injection_plan(schema_payload, maximum_operations=config["maximum_operations"])
-        tools = loads_strict((ROOT / "config/tools.json").read_bytes())
+        tools = loads_strict((ROOT / "config/tools.json").read_bytes())["tools"]
         scanner = f"{tools['schemathesis']['image']}@{tools['schemathesis']['digest']}"
         validate_image_reference(scanner)
     except (ApiFuzzingError, ApiSecurityError, AuthenticatedSecurityError, CapabilityError,

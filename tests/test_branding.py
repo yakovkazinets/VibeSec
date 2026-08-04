@@ -88,7 +88,7 @@ class BrandingTests(unittest.TestCase):
                 (directory / name).write_bytes(b"fixture\n")
             manifest = create_release_manifest(
                 directory=directory,
-                version="1.0.0-dev",
+                version="1.1.0-dev",
                 source_commit="b" * 40,
                 tool_versions={"syft": "1.49.0"},
                 creation_mode="local-preparation",
@@ -96,7 +96,7 @@ class BrandingTests(unittest.TestCase):
         self.assertEqual(manifest["product_display_name"], PRODUCT_DISPLAY_NAME)
         self.assertEqual(manifest["positioning_line"], POSITIONING_LINE)
         self.assertEqual(manifest["product_id"], PRODUCT_ID)
-        self.assertEqual(manifest["version"], "1.0.0-dev")
+        self.assertEqual(manifest["version"], "1.1.0-dev")
         self.assertEqual([item["name"] for item in manifest["artifacts"]], list(CORE_NAMES))
         self.assertEqual(manifest["source"]["repository"], REPOSITORY_URL)
         self.assertEqual(validate_release_manifest(manifest), manifest)

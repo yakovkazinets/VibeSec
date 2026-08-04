@@ -255,7 +255,7 @@ def write_artifacts(results: Path, *, root: Path, state: str, reason: str, event
     category = {0: "pass", 1: "policy_violation", 2: "tool_error", 3: "invalid_input"}.get(exit_code)
     if category is None:
         raise DastError("DAST exit code is outside the reviewed contract")
-    tools = loads_strict((root / "config/tools.json").read_bytes())
+    tools = loads_strict((root / "config/tools.json").read_bytes())["tools"]
     dast_config = load_config(root)
     scanner = tools["zap-baseline"]
     coverage = {

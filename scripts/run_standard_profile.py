@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 from datetime import date
 import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -37,8 +39,6 @@ KNOWN_OUTPUTS = (
     "normalized.json", "coverage.json", "inventory.json", "report.md", "policy-result.json",
     "finding-groups.json", "prioritized-findings.json",
     "sbom.cyclonedx.json", "sbom.spdx.json",
-    "raw/opengrep.json", "raw/osv.json", "raw/checkov.json", "raw/trivy.json",
-    "raw/gitleaks.json", "raw/actionlint.txt", "raw/trivy-image.json",
 )
 
 
@@ -64,11 +64,23 @@ def command(binary: Path | str, *arguments: str | Path) -> list[str]:
     return [str(binary), *map(str, arguments)]
 
 
+def prepare_opengrep_runtime_cache(raw: Path, version: str) -> Path:
+    """Create the private versioned directory required by Opengrep one-file binaries."""
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+        raise ValueError("Opengrep version is not a safe semantic-version path component")
+    current = raw
+    for component in ("cache", "opengrep", version):
+        current = current / component
+        current.mkdir(mode=0o700, exist_ok=True)
+        current.chmod(0o700)
+    return raw / "cache"
+
+
 def checkov_command(root: Path, config: Path, image: str, relative_file: str,
-                    *extra_arguments: str) -> list[str]:
+                    *extra_arguments: str, docker_binary: str = "docker") -> list[str]:
     """Build an isolated pinned Checkov command for exactly one repository file."""
     return command(
-        "docker", "run", "--rm", "--network", "none", "--read-only",
+        docker_binary, "run", "--rm", "--network", "none", "--read-only",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
         "--tmpfs", "/tmp:rw,noexec,nosuid,size=128m", "--workdir", "/tmp",
         "--env", "HOME=/tmp/vibesec-home", "--env", "XDG_CACHE_HOME=/tmp/vibesec-cache",
@@ -262,7 +274,10 @@ def run_checkov_files(root: Path, config: Path, image: str, files: list[str],
                 output = temporary_root / f"{index:06d}.json"
                 error = run(
                     "checkov",
-                    checkov_command(root, config, image, relative_file, *extra_arguments),
+                    checkov_command(
+                        root, config, image, relative_file, *extra_arguments,
+                        docker_binary=env.get("VIBESEC_DOCKER_BIN", "docker"),
+                    ),
                     output, cwd=cwd, env=env, stdout_output=True,
                 )
                 if error:
@@ -340,7 +355,8 @@ def main() -> int:
         return 3
     declared = project_capabilities["capabilities"]
     try:
-        tool_manifest = json.loads((vibesec_root / "config/tools.json").read_text(encoding="utf-8"))
+        tool_metadata = json.loads((vibesec_root / "config/tools.json").read_text(encoding="utf-8"))
+        tool_manifest = tool_metadata.get("tools") if isinstance(tool_metadata, dict) else None
         if not isinstance(tool_manifest, dict):
             raise ValueError("tool manifest must be an object")
         for required_tool in ("opengrep", "osv-scanner", "syft", "checkov", "trivy", "gitleaks", "actionlint"):
@@ -370,15 +386,24 @@ def main() -> int:
 
     results.mkdir(mode=0o700, parents=True, exist_ok=True)
     results.chmod(0o700)
-    raw = results / "raw"
-    raw.mkdir(mode=0o700, exist_ok=True)
+    raw = Path(tempfile.mkdtemp(prefix="vibesec-standard-raw-"))
     raw.chmod(0o700)
+    atexit.register(shutil.rmtree, raw, ignore_errors=True)
     for relative in KNOWN_OUTPUTS:
         try:
             (results / relative).unlink(missing_ok=True)
         except OSError as exc:
             print(f"could not clear stale output {relative}: {exc}", file=sys.stderr)
             return 3
+    legacy_raw = results / "raw"
+    try:
+        if legacy_raw.is_symlink() or legacy_raw.is_file():
+            legacy_raw.unlink()
+        elif legacy_raw.is_dir():
+            shutil.rmtree(legacy_raw)
+    except OSError as exc:
+        print(f"could not clear stale private scanner output: {type(exc).__name__}", file=sys.stderr)
+        return 3
     try:
         repo_inventory = inventory(root)
     except DetectionError as exc:
@@ -391,16 +416,23 @@ def main() -> int:
     input_failure = False
     environment = {key: value for key, value in os.environ.items() if not key.startswith(
         ("SYFT_", "OPENGREP_", "SEMGREP_", "OSV_SCANNER_", "GITLEAKS_", "TRIVY_", "CHECKOV_"))}
-    scanner_home = results / ".scanner-home"
-    scanner_home.mkdir(mode=0o700, exist_ok=True)
-    scanner_home.chmod(0o700)
+    scanner_home = raw / ".scanner-home"
+    try:
+        scanner_home.mkdir(mode=0o700, exist_ok=True)
+        scanner_home.chmod(0o700)
+        scanner_cache = prepare_opengrep_runtime_cache(
+            raw, str(tool_manifest["opengrep"]["version"]),
+        )
+    except (OSError, ValueError) as exc:
+        print(f"could not prepare private scanner runtime: {type(exc).__name__}", file=sys.stderr)
+        return 3
     environment.update({
         "HOME": str(scanner_home),
         "SYFT_CHECK_FOR_APP_UPDATE": "false", "SYFT_ENRICH": "",
         "SYFT_JAVA_USE_NETWORK": "false", "SYFT_JAVASCRIPT_SEARCH_REMOTE_LICENSES": "false",
         "SYFT_PYTHON_SEARCH_REMOTE_LICENSES": "false", "OPENGREP_ENABLE_VERSION_CHECK": "0",
         "SEMGREP_SEND_METRICS": "off", "TRIVY_DISABLE_TELEMETRY": "true",
-        "XDG_CACHE_HOME": str(results / ".cache"),
+        "XDG_CACHE_HOME": str(scanner_cache),
     })
     if osv_database:
         environment["OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY"] = str(osv_database["path"])
@@ -419,7 +451,7 @@ def main() -> int:
                 normalizer: str | None = None, stdout: bool = False, network: str = "none",
                 reason: str = "configured scanner completed") -> None:
         nonlocal input_failure
-        output_rel = output.relative_to(results).as_posix()
+        output_rel = f"raw/{output.name}"
         error = run(tool, argv, output, cwd=root, env=environment, stdout_output=stdout)
         if error:
             diagnostic(tool, "tool_error", error, output_rel)
@@ -428,7 +460,9 @@ def main() -> int:
             return
         try:
             if normalizer:
-                normalized.extend(item.to_dict() for item in normalize_file(normalizer, output))
+                normalized.extend(item.to_dict() for item in normalize_file(
+                    normalizer, output, repository_root=root,
+                ))
         except ValueError:
             input_failure = True
             message = f"{tool} output failed structural validation"

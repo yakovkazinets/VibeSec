@@ -16,6 +16,8 @@ GitHub Action pins and embedded runtimes are configured only through the strict 
 
 Portable platform and scanner declarations live in `config/portable-execution.json`; they are not environment overrides. Extension declarations use the exact versioned `vibesec-extension.json` contract and cannot add environment variables, core capability IDs, policy files, secret grants, or fallback modes. See [extension authoring](extension-authoring.md).
 
+Managed scanner assets live in the schema-version 2 `config/tools.json`. `VIBESEC_CACHE_HOME` changes only the user-owned cache root; it cannot change release URLs, digests, executable names, scanner configuration, or platform selection.
+
 API target path, port, and base-path environment defaults come from the `installed add-on configuration` when no explicit trusted override is provided.
 
 | Variable | Profile | Type/default | Accepted values | Security and privacy effect | Failure and example |
@@ -23,6 +25,8 @@ API target path, port, and base-path environment defaults come from the `install
 | `VIBESEC_ENFORCEMENT` | Minimal, Standard | enum / `observe` | `observe`, `new`, `all` | Selects policy gating; no privacy effect | unsupported exits 3; `new` |
 | `VIBESEC_MIN_SEVERITY` | Minimal, Standard | enum / `high` | `low`, `medium`, `high`, `critical` | Sets minimum enforced severity; no privacy effect | unsupported exits 3; `high` |
 | `VIBESEC_TOOL_DIR` | Minimal | path / `<target>/.tools/bin` | trusted executable directory | Changes which scanner binaries execute; never place secrets here | missing tools become tool errors; `/opt/vibesec-tools` |
+| `VIBESEC_CACHE_HOME` | Minimal, Standard managed mode | path / platform user cache | user-owned cache outside target | Stores verified versioned runtime/tools and opaque result IDs; no target executables | partial/mismatched cache fails closed; `~/.cache/vibesec` |
+| `VIBESEC_DOCKER_BIN` | Standard managed mode (internal) | resolved executable path | selected only by the trusted CLI from the host, never target configuration | Invokes immutable Checkov only when applicable | absent Docker remains an explicit `tool_error` |
 | `VIBESEC_NETWORK_MODE` | Standard | enum / `online` | `online`, `offline` | Online OSV can transmit package metadata/file hashes; offline uses local data | incomplete offline config exits 3; `offline` |
 | `VIBESEC_OSV_DATABASE_DIR` | Standard offline | path / none | existing local OSV root | Supplies advisories locally; path is not uploaded and should not contain credentials | missing/malformed database exits 3; `/srv/osv-db` |
 | `VIBESEC_OSV_DATABASE_DATE` | Standard offline | date / none | `YYYY-MM-DD` | Declares freshness; not sensitive | missing/future/stale exits 3; `2026-07-21` |

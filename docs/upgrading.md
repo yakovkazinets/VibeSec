@@ -5,6 +5,12 @@ The VibeSec Guardian display name does not change the `vibesec` CLI,
 upgrade channel. Installations created under the earlier VibeSec display name
 remain valid inputs to the same read-only verification and upgrade planner.
 
+## v1.0.x to v1.1.0 managed local scanning
+
+v1.1.0 adds managed local execution without changing stable `vibesec` identifiers, configuration namespaces, artifact names, installation manifests, baselines, or CI workflows. Existing installations continue to use `--tool-dir` and the two-stage Standard CI adoption process. The new `--install-tools`, `--cache-dir`, and `--network-mode` options are additive.
+
+Review the schema-version 2 tool inventory, macOS asset pins, cache boundary, skill runtime pin, and raw-output deletion together. Remove a rejected partial cache rather than editing its manifest. The skill runtime and scanner caches live outside application repositories and are versioned, so existing source-tree or CI installations are not overwritten. Preserve existing baselines and suppressions.
+
 Agent guidance uses `vibesec agents upgrade-plan <adapter> --target <repository> --json`. The plan never applies changes. It preserves user-maintained instruction files, local adapters, explicit capability answers, and disabled state; any digest change or unsupported state requires manual review. See [agent upgrades](agent-upgrades.md).
 
 The planner classifies `.vibesec/project-capabilities.json` as `capability_preserve`. Existing answers, especially No, are never reset to Yes. If a future schema adds questions, interactive upgrades default those new questions to Yes, but non-interactive upgrades must supply explicit reviewed answers. No upgrade command silently infers answers from repository detection.

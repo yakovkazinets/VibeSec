@@ -150,7 +150,7 @@ def main() -> int:
             return 0
         reference = validate_image_reference(args.image_reference)
         digest = image_digest(reference)
-        tools = loads_strict((root / "config/tools.json").read_bytes())
+        tools = loads_strict((root / "config/tools.json").read_bytes())["tools"]
         zap = f"{tools['zap-baseline']['image']}@{tools['zap-baseline']['digest']}"
         validate_image_reference(zap)
     except (DastError, AuthenticatedSecurityError, CapabilityError, OSError, KeyError, TypeError, ValueError) as exc:

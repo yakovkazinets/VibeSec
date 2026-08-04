@@ -46,9 +46,9 @@ jobs:
       - name: Install pinned VibeSec Guardian parser dependency
         run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.3
       - name: Install checksum-verified scanners
-        run: |
-          "$VIBESEC_ROOT/scripts/install_tools.sh" "$VIBESEC_ROOT" "$VIBESEC_TOOLS"
-          "$VIBESEC_ROOT/scripts/install_standard_tools.sh" "$VIBESEC_ROOT" "$VIBESEC_TOOLS"
+        run: >-
+          "$VIBESEC_ROOT/scripts/install_standard_tools.sh"
+          "$VIBESEC_ROOT" "$VIBESEC_TOOLS"
       - name: Scan without building or installing project dependencies
         id: security
         continue-on-error: true

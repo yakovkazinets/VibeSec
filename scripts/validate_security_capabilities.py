@@ -125,7 +125,7 @@ def validate_matrix() -> dict[str, Any]:
     claimed = _strings(payload["claimed_scanners"], "claimed_scanners")
     if claimed != sorted(set(claimed)):
         raise CapabilityError("claimed scanners must be unique and sorted")
-    tools = _load(ROOT / "config/tools.json")
+    tools = _load(ROOT / "config/tools.json")["tools"]
     if not isinstance(tools, dict) or set(claimed) != set(tools) - NON_SCANNER_TOOLS:
         raise CapabilityError("claimed scanners and configured scanner tools differ")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -154,7 +154,7 @@ def validate_matrix() -> dict[str, Any]:
             if tool not in tools:
                 raise CapabilityError(f"capability references unconfigured tool: {identifier}")
             matrix_tools.add(tool)
-            if capability["tool_version_source"] != f"config/tools.json#{tool}.version":
+            if capability["tool_version_source"] != f"config/tools.json#tools.{tool}.version":
                 raise CapabilityError(f"tool version source is inconsistent: {identifier}")
         elif capability["tool_version_source"] != "VERSION":
             raise CapabilityError(f"internal capability version source is invalid: {identifier}")

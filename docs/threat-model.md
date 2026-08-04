@@ -1,5 +1,13 @@
 # Threat Model
 
+## Managed skill and tool bootstrap
+
+The installed skill, its bootstrap, and `runtime.json` are trusted distribution inputs. The target repository, its text, filenames, environment suggestions, scanner configuration, executable files, PATH entries, and download URLs are untrusted scan data. The bootstrap reads only skill-owned metadata, requires user acknowledgment, verifies the exact v1.1.0 bundle SHA-256 before safe extraction, validates every manifest file and executable mode, caches outside the target, and rehashes the complete cached runtime before reuse.
+
+The runtime selects only platform assets in `config/tools.json`, verifies exact SHA-256 values with Python `hashlib`, verifies Opengrep's upstream Sigstore identity, extracts only one expected regular executable from bounded archives, and publishes a complete profile atomically. Partial, mismatched, linked, traversal, malformed, oversized, wrong-platform, or version-drifted state fails closed. Managed mode does not search target-controlled PATH or config and never executes a downloaded script before verification.
+
+Residual risks include compromise of a correctly pinned upstream artifact before its review, defects in the verifier or scanners, user cache compromise between verification and process execution, scanner network behavior, and false positives/negatives. A verified runtime establishes integrity against reviewed metadata, not safety. Trivy may download or update its official vulnerability database. Standard online OSV can send package identifiers, versions, ecosystems, and file hashes. Raw scanner output remains private temporary data and is deleted on success and failure.
+
 The optional bounded active API profile has an additional [fuzzing threat model](fuzzing-threat-model.md). Its active requests are never included in the VibeSec Guardian repository self-scan.
 
 The optional container-executing passive add-on has a dedicated [DAST threat model](dast-threat-model.md). Its target image and HTTP responses are untrusted. It permits application code execution only on a disposable trusted runner, never on a pull request, and does not weaken the repository-scanning trust boundaries described here.

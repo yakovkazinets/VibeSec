@@ -4,6 +4,8 @@ The Passive DAST Baseline is an independent add-on, not a profile-selection crit
 
 More scanners are not automatically better. Choose the smallest profile that adds useful, maintainable coverage beyond controls already present.
 
+Profile choice is independent of delivery. A skill-driven local scan gives immediate evidence without modifying the repository. GitHub Actions adoption enables continuous CI scanning and may require staged support files. Assessment-only mode performs neither.
+
 Profile selection and project capabilities are separate decisions. Complete the `[Y/n]` questionnaire first. Explicit No answers prevent inapplicable scanners from running even when filename heuristics suggest otherwise; detection can narrow but never override the manifest. Secrets scanning remains broadly applicable. See [project capabilities](project-capabilities.md).
 
 | Decision area | Minimal | Standard |
@@ -14,7 +16,7 @@ Profile selection and project capabilities are separate decisions. Complete the 
 | Optional artifacts | none | validated CycloneDX and SPDX SBOM pair |
 | Network | pinned tool downloads; Trivy scanner-managed database access | pinned tool downloads; OSV advisory queries by default; optional registry access; offline OSV supported |
 | Review burden | lower; broad scanner results can still need triage | higher; SAST, dependencies, IaC, coverage gaps, and SBOM privacy need ownership |
-| Repository prerequisite | Git repository and Linux x86_64 GitHub runner | same, plus two-stage trusted-harness bootstrap; Docker only when IaC invokes Checkov |
+| Local platform prerequisite | Linux x86_64 or macOS arm64/x86_64 | same; Docker only when IaC invokes Checkov |
 | Languages | scanner-dependent broad filesystem checks | explicitly routed JS/TS, Python, Java, and Go source rules |
 | Packages | Trivy-supported filesystem evidence | npm/Yarn/pnpm, Python, Maven/Gradle, and Go evidence currently detected; see compatibility |
 | IaC | Trivy misconfiguration scan | deterministic IaC detection plus isolated Checkov and Trivy configuration scan |

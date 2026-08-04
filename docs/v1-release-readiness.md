@@ -21,4 +21,4 @@ GitHub OIDC identity, verifies every digest and all four provenance subjects,
 and uploads only the candidate. It does not create a tag, GitHub release,
 package, release commit, or push.
 
-This branch prepares version metadata under `Unreleased`. It does not publish v1.0.
+This branch prepares v1.1.0 version metadata, managed-runtime evidence, and draft release notes under `Unreleased`. It does not create a tag or publish v1.1.0.

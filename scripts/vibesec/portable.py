@@ -16,7 +16,9 @@ PROFILES = {"minimal", "standard"}
 MODES = {"native", "container", "auto"}
 PROFILE_TOOLS = {
     "minimal": ("trivy", "gitleaks", "actionlint"),
-    "standard": ("trivy", "gitleaks", "actionlint", "opengrep", "osv-scanner", "syft"),
+    "standard": (
+        "trivy", "gitleaks", "actionlint", "cosign", "opengrep", "osv-scanner", "syft",
+    ),
 }
 
 

@@ -91,7 +91,7 @@ class DistributionLifecycleTests(unittest.TestCase):
         written, _ = self.init(target)
         self.assertEqual(written.returncode, 0, written.stderr)
         manifest = parse_installation_manifest((target / ".vibesec/install-minimal-all.json").read_bytes())
-        self.assertEqual(manifest["development_version"], "1.0.0-dev")
+        self.assertEqual(manifest["development_version"], "1.1.0-dev")
         self.assertEqual(manifest["source_commit"], "a" * 40)
         self.assertRegex(manifest["bundle_manifest_sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual(manifest["initializer_network_behavior"], "none")

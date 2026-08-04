@@ -28,7 +28,7 @@ class PortableCliTests(unittest.TestCase):
     def add_tools(self, profile="minimal"):
         names = ["trivy", "gitleaks", "actionlint"]
         if profile == "standard":
-            names += ["opengrep", "osv-scanner", "syft"]
+            names += ["cosign", "opengrep", "osv-scanner", "syft"]
         for name in names:
             path = self.tools / name
             path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
@@ -129,12 +129,140 @@ class PortableCliTests(unittest.TestCase):
         self.assertEqual(payload["status"], "invalid")
         self.assertIn("not distributed", payload["errors"][0])
 
+    def test_managed_minimal_and_standard_routing_isolated_from_target_path_and_config(self):
+        namespace = runpy.run_path(str(ROOT / "vibesec"))
+        target = Path(self.temporary.name) / "managed-target"
+        target.mkdir()
+        target_bin = target / "bin"
+        target_bin.mkdir()
+        (target_bin / "docker").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        (target_bin / "docker").chmod(0o755)
+        target_config = target / "scanner-config"
+        target_config.write_text("untrusted\n", encoding="utf-8")
+        trusted_docker = Path(self.temporary.name) / "trusted-host-bin" / "docker"
+        trusted_docker.parent.mkdir()
+        trusted_docker.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        trusted_docker.chmod(0o755)
+        self.add_tools("standard")
+        observed: list[tuple[list[str], dict[str, str]]] = []
+        docker_discovery_targets: list[Path] = []
+
+        def fake_install(**_kwargs):
+            return self.tools, False
+
+        def fake_trusted_docker_binary(observed_target):
+            docker_discovery_targets.append(observed_target.resolve())
+            return trusted_docker.resolve()
+
+        def fake_run(command, *, environment=None, **_kwargs):
+            observed.append((list(command), dict(environment or {})))
+            return (2 if "run_standard_profile.py" in " ".join(map(str, command)) else 0, "", "")
+
+        globals_ = namespace["_scan"].__globals__
+        for profile, expected_code, expected_script in (
+            ("minimal", 0, "run_minimal_profile.sh"),
+            ("standard", 2, "run_standard_profile.py"),
+        ):
+            args = SimpleNamespace(
+                target=target, install_tools=True, cache_dir=Path(self.temporary.name) / f"cache-{profile}",
+                tool_dir=None, profile=profile, results=None, execution_mode="auto",
+                network_mode="online", json=True,
+            )
+            stdout = io.StringIO()
+            with patch.dict(
+                globals_,
+                {
+                    "install_profile_tools": fake_install,
+                    "platform_id": lambda: "macos-arm64",
+                    "_run": fake_run,
+                    "_trusted_docker_binary": fake_trusted_docker_binary,
+                },
+            ), patch.dict(
+                os.environ,
+                {
+                    "PATH": str(target_bin),
+                    "GITLEAKS_CONFIG": str(target_config),
+                    "TRIVY_CONFIG": str(target_config),
+                    "VIBESEC_DOCKER_BIN": str(target_bin / "docker"),
+                },
+                clear=False,
+            ), redirect_stdout(stdout):
+                code = namespace["_scan"](args, "1.1.0")
+            self.assertEqual(code, expected_code)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["result"]["managed_tools"], True)
+            self.assertEqual(payload["result"]["platform"], "macos-arm64")
+            results = Path(payload["result"]["results"])
+            with self.assertRaises(ValueError):
+                results.relative_to(target)
+            command, environment = observed[-1]
+            self.assertIn(expected_script, " ".join(map(str, command)))
+            self.assertNotIn("GITLEAKS_CONFIG", environment)
+            self.assertNotIn("TRIVY_CONFIG", environment)
+            self.assertNotIn(str(target_bin), environment["PATH"])
+            if profile == "standard":
+                self.assertEqual(
+                    environment["VIBESEC_DOCKER_BIN"],
+                    str(trusted_docker.resolve()),
+                )
+                self.assertEqual(docker_discovery_targets, [target.resolve()])
+                self.assertEqual(payload["status"], "tool_error")
+            else:
+                self.assertNotIn("VIBESEC_DOCKER_BIN", environment)
+                self.assertEqual(docker_discovery_targets, [])
+
+    def test_managed_cache_inside_target_is_rejected_before_install(self):
+        namespace = runpy.run_path(str(ROOT / "vibesec"))
+        target = Path(self.temporary.name) / "target-cache-rejection"
+        target.mkdir()
+        args = SimpleNamespace(
+            target=target, install_tools=True, cache_dir=target / ".cache",
+            tool_dir=None, profile="minimal", results=None, execution_mode="auto",
+            network_mode="online", json=True,
+        )
+        stdout = io.StringIO()
+        with patch.dict(
+            namespace["_scan"].__globals__,
+            {
+                "platform_id": lambda: "macos-arm64",
+                "install_profile_tools": lambda **_kwargs: self.fail("installer must not run"),
+            },
+        ), redirect_stdout(stdout):
+            code = namespace["_scan"](args, "1.1.0")
+        self.assertEqual(code, 3)
+        self.assertIn("outside", json.loads(stdout.getvalue())["errors"][0])
+        self.assertFalse((target / ".cache").exists())
+
+    def test_managed_docker_discovery_ignores_path_and_rejects_target_binary(self):
+        namespace = runpy.run_path(str(ROOT / "vibesec"))
+        target = Path(self.temporary.name) / "docker-target"
+        target.mkdir()
+        target_docker = target / "docker"
+        target_docker.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        target_docker.chmod(0o755)
+        trusted = Path(self.temporary.name) / "trusted-docker"
+        trusted.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        trusted.chmod(0o755)
+        discover = namespace["_trusted_docker_binary"]
+        self.assertIsNone(discover(target, (target_docker,)))
+        self.assertEqual(discover(target, (trusted,)), trusted.resolve())
+        with patch.dict(os.environ, {"PATH": str(target)}, clear=False):
+            self.assertIsNone(discover(target, (Path("/definitely/missing/docker"),)))
+
     def test_portability_metadata_records_all_required_platforms(self):
         self.assertEqual(set(self.support["platforms"]), {"linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64"})
-        for platform_name in ("linux-arm64", "macos-amd64", "macos-arm64"):
-            self.assertTrue(self.support["platforms"][platform_name]["unsupported_reason"])
+        self.assertTrue(self.support["platforms"]["linux-arm64"]["unsupported_reason"])
+        for platform_name in ("linux-amd64", "macos-amd64", "macos-arm64"):
+            self.assertEqual(
+                self.support["platforms"][platform_name]["native_profiles"],
+                ["minimal", "standard"],
+            )
+            self.assertIsNone(self.support["platforms"][platform_name]["unsupported_reason"])
 
-    @unittest.skipUnless(platform_id() == "linux-amd64", "complete native profile is pinned only for Linux amd64")
+    @unittest.skipUnless(
+        platform_id() in {"linux-amd64", "macos-amd64", "macos-arm64"},
+        "complete native profile is pinned for Linux amd64 and macOS",
+    )
     def test_cli_scan_preserves_all_minimal_exit_categories(self):
         target = Path(self.temporary.name) / "repository"
         target.mkdir()

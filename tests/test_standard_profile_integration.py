@@ -50,6 +50,9 @@ assert sys.argv[sys.argv.index("--config") + 1] == expected + "/rules/opengrep"
 assert "--no-git-ignore" in sys.argv
 assert "--legacy" in sys.argv and "--x-ignore-semgrepignore-files" in sys.argv
 assert "--semgrepignore-filename" not in sys.argv
+cache = os.path.join(os.environ["XDG_CACHE_HOME"], "opengrep", "1.25.0")
+assert os.path.isdir(cache)
+assert os.stat(cache).st_mode & 0o777 == 0o700
 output = sys.argv[sys.argv.index("--json-output") + 1]
 mode = os.getenv("FAKE_OPENGREP_MODE", "pass")
 if mode == "fail": raise SystemExit(9)
@@ -423,12 +426,7 @@ if failed: raise SystemExit(1)
         self.assertNotIn("/workspace/", json.dumps(findings))
         self.assertNotIn(str(Path.home()), json.dumps(findings))
         self.assertNotIn(tempfile.gettempdir(), json.dumps(findings))
-        raw = self.load_json("raw/checkov.json")
-        self.assertEqual(len(raw["results"]["failed_checks"]), 2)
-        self.assertEqual(
-            [item["file_path"] for item in raw["results"]["failed_checks"]],
-            [".github/workflows/test.yml", "main.tf"],
-        )
+        self.assertFalse((self.results / "raw").exists())
 
     def test_checkov_rejects_wrong_scanner_path_as_invalid_input(self):
         completed = self.run_profile(FAKE_CHECKOV_MODE="wrong-path")

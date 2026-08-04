@@ -26,6 +26,17 @@ MAX_ENTRIES = 256
 MAX_FILE_BYTES = 5_000_000
 MAX_TOTAL_BYTES = 25_000_000
 MAX_COMPRESSION_RATIO = 200
+TRUSTED_RUNTIME_METADATA = {
+    "schema_version": 1,
+    "release_version": "1.1.1",
+    "development_version": "1.1.1",
+    "bundle_name": "vibesec-consumer-bundle.zip",
+    "bundle_url": (
+        "https://github.com/yakovkazinets/VibeSec/releases/download/"
+        "v1.1.1/vibesec-consumer-bundle.zip"
+    ),
+    "bundle_sha256": "98c021322c6065e4de553e5d802e284a377ae11a5c6bbb9b2e6c9168b7904566",
+}
 
 
 class BootstrapError(ValueError):
@@ -79,22 +90,8 @@ def _load_metadata() -> dict[str, Any]:
         payload = json.loads(RUNTIME_METADATA.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise BootstrapError("trusted skill runtime metadata is malformed") from exc
-    required = {
-        "schema_version", "release_version", "development_version", "bundle_url",
-        "bundle_sha256", "bundle_name",
-    }
-    if (
-        not isinstance(payload, dict)
-        or set(payload) != required
-        or payload["schema_version"] != 1
-        or payload["release_version"] != "1.1.0"
-        or payload["development_version"] != "1.1.0-dev"
-        or payload["bundle_name"] != "vibesec-consumer-bundle.zip"
-        or payload["bundle_url"]
-        != "https://github.com/yakovkazinets/VibeSec/releases/download/v1.1.0/vibesec-consumer-bundle.zip"
-        or not _is_sha256(payload["bundle_sha256"])
-    ):
-        raise BootstrapError("trusted skill runtime metadata does not match the reviewed v1.1.0 release")
+    if payload != TRUSTED_RUNTIME_METADATA:
+        raise BootstrapError("trusted skill runtime metadata does not match the reviewed v1.1.1 release")
     return payload
 
 

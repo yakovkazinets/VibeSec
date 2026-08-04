@@ -1,4 +1,5 @@
 from contextlib import redirect_stderr, redirect_stdout
+import copy
 import hashlib
 import importlib.util
 import io
@@ -16,6 +17,12 @@ from scripts.vibesec.bundle import build_bundle_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = ROOT / "skills/appsec-guardian/scripts/bootstrap_scan.py"
+LOCAL_VERIFIED_BUNDLE = Path("/tmp/vibesec-v1.1.1-final/vibesec-consumer-bundle.zip")
+PINNED_BUNDLE_SHA256 = "98c021322c6065e4de553e5d802e284a377ae11a5c6bbb9b2e6c9168b7904566"
+PINNED_BUNDLE_URL = (
+    "https://github.com/yakovkazinets/VibeSec/releases/download/"
+    "v1.1.1/vibesec-consumer-bundle.zip"
+)
 
 
 def load_bootstrap():
@@ -30,14 +37,14 @@ class SkillRuntimeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.runtime_source_temporary = tempfile.TemporaryDirectory()
-        runtime_source = Path(cls.runtime_source_temporary.name) / "v1.1.0-runtime"
+        runtime_source = Path(cls.runtime_source_temporary.name) / "v1.1.1-runtime"
         shutil.copytree(
             ROOT,
             runtime_source,
             ignore=shutil.ignore_patterns(".git", ".tools", "__pycache__", "results"),
         )
-        (runtime_source / "VERSION").write_text("1.1.0-dev\n", encoding="utf-8")
-        cls.v1_1_0_bundle = build_bundle_bytes(runtime_source)[0]
+        (runtime_source / "VERSION").write_text("1.1.1\n", encoding="utf-8")
+        cls.v1_1_1_bundle = build_bundle_bytes(runtime_source)[0]
 
     @classmethod
     def tearDownClass(cls):
@@ -50,16 +57,29 @@ class SkillRuntimeTests(unittest.TestCase):
         self.base = Path(self.temporary.name)
         self.cache = self.base / "cache"
         self.bundle = self.base / "consumer.zip"
-        self.bundle.write_bytes(self.v1_1_0_bundle)
+        self.bundle.write_bytes(self.v1_1_1_bundle)
         self.digest = hashlib.sha256(self.bundle.read_bytes()).hexdigest()
-        self.metadata = {
-            "schema_version": 1,
-            "release_version": "1.1.0",
-            "development_version": "1.1.0-dev",
-            "bundle_name": "vibesec-consumer-bundle.zip",
-            "bundle_url": "https://github.com/yakovkazinets/VibeSec/releases/download/v1.1.0/vibesec-consumer-bundle.zip",
-            "bundle_sha256": "0" * 64,
-        }
+        self.metadata = dict(self.bootstrap.TRUSTED_RUNTIME_METADATA)
+
+    def rewrite_bundle(
+        self, name: str, *, data_updates: dict[str, bytes] | None = None,
+        mode_updates: dict[str, int] | None = None,
+    ) -> Path:
+        destination = self.base / name
+        with zipfile.ZipFile(self.bundle) as source, zipfile.ZipFile(destination, "w") as output:
+            for info in source.infolist():
+                copied = copy.copy(info)
+                if mode_updates and info.filename in mode_updates:
+                    copied.external_attr = (
+                        stat.S_IFREG | mode_updates[info.filename]
+                    ) << 16
+                data = (
+                    data_updates[info.filename]
+                    if data_updates and info.filename in data_updates
+                    else source.read(info)
+                )
+                output.writestr(copied, data)
+        return destination
 
     def test_local_override_installs_verifies_and_reuses_complete_runtime(self):
         executable, reused = self.bootstrap._install_runtime(
@@ -102,7 +122,7 @@ class SkillRuntimeTests(unittest.TestCase):
 
     def test_runtime_version_mismatch_fails_closed(self):
         wrong = dict(self.metadata)
-        wrong["development_version"] = "1.1.1-dev"
+        wrong["development_version"] = "1.1.0-dev"
         with self.assertRaisesRegex(self.bootstrap.BootstrapError, "version"):
             self.bootstrap._install_runtime(
                 metadata=wrong, cache=self.cache, local_bundle=self.bundle,
@@ -134,15 +154,134 @@ class SkillRuntimeTests(unittest.TestCase):
                     info.external_attr = mode << 16
                     archive.writestr(info, b"data")
                 with self.assertRaises(self.bootstrap.BootstrapError):
-                    self.bootstrap._verified_entries(path, "1.1.0-dev")
+                    self.bootstrap._verified_entries(path, "1.1.1")
 
-    def test_skill_metadata_separates_release_identity_from_stable_repository_slug(self):
+    def test_skill_metadata_exactly_pins_verified_v1_1_1_release(self):
         metadata = json.loads(
             (ROOT / "skills/appsec-guardian/runtime.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(metadata["release_version"], "1.1.0")
-        self.assertIn("yakovkazinets/VibeSec/releases/download/v1.1.0/", metadata["bundle_url"])
-        self.assertRegex(metadata["bundle_sha256"], r"^[0-9a-f]{64}$")
+        expected = {
+            "schema_version": 1,
+            "release_version": "1.1.1",
+            "development_version": "1.1.1",
+            "bundle_name": "vibesec-consumer-bundle.zip",
+            "bundle_url": PINNED_BUNDLE_URL,
+            "bundle_sha256": PINNED_BUNDLE_SHA256,
+        }
+        self.assertEqual(metadata, expected)
+        self.assertEqual(self.bootstrap.TRUSTED_RUNTIME_METADATA, expected)
+
+    def test_local_verified_v1_1_1_zip_matches_pin_when_available(self):
+        if not LOCAL_VERIFIED_BUNDLE.is_file():
+            self.skipTest("verified local v1.1.1 bundle is not available")
+        self.assertEqual(
+            hashlib.sha256(LOCAL_VERIFIED_BUNDLE.read_bytes()).hexdigest(),
+            PINNED_BUNDLE_SHA256,
+        )
+        entries, modes = self.bootstrap._verified_entries(
+            LOCAL_VERIFIED_BUNDLE, "1.1.1",
+        )
+        self.assertEqual(entries["VERSION"], b"1.1.1\n")
+        self.assertEqual(set(entries), set(modes))
+
+    def test_trusted_metadata_contract_rejects_v1_1_0_and_every_modified_field(self):
+        valid_path = self.base / "runtime-valid.json"
+        valid_path.write_text(
+            json.dumps(self.metadata, sort_keys=True) + "\n", encoding="utf-8",
+        )
+        with patch.object(self.bootstrap, "RUNTIME_METADATA", valid_path):
+            self.assertEqual(self.bootstrap._load_metadata(), self.metadata)
+
+        v1_1_0 = {
+            "schema_version": 1,
+            "release_version": "1.1.0",
+            "development_version": "1.1.0-dev",
+            "bundle_name": "vibesec-consumer-bundle.zip",
+            "bundle_url": (
+                "https://github.com/yakovkazinets/VibeSec/releases/download/"
+                "v1.1.0/vibesec-consumer-bundle.zip"
+            ),
+            "bundle_sha256": "818381f65c3c2301165deef76164ac77b148550368c590a7b8624bc89cd35c13",
+        }
+        mutations = {
+            "v1.1.0 metadata": v1_1_0,
+            "schema": {**self.metadata, "schema_version": 2},
+            "release version": {**self.metadata, "release_version": "1.1.2"},
+            "development version": {**self.metadata, "development_version": "1.1.1-dev"},
+            "filename": {**self.metadata, "bundle_name": "renamed.zip"},
+            "URL": {**self.metadata, "bundle_url": PINNED_BUNDLE_URL + "?alternate=1"},
+            "checksum": {**self.metadata, "bundle_sha256": "f" * 64},
+            "extra field": {**self.metadata, "source_commit": "0" * 40},
+        }
+        for label, payload in mutations.items():
+            with self.subTest(label=label):
+                path = self.base / f"runtime-invalid-{len(label)}.json"
+                path.write_text(
+                    json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8",
+                )
+                with patch.object(self.bootstrap, "RUNTIME_METADATA", path):
+                    with self.assertRaisesRegex(
+                        self.bootstrap.BootstrapError, "reviewed v1.1.1 release",
+                    ):
+                        self.bootstrap._load_metadata()
+
+    def test_internal_manifest_version_inventory_modes_and_checksums_remain_enforced(self):
+        malformed_manifest = self.rewrite_bundle(
+            "malformed-manifest.zip",
+            data_updates={"vibesec-bundle-manifest.json": b"{"},
+        )
+
+        with zipfile.ZipFile(self.bundle) as archive:
+            manifest = json.loads(archive.read("vibesec-bundle-manifest.json"))
+        wrong_version = b"1.1.0\n"
+        for record in manifest["files"]:
+            if record["path"] == "VERSION":
+                record["size"] = len(wrong_version)
+                record["sha256"] = hashlib.sha256(wrong_version).hexdigest()
+        version_mismatch = self.rewrite_bundle(
+            "version-mismatch.zip",
+            data_updates={
+                "VERSION": wrong_version,
+                "vibesec-bundle-manifest.json": (
+                    json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+                ).encode(),
+            },
+        )
+
+        with zipfile.ZipFile(self.bundle) as archive:
+            incomplete_manifest = json.loads(
+                archive.read("vibesec-bundle-manifest.json")
+            )
+        incomplete_manifest["files"] = [
+            record for record in incomplete_manifest["files"]
+            if record["path"] != "README.md"
+        ]
+        incomplete_inventory = self.rewrite_bundle(
+            "incomplete-inventory.zip",
+            data_updates={
+                "vibesec-bundle-manifest.json": (
+                    json.dumps(incomplete_manifest, indent=2, sort_keys=True) + "\n"
+                ).encode(),
+            },
+        )
+        wrong_mode = self.rewrite_bundle(
+            "wrong-mode.zip", mode_updates={"README.md": 0o600},
+        )
+        wrong_checksum = self.rewrite_bundle(
+            "wrong-checksum.zip", data_updates={"README.md": b"modified\n"},
+        )
+
+        cases = (
+            ("manifest", malformed_manifest, "manifest"),
+            ("VERSION", version_mismatch, "VERSION"),
+            ("inventory", incomplete_inventory, "inventory"),
+            ("mode", wrong_mode, "verification"),
+            ("checksum", wrong_checksum, "verification"),
+        )
+        for label, path, error in cases:
+            with self.subTest(label=label):
+                with self.assertRaisesRegex(self.bootstrap.BootstrapError, error):
+                    self.bootstrap._verified_entries(path, "1.1.1")
 
     def test_skill_routes_missing_runtime_to_real_scan_without_source_only_evidence(self):
         skill = (ROOT / "skills/appsec-guardian/SKILL.md").read_text(encoding="utf-8")
